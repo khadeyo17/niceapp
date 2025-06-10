@@ -1,1 +1,44 @@
 
+
+platform :ios, '14.0'
+
+# CocoaPods analytics sends network stats. Uncomment if you want to disable.
+# ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  raise "Flutter SDK not found. Define location with flutter_root." unless File.exist?(generated_xcode_build_settings_path)
+
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in Generated.xcconfig"
+end
+
+flutter_application_path = File.expand_path('..', __FILE__)
+
+load File.join(flutter_root, 'packages', 'flutter_tools', 'bin', 'podhelper.rb')
+
+target 'Runner' do
+  use_frameworks!
+  use_modular_headers!
+
+  flutter_install_all_ios_pods(flutter_application_path)
+
+  # Add any additional pods here if needed
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
+    end
+  end
+end
