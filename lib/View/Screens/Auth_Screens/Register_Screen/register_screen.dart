@@ -13,218 +13,848 @@ class RegisterScreen extends ConsumerStatefulWidget {
 
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-
   final phoneController = TextEditingController();
-  final zipCodeController = TextEditingController(text: '+254');
-
-  String otpMethod = "sms"; // default
+  String selectedCode = '+254';
+  String selectedMethod = 'sms';
   bool isLoading = false;
-  String selectedCountry = 'Kenya';
 
-  final Map<String, String> countryCodes = {
-    'Kenya': '+254',
-    'Uganda': '+256',
-    'Tanzania': '+255',
-  };
+  final List<String> countryCodes = ['+254', '+256', '+255'];
+  final List<String> otpMethods = ['sms', 'whatsapp'];
+
+  String? validatePhone(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Phone number is required';
+    }
+    final digitsOnly = value.replaceAll(RegExp(r'\D'), '');
+    if (digitsOnly.length != 9) {
+      return 'Phone number must be 9 digits (e.g. 712345678)';
+    }
+    if (!RegExp(r'^\d+$').hasMatch(digitsOnly)) {
+      return 'Phone number must contain only digits';
+    }
+    return null;
+  }
 
   Future<void> sendOTP() async {
     if (_formKey.currentState!.validate()) {
       setState(() => isLoading = true);
 
-      String cleanedPhone = phoneController.text;
-      if (cleanedPhone.startsWith("0")) {
+      String cleanedPhone = phoneController.text.trim().replaceAll(
+        RegExp(r'\D'),
+        '',
+      );
+      if (cleanedPhone.startsWith('0')) {
         cleanedPhone = cleanedPhone.substring(1);
       }
-      final fullPhone = "${zipCodeController.text}$cleanedPhone";
 
-      if (otpMethod == "whatsapp") {
+      String fullPhone = '$selectedCode$cleanedPhone';
+
+      if (selectedMethod == 'whatsapp') {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("WhatsApp OTP not supported yet. Defaulting to SMS."),
           ),
         );
+        setState(() => selectedMethod = 'sms');
       }
 
-      final verificationId = await ref
-          .read(globalAuthRepoProvider)
-          .startPhoneVerification(
-            phone: fullPhone,
-            method: "sms",
-            context: context,
+      try {
+        final verificationId = await ref
+            .read(globalAuthRepoProvider)
+            .startPhoneVerification(
+              phone: fullPhone,
+              method: selectedMethod,
+              context: context,
+            );
+
+        setState(() => isLoading = false);
+
+        if (verificationId != null && mounted) {
+          context.goNamed(
+            Routes().otp,
+            extra: {'verificationId': verificationId, 'phoneNumber': fullPhone},
           );
-
-      setState(() => isLoading = false);
-
-      if (verificationId != null && mounted) {
-        context.goNamed(
-          Routes().otp,
-          extra: {'verificationId': verificationId, 'phoneNumber': fullPhone},
-        );
+        }
+      } catch (e) {
+        setState(() => isLoading = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final borderRadius = BorderRadius.circular(12);
+    final border = OutlineInputBorder(borderRadius: borderRadius);
+
     return Scaffold(
-      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text(
-          "Register",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text("Register"),
         centerTitle: true,
-        backgroundColor: Colors.blueAccent,
+        backgroundColor: Colors.white,
+        //elevation: 1,
+        foregroundColor: Colors.black,
       ),
+      backgroundColor: Colors.white,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              const Icon(
-                Icons.phone_android,
-                size: 100,
-                color: Colors.blueAccent,
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                "Enter your phone number to get started",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 30),
-
-              // Country Dropdown
-              DropdownButtonFormField<String>(
-                value: selectedCountry,
-                decoration: InputDecoration(
-                  labelText: 'Country',
-                  prefixIcon: const Icon(Icons.public),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          color: Colors.white,
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                const SizedBox(height: 24),
+                const Icon(
+                  Icons.phone_android_outlined,
+                  size: 60,
+                  color: Colors.grey,
                 ),
-                items:
-                    countryCodes.keys.map((country) {
-                      return DropdownMenuItem<String>(
-                        value: country,
-                        child: Text(country),
-                      );
-                    }).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      selectedCountry = value;
-                      zipCodeController.text = countryCodes[value]!;
-                    });
-                  }
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Phone Input
-              Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: TextFormField(
-                      controller: zipCodeController,
-                      readOnly: true,
-                      decoration: InputDecoration(
-                        labelText: 'Code',
-                        prefixIcon: const Icon(Icons.flag),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      validator:
-                          (val) =>
-                              val == null || val.isEmpty ? 'Required' : null,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 5,
-                    child: TextFormField(
-                      controller: phoneController,
-                      keyboardType: TextInputType.phone,
-                      decoration: InputDecoration(
-                        labelText: 'Phone Number',
-                        prefixIcon: const Icon(Icons.phone),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      validator:
-                          (val) =>
-                              val == null || val.length < 9
-                                  ? 'Enter valid number'
-                                  : null,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // OTP Method
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Send OTP via:",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  RadioListTile<String>(
-                    value: "sms",
-                    groupValue: otpMethod,
-                    title: const Text("SMS"),
-                    onChanged: (val) => setState(() => otpMethod = val!),
-                  ),
-                  RadioListTile<String>(
-                    value: "whatsapp",
-                    groupValue: otpMethod,
-                    title: const Text("WhatsApp"),
-                    onChanged: (val) => setState(() => otpMethod = val!),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 20),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.send),
-                label:
-                    isLoading
-                        ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
+                const SizedBox(height: 16),
+                const Text(
+                  "Enter your phone number",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: DropdownButtonFormField<String>(
+                        value: selectedCode,
+                        decoration: InputDecoration(
+                          labelText: 'Code',
+                          border: border,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
                           ),
-                        )
-                        : const Text("Send OTP"),
-                onPressed: isLoading ? null : sendOTP,
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  backgroundColor: Colors.blueAccent,
+                        ),
+                        items:
+                            countryCodes
+                                .map(
+                                  (code) => DropdownMenuItem(
+                                    value: code,
+                                    child: Text(code),
+                                  ),
+                                )
+                                .toList(),
+                        onChanged: (val) => setState(() => selectedCode = val!),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 5,
+                      child: TextFormField(
+                        controller: phoneController,
+                        keyboardType: TextInputType.phone,
+                        decoration: InputDecoration(
+                          labelText: 'Phone Number',
+                          border: border,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                          ),
+                        ),
+                        validator: validatePhone,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () => context.goNamed(Routes().login),
-                child: const Text("Already have an account? Log In"),
-              ),
-            ],
+                const SizedBox(height: 20),
+                DropdownButtonFormField<String>(
+                  value: selectedMethod,
+                  decoration: InputDecoration(
+                    labelText: 'OTP Method',
+                    border: border,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                  ),
+                  items:
+                      otpMethods
+                          .map(
+                            (method) => DropdownMenuItem(
+                              value: method,
+                              child: Text(method.toUpperCase()),
+                            ),
+                          )
+                          .toList(),
+                  onChanged: (val) => setState(() => selectedMethod = val!),
+                ),
+                const SizedBox(height: 30),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: isLoading ? null : sendOTP,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[800],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: borderRadius),
+                    ),
+                    child:
+                        isLoading
+                            ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                            : const Text(
+                              "Send OTP",
+                              style: TextStyle(fontSize: 16),
+                            ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 }
+
+
+// import 'package:flutter/material.dart';
+// import 'package:flutter_riverpod/flutter_riverpod.dart';
+// import 'package:go_router/go_router.dart';
+// import 'package:niceapp/Container/Repositories/auth_repo.dart';
+// import 'package:niceapp/View/Routes/routes.dart';
+
+// class RegisterScreen extends ConsumerStatefulWidget {
+//   const RegisterScreen({super.key});
+
+//   @override
+//   ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
+// }
+
+// class _RegisterScreenState extends ConsumerState<RegisterScreen> {
+//   final _formKey = GlobalKey<FormState>();
+//   final phoneController = TextEditingController();
+//   String selectedCode = '+254';
+//   String selectedMethod = 'sms';
+//   bool isLoading = false;
+
+//   final List<String> countryCodes = ['+254', '+256', '+255'];
+//   final List<String> otpMethods = ['sms', 'whatsapp'];
+
+//   String? validatePhone(String? value) {
+//     if (value == null || value.isEmpty) {
+//       return 'Phone number is required';
+//     }
+
+//     final digitsOnly = value.replaceAll(RegExp(r'\D'), '');
+
+//     if (digitsOnly.length != 9) {
+//       return 'Phone number must be 9 digits (e.g. 712345678)';
+//     }
+
+//     if (!RegExp(r'^\d+$').hasMatch(digitsOnly)) {
+//       return 'Phone number must contain only digits';
+//     }
+
+//     return null;
+//   }
+
+//   Future<void> sendOTP() async {
+//     if (_formKey.currentState!.validate()) {
+//       setState(() => isLoading = true);
+
+//       String cleanedPhone = phoneController.text.trim().replaceAll(
+//         RegExp(r'\D'),
+//         '',
+//       );
+//       if (cleanedPhone.startsWith('0')) {
+//         cleanedPhone = cleanedPhone.substring(1);
+//       }
+
+//       final fullPhone = '$selectedCode$cleanedPhone';
+
+//       if (selectedMethod == 'whatsapp' &&
+//           !RegExp(r'^\+\d{11,13}$').hasMatch(fullPhone)) {
+//         setState(() => isLoading = false);
+//         ScaffoldMessenger.of(context).showSnackBar(
+//           const SnackBar(content: Text('Invalid WhatsApp number format')),
+//         );
+//         return;
+//       }
+
+//       try {
+//         final verificationId = await ref
+//             .read(globalAuthRepoProvider)
+//             .startPhoneVerification(
+//               phone: fullPhone,
+//               method: selectedMethod,
+//               context: context,
+//             );
+
+//         setState(() => isLoading = false);
+
+//         if (verificationId != null && mounted) {
+//           context.goNamed(
+//             Routes().otp,
+//             extra: {'verificationId': verificationId, 'phoneNumber': fullPhone},
+//           );
+//         }
+//       } catch (e) {
+//         setState(() => isLoading = false);
+//         ScaffoldMessenger.of(
+//           context,
+//         ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+//       }
+//     }
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     final borderRadius = BorderRadius.circular(12);
+//     final border = OutlineInputBorder(borderRadius: borderRadius);
+
+//     return Scaffold(
+//       appBar: AppBar(
+//         title: const Text("Register"),
+//         centerTitle: true,
+//         backgroundColor: Colors.white,
+//         elevation: 1,
+//         foregroundColor: Colors.black,
+//       ),
+//       backgroundColor: Colors.grey[100],
+//       body: Center(
+//         child: Card(
+//           margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+//           elevation: 2,
+//           shape: RoundedRectangleBorder(borderRadius: borderRadius),
+//           child: Padding(
+//             padding: const EdgeInsets.all(24.0),
+//             child: Form(
+//               key: _formKey,
+//               child: Column(
+//                 mainAxisSize: MainAxisSize.min,
+//                 children: [
+//                   const Icon(
+//                     Icons.phone_android_outlined,
+//                     size: 60,
+//                     color: Colors.grey,
+//                   ),
+//                   const SizedBox(height: 16),
+//                   const Text(
+//                     "Enter your phone number",
+//                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+//                   ),
+//                   const SizedBox(height: 24),
+//                   Row(
+//                     children: [
+//                       Expanded(
+//                         flex: 2,
+//                         child: DropdownButtonFormField<String>(
+//                           value: selectedCode,
+//                           decoration: InputDecoration(
+//                             labelText: 'Code',
+//                             border: border,
+//                             contentPadding: const EdgeInsets.symmetric(
+//                               horizontal: 12,
+//                             ),
+//                           ),
+//                           items:
+//                               countryCodes
+//                                   .map(
+//                                     (code) => DropdownMenuItem(
+//                                       value: code,
+//                                       child: Text(code),
+//                                     ),
+//                                   )
+//                                   .toList(),
+//                           onChanged:
+//                               (val) => setState(() => selectedCode = val!),
+//                         ),
+//                       ),
+//                       const SizedBox(width: 12),
+//                       Expanded(
+//                         flex: 5,
+//                         child: TextFormField(
+//                           controller: phoneController,
+//                           keyboardType: TextInputType.phone,
+//                           decoration: InputDecoration(
+//                             labelText: 'Phone Number',
+//                             border: border,
+//                             contentPadding: const EdgeInsets.symmetric(
+//                               horizontal: 12,
+//                             ),
+//                           ),
+//                           validator: validatePhone,
+//                         ),
+//                       ),
+//                     ],
+//                   ),
+//                   const SizedBox(height: 20),
+//                   DropdownButtonFormField<String>(
+//                     value: selectedMethod,
+//                     decoration: InputDecoration(
+//                       labelText: 'OTP Method',
+//                       border: border,
+//                       contentPadding: const EdgeInsets.symmetric(
+//                         horizontal: 12,
+//                       ),
+//                     ),
+//                     items:
+//                         otpMethods
+//                             .map(
+//                               (method) => DropdownMenuItem(
+//                                 value: method,
+//                                 child: Text(method.toUpperCase()),
+//                               ),
+//                             )
+//                             .toList(),
+//                     onChanged: (val) => setState(() => selectedMethod = val!),
+//                   ),
+//                   const SizedBox(height: 30),
+//                   SizedBox(
+//                     width: double.infinity,
+//                     child: ElevatedButton(
+//                       onPressed: isLoading ? null : sendOTP,
+//                       style: ElevatedButton.styleFrom(
+//                         backgroundColor: Colors.grey[800],
+//                         foregroundColor: Colors.white,
+//                         padding: const EdgeInsets.symmetric(vertical: 14),
+//                         shape: RoundedRectangleBorder(
+//                           borderRadius: borderRadius,
+//                         ),
+//                       ),
+//                       child:
+//                           isLoading
+//                               ? const SizedBox(
+//                                 width: 20,
+//                                 height: 20,
+//                                 child: CircularProgressIndicator(
+//                                   strokeWidth: 2,
+//                                   color: Colors.white,
+//                                 ),
+//                               )
+//                               : const Text("Send OTP"),
+//                     ),
+//                   ),
+//                 ],
+//               ),
+//             ),
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+// }
+
+
+
+
+// import 'package:flutter/material.dart';
+// import 'package:flutter_riverpod/flutter_riverpod.dart';
+// import 'package:go_router/go_router.dart';
+// import 'package:niceapp/Container/Repositories/auth_repo.dart';
+// import 'package:niceapp/View/Routes/routes.dart';
+
+// class RegisterScreen extends ConsumerStatefulWidget {
+//   const RegisterScreen({super.key});
+
+//   @override
+//   ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
+// }
+
+// class _RegisterScreenState extends ConsumerState<RegisterScreen> {
+//   final _formKey = GlobalKey<FormState>();
+//   final phoneController = TextEditingController();
+//   String selectedCode = '+254';
+//   String selectedMethod = 'sms';
+//   bool isLoading = false;
+
+//   final List<String> countryCodes = ['+254', '+256', '+255'];
+//   final List<String> otpMethods = ['sms', 'whatsapp'];
+
+//   Future<void> sendOTP() async {
+//     if (_formKey.currentState!.validate()) {
+//       setState(() => isLoading = true);
+
+//       String cleanedPhone = phoneController.text.trim();
+//       if (cleanedPhone.startsWith('0')) {
+//         cleanedPhone = cleanedPhone.substring(1);
+//       }
+
+//       final fullPhone = '$selectedCode$cleanedPhone';
+
+//       final verificationId = await ref
+//           .read(globalAuthRepoProvider)
+//           .startPhoneVerification(
+//             phone: fullPhone,
+//             method: selectedMethod,
+//             context: context,
+//           );
+
+//       setState(() => isLoading = false);
+
+//       if (verificationId != null && mounted) {
+//         context.goNamed(
+//           Routes().otp,
+//           extra: {'verificationId': verificationId, 'phoneNumber': fullPhone},
+//         );
+//       }
+//     }
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       backgroundColor: Colors.grey[100],
+//       appBar: AppBar(
+//         title: const Text("Login with Phone"),
+//         centerTitle: true,
+//         backgroundColor: Colors.blueAccent,
+//       ),
+//       body: Padding(
+//         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32),
+//         child: Form(
+//           key: _formKey,
+//           child: Column(
+//             children: [
+//               const Icon(
+//                 Icons.phone_android,
+//                 size: 80,
+//                 color: Colors.blueAccent,
+//               ),
+//               const SizedBox(height: 24),
+//               const Text(
+//                 "Enter your phone number",
+//                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+//               ),
+//               const SizedBox(height: 32),
+//               Row(
+//                 children: [
+//                   Expanded(
+//                     flex: 2,
+//                     child: DropdownButtonFormField<String>(
+//                       value: selectedCode,
+//                       decoration: InputDecoration(
+//                         labelText: 'Code',
+//                         border: OutlineInputBorder(
+//                           borderRadius: BorderRadius.circular(12),
+//                         ),
+//                       ),
+//                       items:
+//                           countryCodes.map((code) {
+//                             return DropdownMenuItem(
+//                               value: code,
+//                               child: Text(code),
+//                             );
+//                           }).toList(),
+//                       onChanged: (val) => setState(() => selectedCode = val!),
+//                     ),
+//                   ),
+//                   const SizedBox(width: 12),
+//                   Expanded(
+//                     flex: 5,
+//                     child: TextFormField(
+//                       controller: phoneController,
+//                       keyboardType: TextInputType.phone,
+//                       decoration: InputDecoration(
+//                         labelText: 'Phone Number',
+//                         border: OutlineInputBorder(
+//                           borderRadius: BorderRadius.circular(12),
+//                         ),
+//                       ),
+//                       validator:
+//                           (val) =>
+//                               val == null || val.length < 9
+//                                   ? 'Enter valid number'
+//                                   : null,
+//                     ),
+//                   ),
+//                 ],
+//               ),
+//               const SizedBox(height: 24),
+//               DropdownButtonFormField<String>(
+//                 value: selectedMethod,
+//                 decoration: InputDecoration(
+//                   labelText: 'OTP Method',
+//                   border: OutlineInputBorder(
+//                     borderRadius: BorderRadius.circular(12),
+//                   ),
+//                 ),
+//                 items:
+//                     otpMethods.map((method) {
+//                       return DropdownMenuItem(
+//                         value: method,
+//                         child: Text(method.toUpperCase()),
+//                       );
+//                     }).toList(),
+//                 onChanged: (val) => setState(() => selectedMethod = val!),
+//               ),
+//               const SizedBox(height: 30),
+//               ElevatedButton(
+//                 onPressed: isLoading ? null : sendOTP,
+//                 style: ElevatedButton.styleFrom(
+//                   minimumSize: const Size(double.infinity, 48),
+//                   shape: RoundedRectangleBorder(
+//                     borderRadius: BorderRadius.circular(12),
+//                   ),
+//                   backgroundColor: Colors.blueAccent,
+//                 ),
+//                 child:
+//                     isLoading
+//                         ? const SizedBox(
+//                           width: 20,
+//                           height: 20,
+//                           child: CircularProgressIndicator(
+//                             strokeWidth: 2,
+//                             color: Colors.white,
+//                           ),
+//                         )
+//                         : const Text("Send OTP"),
+//               ),
+//             ],
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+// }
+
+
+
+// import 'package:flutter/material.dart';
+// import 'package:flutter_riverpod/flutter_riverpod.dart';
+// import 'package:go_router/go_router.dart';
+// import 'package:niceapp/Container/Repositories/auth_repo.dart';
+// import 'package:niceapp/View/Routes/routes.dart';
+
+// class RegisterScreen extends ConsumerStatefulWidget {
+//   const RegisterScreen({super.key});
+
+//   @override
+//   ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
+// }
+
+// class _RegisterScreenState extends ConsumerState<RegisterScreen> {
+//   final _formKey = GlobalKey<FormState>();
+
+//   final phoneController = TextEditingController();
+//   final zipCodeController = TextEditingController(text: '+254');
+
+//   String otpMethod = "sms"; // default
+//   bool isLoading = false;
+//   String selectedCountry = 'Kenya';
+
+//   final Map<String, String> countryCodes = {
+//     'Kenya': '+254',
+//     'Uganda': '+256',
+//     'Tanzania': '+255',
+//   };
+
+//   Future<void> sendOTP() async {
+//     if (_formKey.currentState!.validate()) {
+//       setState(() => isLoading = true);
+
+//       String cleanedPhone = phoneController.text;
+//       if (cleanedPhone.startsWith("0")) {
+//         cleanedPhone = cleanedPhone.substring(1);
+//       }
+//       final fullPhone = "${zipCodeController.text}$cleanedPhone";
+
+//       if (otpMethod == "whatsapp") {
+//         ScaffoldMessenger.of(context).showSnackBar(
+//           const SnackBar(
+//             content: Text("WhatsApp OTP not supported yet. Defaulting to SMS."),
+//           ),
+//         );
+//       }
+
+//       final verificationId = await ref
+//           .read(globalAuthRepoProvider)
+//           .startPhoneVerification(
+//             phone: fullPhone,
+//             method: "sms",
+//             context: context,
+//           );
+
+//       setState(() => isLoading = false);
+
+//       if (verificationId != null && mounted) {
+//         context.goNamed(
+//           Routes().otp,
+//           extra: {'verificationId': verificationId, 'phoneNumber': fullPhone},
+//         );
+//       }
+//     }
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       backgroundColor: Colors.grey[100],
+//       appBar: AppBar(
+//         title: const Text(
+//           "Register",
+//           style: TextStyle(fontWeight: FontWeight.bold),
+//         ),
+//         centerTitle: true,
+//         backgroundColor: Colors.blueAccent,
+//       ),
+//       body: SingleChildScrollView(
+//         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
+//         child: Form(
+//           key: _formKey,
+//           child: Column(
+//             children: [
+//               const Icon(
+//                 Icons.phone_android,
+//                 size: 100,
+//                 color: Colors.blueAccent,
+//               ),
+//               const SizedBox(height: 16),
+//               const Text(
+//                 "Enter your phone number to get started",
+//                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+//                 textAlign: TextAlign.center,
+//               ),
+//               const SizedBox(height: 30),
+
+//               // Country Dropdown
+//               DropdownButtonFormField<String>(
+//                 value: selectedCountry,
+//                 decoration: InputDecoration(
+//                   labelText: 'Country',
+//                   prefixIcon: const Icon(Icons.public),
+//                   border: OutlineInputBorder(
+//                     borderRadius: BorderRadius.circular(12),
+//                   ),
+//                 ),
+//                 items:
+//                     countryCodes.keys.map((country) {
+//                       return DropdownMenuItem<String>(
+//                         value: country,
+//                         child: Text(country),
+//                       );
+//                     }).toList(),
+//                 onChanged: (value) {
+//                   if (value != null) {
+//                     setState(() {
+//                       selectedCountry = value;
+//                       zipCodeController.text = countryCodes[value]!;
+//                     });
+//                   }
+//                 },
+//               ),
+//               const SizedBox(height: 16),
+
+//               // Phone Input
+//               Row(
+//                 children: [
+//                   Expanded(
+//                     flex: 2,
+//                     child: TextFormField(
+//                       controller: zipCodeController,
+//                       readOnly: true,
+//                       decoration: InputDecoration(
+//                         labelText: 'Code',
+//                         prefixIcon: const Icon(Icons.flag),
+//                         border: OutlineInputBorder(
+//                           borderRadius: BorderRadius.circular(12),
+//                         ),
+//                       ),
+//                       validator:
+//                           (val) =>
+//                               val == null || val.isEmpty ? 'Required' : null,
+//                     ),
+//                   ),
+//                   const SizedBox(width: 12),
+//                   Expanded(
+//                     flex: 5,
+//                     child: TextFormField(
+//                       controller: phoneController,
+//                       keyboardType: TextInputType.phone,
+//                       decoration: InputDecoration(
+//                         labelText: 'Phone Number',
+//                         prefixIcon: const Icon(Icons.phone),
+//                         border: OutlineInputBorder(
+//                           borderRadius: BorderRadius.circular(12),
+//                         ),
+//                       ),
+//                       validator:
+//                           (val) =>
+//                               val == null || val.length < 9
+//                                   ? 'Enter valid number'
+//                                   : null,
+//                     ),
+//                   ),
+//                 ],
+//               ),
+//               const SizedBox(height: 20),
+
+//               // OTP Method
+//               Column(
+//                 crossAxisAlignment: CrossAxisAlignment.start,
+//                 children: [
+//                   const Text(
+//                     "Send OTP via:",
+//                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+//                   ),
+//                   RadioListTile<String>(
+//                     value: "sms",
+//                     groupValue: otpMethod,
+//                     title: const Text("SMS"),
+//                     onChanged: (val) => setState(() => otpMethod = val!),
+//                   ),
+//                   RadioListTile<String>(
+//                     value: "whatsapp",
+//                     groupValue: otpMethod,
+//                     title: const Text("WhatsApp"),
+//                     onChanged: (val) => setState(() => otpMethod = val!),
+//                   ),
+//                 ],
+//               ),
+
+//               const SizedBox(height: 20),
+//               ElevatedButton.icon(
+//                 icon: const Icon(Icons.send),
+//                 label:
+//                     isLoading
+//                         ? const SizedBox(
+//                           width: 18,
+//                           height: 18,
+//                           child: CircularProgressIndicator(
+//                             strokeWidth: 2,
+//                             color: Colors.white,
+//                           ),
+//                         )
+//                         : const Text("Send OTP"),
+//                 onPressed: isLoading ? null : sendOTP,
+//                 style: ElevatedButton.styleFrom(
+//                   minimumSize: const Size(double.infinity, 48),
+//                   shape: RoundedRectangleBorder(
+//                     borderRadius: BorderRadius.circular(12),
+//                   ),
+//                   backgroundColor: Colors.blueAccent,
+//                 ),
+//               ),
+//               const SizedBox(height: 16),
+//               TextButton(
+//                 onPressed: () => context.goNamed(Routes().login),
+//                 child: const Text("Already have an account? Log In"),
+//               ),
+//             ],
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+// }
+
+
+
+
+
+//old
 
 // import 'package:flutter/material.dart';
 // import 'package:flutter_riverpod/flutter_riverpod.dart';

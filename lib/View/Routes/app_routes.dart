@@ -10,6 +10,8 @@ import 'package:niceapp/View/Screens/Auth_Screens/Register_Screen/register_scree
 //import 'package:niceapp/View/Screens/Main_Screens/Home_Screen/dashboard_screen';
 //import 'package:niceapp/View/Routes/routes.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Home_Screen/main_layout.dart';
+import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/driver_confirmation_screen.dart';
+import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/driver_provider.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/where_to_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/Splash_Screen/splash_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/break_down.dart';
@@ -122,6 +124,22 @@ final GoRouter router = GoRouter(
       },
       //builder: (context, state) => RegisterScreen(),
     ),
+    // GoRoute(
+    //   path: '/driverConfirmation',
+    //   name: 'driverConfirmation',
+    //   builder: (BuildContext context, GoRouterState state) {
+    //     final driver = state.extra as Driver;
+    //     return DriverConfirmationScreen(
+    //       driver: driver,
+    //       onConfirm: () {
+    //         // TODO: Define what should happen on confirm
+    //         print("Ride confirmed");
+    //       },
+    //     );
+    //   },
+    // ),
+
+    ///driverConfirmation
 
     // // Auth Routes
     //   GoRoute(

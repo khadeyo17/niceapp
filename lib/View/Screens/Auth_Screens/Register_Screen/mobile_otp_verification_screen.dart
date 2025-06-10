@@ -171,68 +171,184 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
 
   @override
   Widget build(BuildContext context) {
+    final height = MediaQuery.of(context).size.height;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Verify OTP"),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.goNamed(Routes().register),
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text("Enter the 6-digit code sent to ${widget.phoneNumber}."),
-            const SizedBox(height: 20),
-
-            // PinFieldAutoFill(
-            //   codeLength: 6,
-            //   decoration: UnderlineDecoration(
-            //     textStyle: const TextStyle(fontSize: 20, color: Colors.black),
-            //     colorBuilder: FixedColorBuilder(Colors.blue),
-            //   ),
-            //   currentCode: otpCode,
-            //   onCodeChanged: (code) {
-            //     if (code != null && code.length == 6) {
-            //       setState(() => otpCode = code);
-            //       verifyOTP();
-            //     }
-            //   },
-            // ),
-            PinFieldAutoFill(
-              codeLength: 6,
-              decoration: BoxLooseDecoration(
-                gapSpace: 10,
-                strokeWidth: 2,
-                textStyle: const TextStyle(fontSize: 20, color: Colors.black),
-                bgColorBuilder: FixedColorBuilder(Colors.grey.shade200),
-                strokeColorBuilder: FixedColorBuilder(Colors.blue),
-                radius: const Radius.circular(8),
+      backgroundColor: Colors.white, //backgroundColor: Colors.grey[100]
+      body: Stack(
+        children: [
+          // White Panel covering fullscreen
+          Container(
+            height: height,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(30),
               ),
-              currentCode: otpCode,
-              onCodeChanged: (code) {
-                if (code != null && code.length == 6) {
-                  setState(() => otpCode = code);
-                  verifyOTP();
-                }
-              },
             ),
-
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: isLoading ? null : verifyOTP,
-              child:
-                  isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text("Verify"),
+            margin: const EdgeInsets.only(top: 120),
+          ),
+          // AppBar-style back and title
+          SafeArea(
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.grey),
+              onPressed: () => context.goNamed(Routes().register),
             ),
-          ],
-        ),
+          ),
+          // Main Content
+          Align(
+            alignment: Alignment.center,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 120),
+                  Text(
+                    "Verify OTP",
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    "Enter the 6-digit code sent to",
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.phoneNumber,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.blue,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  PinFieldAutoFill(
+                    codeLength: 6,
+                    decoration: BoxLooseDecoration(
+                      gapSpace: 10,
+                      strokeWidth: 2,
+                      textStyle: const TextStyle(
+                        fontSize: 20,
+                        color: Colors.black,
+                      ),
+                      bgColorBuilder: FixedColorBuilder(Colors.grey.shade200),
+                      strokeColorBuilder: FixedColorBuilder(Colors.blue),
+                      radius: const Radius.circular(8),
+                    ),
+                    currentCode: otpCode,
+                    onCodeChanged: (code) {
+                      if (code != null && code.length == 6) {
+                        setState(() => otpCode = code);
+                        verifyOTP();
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: isLoading ? null : verifyOTP,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 40,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child:
+                        isLoading
+                            ? const CircularProgressIndicator(
+                              color: Colors.white,
+                            )
+                            : const Text("Verify"),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () {
+                      // Optionally re-send OTP logic here
+                    },
+                    child: const Text(
+                      "Send OTP Again",
+                      style: TextStyle(color: Colors.blue),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
+
+  // @override
+  // Widget build(BuildContext context) {
+  //   return Scaffold(
+  //     appBar: AppBar(
+  //       title: const Text("Verify OTP"),
+  //       leading: IconButton(
+  //         icon: const Icon(Icons.arrow_back),
+  //         onPressed: () => context.goNamed(Routes().register),
+  //       ),
+  //     ),
+  //     body: Padding(
+  //       padding: const EdgeInsets.all(20),
+  //       child: Column(
+  //         mainAxisAlignment: MainAxisAlignment.center,
+  //         children: [
+  //           Text("Enter the 6-digit code sent to ${widget.phoneNumber}."),
+  //           const SizedBox(height: 20),
+
+  //           // PinFieldAutoFill(
+  //           //   codeLength: 6,
+  //           //   decoration: UnderlineDecoration(
+  //           //     textStyle: const TextStyle(fontSize: 20, color: Colors.black),
+  //           //     colorBuilder: FixedColorBuilder(Colors.blue),
+  //           //   ),
+  //           //   currentCode: otpCode,
+  //           //   onCodeChanged: (code) {
+  //           //     if (code != null && code.length == 6) {
+  //           //       setState(() => otpCode = code);
+  //           //       verifyOTP();
+  //           //     }
+  //           //   },
+  //           // ),
+  //           PinFieldAutoFill(
+  //             codeLength: 6,
+  //             decoration: BoxLooseDecoration(
+  //               gapSpace: 10,
+  //               strokeWidth: 2,
+  //               textStyle: const TextStyle(fontSize: 20, color: Colors.black),
+  //               bgColorBuilder: FixedColorBuilder(Colors.grey.shade200),
+  //               strokeColorBuilder: FixedColorBuilder(Colors.blue),
+  //               radius: const Radius.circular(8),
+  //             ),
+  //             currentCode: otpCode,
+  //             onCodeChanged: (code) {
+  //               if (code != null && code.length == 6) {
+  //                 setState(() => otpCode = code);
+  //                 verifyOTP();
+  //               }
+  //             },
+  //           ),
+
+  //           const SizedBox(height: 20),
+  //           ElevatedButton(
+  //             onPressed: isLoading ? null : verifyOTP,
+  //             child:
+  //                 isLoading
+  //                     ? const CircularProgressIndicator(color: Colors.white)
+  //                     : const Text("Verify"),
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 }
 // import 'dart:async';
 // import 'package:cloud_firestore/cloud_firestore.dart';

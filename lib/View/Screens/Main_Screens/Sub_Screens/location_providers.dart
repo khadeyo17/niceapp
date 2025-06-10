@@ -8,6 +8,8 @@ final pickupLocationProvider = StateProvider<LatLng?>((ref) => null);
 final destinationLocationProvider = StateProvider<LatLng?>((ref) => null);
 
 // Provider for Stops List
-final stopsProvider = StateProvider<List<LatLng>>((ref) => []);
+//final stopsProvider = StateProvider<List<LatLng>>((ref) => []);
 final driverPositionProvider = StateProvider<LatLng?>((ref) => null);
+final stopsProvider = StateProvider<List<Map<String, dynamic>>>((ref) => []);
+
 //final driverPositionProvider = StateProvider<ll.LatLng?>((ref) => null);

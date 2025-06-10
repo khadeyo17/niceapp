@@ -22,11 +22,19 @@ class Driver {
   final String vehicle;
   final String category;
   final LatLng location;
+  final String registrationNumber;
+  final String color;
+  final String photoUrl;
+  final String phoneNumber;
 
   Driver({
     required this.name,
     required this.vehicle,
     required this.category,
     required this.location,
+    required this.registrationNumber,
+    required this.color,
+    required this.photoUrl,
+    required this.phoneNumber,
   });
 }

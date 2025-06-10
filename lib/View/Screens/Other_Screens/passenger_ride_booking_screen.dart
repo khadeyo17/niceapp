@@ -363,9 +363,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   // Search bar over the map
                   Positioned(
-                    top: 60,
-                    left: 20,
-                    right: 20,
+                    bottom: 20,
+                    left: 10,
+                    right: 10,
                     child: GestureDetector(
                       onTap: _navigateToWhereTo,
                       child: Container(
@@ -387,8 +387,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             Text(
                               'Where to?',
                               style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.black54,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.redAccent,
                               ),
                             ),
                           ],
