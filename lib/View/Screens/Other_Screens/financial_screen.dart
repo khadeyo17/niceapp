@@ -140,7 +140,7 @@ class FinancialServicesScreen extends StatelessWidget {
         'title': 'Payments',
         'icon': Icons.payment,
         'color': Colors.blue.withOpacity(0.8),
-        'screen': const PaymentScreen(),
+        'screen': const PaymentHistoryScreen(),
       },
       {
         'title': 'Wallet',

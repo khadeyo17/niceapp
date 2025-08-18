@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sms_autofill/sms_autofill.dart';
 // import 'package:google_sign_in/google_sign_in.dart';
 // import 'package:http/http.dart' as http;
 // import 'package:niceapp/Container/utils/keys.dart';
@@ -81,8 +82,62 @@ class AuthRepo {
   //   }
   // }
 
-  /// Call this after code is sent, with the entered OTP
+  // Future<String?> startPhoneVerification({
+  //   required String phone,
+  //   required String method,
+  //   required BuildContext context,
+  // }) async {
+  //   final completer = Completer<String?>();
 
+  //   // ✅ Start listening for OTP hash so Android autofill works
+  //   await SmsAutoFill().listenForCode();
+
+  //   await FirebaseAuth.instance.verifyPhoneNumber(
+  //     phoneNumber: phone,
+  //     timeout: const Duration(seconds: 60),
+
+  //     // ✅ Auto verification (instant sign-in if OTP detected)
+  //     verificationCompleted: (PhoneAuthCredential credential) async {
+  //       try {
+  //         await FirebaseAuth.instance.signInWithCredential(credential);
+  //         ScaffoldMessenger.of(context).showSnackBar(
+  //           SnackBar(content: Text("Phone number automatically verified")),
+  //         );
+  //         completer.complete(null); // No need for manual OTP
+  //       } catch (e) {
+  //         ScaffoldMessenger.of(context).showSnackBar(
+  //           SnackBar(content: Text("Auto verification failed: $e")),
+  //         );
+  //         completer.complete(null);
+  //       }
+  //     },
+
+  //     // ❌ Failed verification
+  //     verificationFailed: (FirebaseAuthException e) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(content: Text("Verification failed: ${e.message}")),
+  //       );
+  //       completer.complete(null);
+  //     },
+
+  //     // 📩 OTP sent (show OTP screen for manual/auto entry)
+  //     codeSent: (String verificationId, int? resendToken) {
+  //       ScaffoldMessenger.of(
+  //         context,
+  //       ).showSnackBar(SnackBar(content: Text("OTP code sent to $phone")));
+  //       completer.complete(verificationId); // Pass to OTP screen
+  //     },
+
+  //     codeAutoRetrievalTimeout: (String verificationId) {
+  //       // Called when 60s auto-retrieval expires
+  //     },
+  //   );
+
+  //   return completer.future;
+  // }
+
+  /// Call this after code is sent, with the entered OTP
+  /////working well
   Future<String?> startPhoneVerification({
     required String phone,
     required String method,

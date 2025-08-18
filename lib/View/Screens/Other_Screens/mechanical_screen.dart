@@ -6,10 +6,13 @@ class MechanicalScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Mechanical Services'),
-        backgroundColor: Colors.blue,
+        centerTitle: true,
+        backgroundColor: Colors.white,
         elevation: 0,
+        foregroundColor: Colors.black,
       ),
       body: const Center(
         child: Text(

@@ -14,12 +14,13 @@ class _WalletScreenState extends State<WalletScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[200],
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('My Wallet'),
+        centerTitle: true,
         backgroundColor: Colors.white,
+        elevation: 0,
         foregroundColor: Colors.black,
-        elevation: 1,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

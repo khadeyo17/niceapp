@@ -63,12 +63,13 @@ class MainLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: child, // This ensures the current screen is displayed
       bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.blue,
+        backgroundColor: Colors.white,
         type: BottomNavigationBarType.fixed, // Prevents blurring effect
         selectedItemColor: Colors.black, // Highlight selected item
-        unselectedItemColor: Colors.white,
+        unselectedItemColor: Colors.grey[700],
         currentIndex: _getSelectedIndex(context),
         onTap: (index) {
           switch (index) {
@@ -88,7 +89,7 @@ class MainLayout extends StatelessWidget {
         },
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.home, size: 30, color: Colors.yellow),
+            icon: Icon(Icons.home, size: 30, color: Colors.grey),
 
             label: 'Home',
           ),
@@ -97,11 +98,11 @@ class MainLayout extends StatelessWidget {
           //   label: 'Services',
           // ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.event, size: 30, color: Colors.yellow),
+            icon: Icon(Icons.event, size: 30, color: Colors.grey),
             label: 'Events',
           ), // Corrected Icon
           BottomNavigationBarItem(
-            icon: Icon(Icons.person, size: 30, color: Colors.yellow),
+            icon: Icon(Icons.person, size: 30, color: Colors.grey),
             label: 'Profile',
           ),
         ],

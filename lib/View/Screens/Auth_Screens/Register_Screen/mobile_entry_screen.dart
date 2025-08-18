@@ -81,6 +81,7 @@ class _MobileEntryScreenState extends State<MobileEntryScreen> {
                   (_) => OTPVerificationScreen(
                     verificationId: verificationId,
                     phoneNumber: phone,
+                    method: _otpDeliveryMethod,
                   ),
             ),
           );

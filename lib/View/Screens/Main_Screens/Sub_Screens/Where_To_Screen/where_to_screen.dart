@@ -1,15 +1,33 @@
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
-import 'package:latlong2/latlong.dart';
+import 'package:niceapp/Container/utils/keys.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Home_Screen/home_screen.dart';
-import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/favorite_location_model.dart';
-import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/favorite_location_service.dart';
+import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/reverse_geocoding_service.dart';
+import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/schedule_ride_screen.dart';
+import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/vehicle_category.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/location_providers.dart';
+import 'package:niceapp/View/Screens/Other_Screens/ambulance_screen.dart';
+import 'package:niceapp/View/Screens/Other_Screens/cargo_transport.dart';
+import 'package:niceapp/View/Screens/Other_Screens/movers_screen.dart';
+import 'package:niceapp/View/Screens/Other_Screens/water_bower_screen.dart';
 
 class WhereToScreen extends ConsumerStatefulWidget {
-  const WhereToScreen({super.key});
+  final VehicleCategory category;
+  final bool? IsScheduled;
+  final LatLng? initialPickupLocation;
+  const WhereToScreen({
+    super.key,
+    required this.category,
+    this.initialPickupLocation,
+    this.IsScheduled,
+  });
+  //const WhereToScreen({super.key});
 
   @override
   ConsumerState<WhereToScreen> createState() => _WhereToScreenState();
@@ -27,10 +45,47 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
   @override
   void initState() {
     super.initState();
-    final pickup = ref.read(pickupLocationProvider);
-    if (pickup != null) {
-      pickupController.text = "Pickup location set";
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final existingPickup = ref.read(pickupLocationProvider);
+      if (existingPickup == null) {
+        // Try to load from Firebase Realtime Database
+        final LatLng? firebasePickup = await _fetchPickupFromFirebase();
+        if (firebasePickup != null) {
+          ref.read(pickupLocationProvider.notifier).state = firebasePickup;
+
+          final address = await ReverseGeocodingService.getAddressFromLatLng(
+            firebasePickup,
+          );
+          if (mounted) {
+            setState(() {
+              pickupController.text = address ?? "Current Location";
+            });
+          }
+        } else if (widget.initialPickupLocation != null) {
+          // fallback to initialPickupLocation if firebase null
+          ref.read(pickupLocationProvider.notifier).state =
+              widget.initialPickupLocation!;
+          final address = await ReverseGeocodingService.getAddressFromLatLng(
+            widget.initialPickupLocation!,
+          );
+          if (mounted) {
+            setState(() {
+              pickupController.text = address ?? "Current Location";
+            });
+          }
+        }
+      } else {
+        // If state already has pickup, just update the text
+        final address = await ReverseGeocodingService.getAddressFromLatLng(
+          existingPickup,
+        );
+        if (mounted) {
+          setState(() {
+            pickupController.text = address ?? "Current Location";
+          });
+        }
+      }
+    });
 
     pickupController.addListener(_onSearchChanged);
     destinationController.addListener(_onSearchChanged);
@@ -44,215 +99,237 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
   }
 
   Future<void> _fetchSuggestions(String query) async {
+    if (query.trim().isEmpty) return;
+
     setState(() {
       _isLoading = true;
       _suggestions.clear();
     });
 
+    // final apiKey = "YOUR_GOOGLE_API_KEY"; // replace with your key
     final url = Uri.parse(
-      "https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=5",
+      "https://maps.googleapis.com/maps/api/place/autocomplete/json"
+      "?input=$query"
+      "&key=$mapKey"
+      "&components=country:ke", // Optional: restrict to Kenya or your country
     );
-    final res = await http.get(url, headers: {'User-Agent': 'FlutterApp'});
 
+    final res = await http.get(url);
     if (res.statusCode == 200) {
-      final List data = json.decode(res.body);
-      setState(() {
-        _suggestions = data.cast<Map<String, dynamic>>();
-        _isLoading = false;
-      });
+      final data = json.decode(res.body);
+      if (data['status'] == 'OK') {
+        if (mounted) {
+          setState(() {
+            _suggestions = List<Map<String, dynamic>>.from(data['predictions']);
+            _isLoading = false;
+          });
+        }
+      } else {
+        // _showError(data['error_message'] ?? "No results found.");
+        setState(() => _isLoading = false);
+      }
     } else {
       _showError("Suggestion fetch failed");
+      setState(() => _isLoading = false);
     }
   }
 
-  // void _onSuggestionTap(Map<String, dynamic> place) {
-  //   final lat = double.parse(place['lat']);
-  //   final lon = double.parse(place['lon']);
-  //   final latLng = LatLng(lat, lon);
+  Future<void> _onSuggestionTap(Map<String, dynamic> place) async {
+    final placeId = place['place_id'];
 
-  //   setState(() {
-  //     if (_selectingPickup) {
-  //       ref.read(pickupLocationProvider.notifier).state = latLng;
-  //       pickupController.text = place['display_name'];
-  //     } else {
-  //       ref.read(destinationLocationProvider.notifier).state = latLng;
-  //       destinationController.text = place['display_name'];
-  //     }
-  //     _suggestions.clear();
-  //   });
-  // }
+    // Fetch place details from Google
+    final detailsUrl = Uri.parse(
+      "https://maps.googleapis.com/maps/api/place/details/json"
+      "?place_id=$placeId"
+      "&key=$mapKey",
+    );
 
-  // void _onSuggestionTap(Map<String, dynamic> place) {
-  //   final lat = double.parse(place['lat']);
-  //   final lon = double.parse(place['lon']);
-  //   final latLng = LatLng(lat, lon);
-  //   final displayName = place['display_name'];
+    final res = await http.get(detailsUrl);
+    if (res.statusCode != 200) {
+      _showError("Failed to get location details");
+      return;
+    }
 
-  //   setState(() {
-  //     if (_selectingPickup) {
-  //       ref.read(pickupLocationProvider.notifier).state = latLng;
-  //       pickupController.text = displayName;
-  //     } else {
-  //       ref.read(destinationLocationProvider.notifier).state = latLng;
-  //       destinationController.text = displayName;
+    final details = json.decode(res.body);
+    if (details['status'] != 'OK') {
+      _showError(details['error_message'] ?? "Failed to get details");
+      return;
+    }
 
-  //       // After selecting destination, treat it like Uber stop
-  //       _addStop(place);
-  //     }
-  //     _suggestions.clear();
-  //   });
-  // }
-
-  // void _onSuggestionTap(Map<String, dynamic> place) {
-  //   final lat = double.parse(place['lat']);
-  //   final lon = double.parse(place['lon']);
-  //   final latLng = LatLng(lat, lon);
-  //   final displayName = place['display_name'];
-
-  //   setState(() {
-  //     _selectedPlace = place;
-
-  //     if (_selectingPickup) {
-  //       ref.read(pickupLocationProvider.notifier).state = latLng;
-  //       pickupController.text = displayName;
-  //     } else {
-  //       destinationController.text = displayName;
-  //     }
-
-  //     _suggestions.clear();
-  //   });
-  // }
-  // void _onSuggestionTap(Map<String, dynamic> place) {
-  //   final lat = double.parse(place['lat']);
-  //   final lon = double.parse(place['lon']);
-  //   final latLng = LatLng(lat, lon);
-  //   final displayName = place['display_name'];
-
-  //   final pickup = ref.read(pickupLocationProvider);
-
-  //   setState(() {
-  //     _selectedPlace = place;
-  //     _suggestions.clear();
-  //   });
-
-  //   if (_selectingPickup) {
-  //     ref.read(pickupLocationProvider.notifier).state = latLng;
-  //     pickupController.text = displayName;
-  //   } else {
-  //     ref.read(destinationLocationProvider.notifier).state = latLng;
-  //     destinationController.text = displayName;
-
-  //     // If pickup is set, proceed to HomeScreen automatically
-  //     if (pickup != null) {
-  //       Navigator.push(
-  //         context,
-  //         MaterialPageRoute(
-  //           builder:
-  //               (_) => HomeScreen(
-  //                 pickup: pickup,
-  //                 destination: latLng,
-  //                 stops: ref.read(stopsProvider),
-  //               ),
-  //         ),
-  //       );
-  //     } else {
-  //       _showError("Please set pickup location first.");
-  //     }
-  //   }
-  // }
-
-  void _onSuggestionTap(Map<String, dynamic> place) async {
-    final lat = double.parse(place['lat']);
-    final lon = double.parse(place['lon']);
-    final displayName = place['display_name'];
-
-    final latLng = LatLng(lat, lon);
+    final location = details['result']['geometry']['location'];
+    final latLng = LatLng(location['lat'], location['lng']);
+    final name =
+        details['result']['formatted_address'] ?? details['result']['name'];
 
     setState(() {
-      _selectedPlace = place;
+      _selectedPlace = {
+        'lat': location['lat'],
+        'lng': location['lng'],
+        'name': name,
+      };
       _suggestions.clear();
     });
 
-    final favorite = FavoriteLocation(name: displayName, lat: lat, lon: lon);
-    await FavoriteLocationService.addFavorite(favorite);
-    //_showMessage("Added to favorites");
-
     if (_selectingPickup) {
+      // Save pickup location
       ref.read(pickupLocationProvider.notifier).state = latLng;
-      pickupController.text = displayName;
-    } else {
-      ref.read(destinationLocationProvider.notifier).state = latLng;
-      destinationController.text = displayName;
+      pickupController.text = name;
+      return;
+      // if (widget.category == VehicleCategory.ambulance) {
+      //   Navigator.pop(context, latLng);
+      //   return;
+      // Navigator.pop(
+      // context,
+      // LatLng(selectedLat!, selectedLng!),
+      // );
 
+      //   Navigator.pushReplacement(
+      //     context,
+      //     MaterialPageRoute(
+      //       builder:
+      //           (_) =>
+      //               AmbulanceScreen(category: widget.category, pickup: latLng),
+      //     ),
+      //   );
+      //   return; // Exit so it doesn't do anything else
+      //}
+    } else {
+      // Save destination location
+      ref.read(destinationLocationProvider.notifier).state = latLng;
+      destinationController.text = name;
       final pickup = ref.read(pickupLocationProvider);
-      if (pickup != null) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder:
-                (_) => HomeScreen(
-                  pickup: pickup,
-                  destination: latLng,
-                  stops: ref.read(stopsProvider),
+      // If pickup is set, navigate
+      //final pickup = ref.read(pickupLocationProvider);
+      if (pickup != null ||
+          (widget.category == VehicleCategory.waterBowser ||
+              widget.category == VehicleCategory.exhauster)) {
+        Widget screen;
+
+        if (widget.IsScheduled != true) {
+          // if (widget.category == VehicleCategory.movers) {
+          //     screen = MoversScreen(
+          //     pickup: pickup,
+          //     destination: latLng,
+          //     category: VehicleCategory.movers,
+          //   );
+          //   Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+
+          // }
+          if (widget.category == VehicleCategory.passenger) {
+            screen = HomeScreen(
+              pickup: pickup,
+              destination: latLng,
+              stops: ref.read(stopsProvider),
+              category: widget.category,
+            );
+            Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+          } else if (widget.category == VehicleCategory.cargo) {
+            screen = CargoTransportScreen(
+              category: widget.category,
+              pickup: pickup,
+              destination: latLng,
+            );
+            Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+          } else if (widget.category == VehicleCategory.waterBowser) {
+            screen = WaterBowerScreen(
+              category: widget.category,
+              destination: latLng,
+            );
+
+            Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+          } else
+          //           Navigator.pop(context, {
+          //   'pickup': pickupLatLng,
+          //   'destination': destinationLatLng,
+          // });
+          // if (widget.category == VehicleCategory.movers) {
+          //   Navigator.pop(context, {'pickup': pickup, 'destination': latLng});
+          // }
+          if (widget.category == VehicleCategory.movers) {
+            screen = MoversScreen(
+              category: widget.category,
+              destination: latLng,
+              pickup: pickup,
+            );
+            Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+          } else if (widget.category == VehicleCategory.exhauster) {
+            Navigator.pop(context, latLng);
+          } else if (widget.category == VehicleCategory.ambulance) {
+            screen = AmbulanceScreen(category: widget.category, pickup: pickup);
+            Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+          } else if (widget.category == VehicleCategory.ambulance) {
+            // Open WhereToScreen first, and await the result
+            final result = await Navigator.push<LocationResult>(
+              context,
+              MaterialPageRoute(
+                builder: (_) => WhereToScreen(category: widget.category),
+              ),
+            );
+
+            if (result != null) {
+              // Once you get the result, open AmbulanceScreen with those locations
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (_) => AmbulanceScreen(
+                        category: widget.category,
+                        pickup: result.pickup,
+                        destination: result.destination,
+                      ),
                 ),
-          ),
-        );
+              );
+            }
+          }
+
+          //  if (widget.category == VehicleCategory.ambulance) {
+          //   screen = AmbulanceScreen(
+          //     category: widget.category,
+          //     pickup: pickup,
+          //     destination: latLng,
+          //   );
+          //   Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+        } else {
+          screen = ScheduleRideScreen(
+            pickupLocation: pickup,
+            dropLocation: latLng,
+          );
+          Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+        }
       } else {
         _showError("Please set pickup location first.");
       }
     }
   }
 
-  // void _addStop() {
-  //   final destination = ref.read(destinationLocationProvider);
-  //   if (destination == null) {
-  //     _showError("Select destination first.");
-  //     return;
-  //   }
-  //   final stops = ref.read(stopsProvider);
-  //   if (!stops.contains(destination)) {
-  //     ref.read(stopsProvider.notifier).state = [...stops, destination];
-  //     _showMessage("Stop added.");
-  //   } else {
-  //     _showError("This stop is already added.");
-  //   }
-  // }
+  Future<LatLng?> _fetchPickupFromFirebase() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return null;
 
-  // void _saveLocation() {
-  //   final pickup = ref.read(pickupLocationProvider);
-  //   final destination = ref.read(destinationLocationProvider);
+      final refDB = FirebaseDatabase.instance.ref(
+        'passengers/${user.uid}/location',
+      );
 
-  //   if (pickup != null && destination != null) {
-  //     context.go('/select_route');
-  //   } else {
-  //     _showError('Please select both pickup and destination.');
-  //   }
-  // }
+      final snapshot = await refDB.get();
+      if (!snapshot.exists) return null;
 
-  // void _addToFavourites(String name, LatLng latLng) {
-  //   final favourites = ref.read(favouriteLocationsProvider);
-  //   final newFav = FavouriteLocation(
-  //     name: name,
-  //     latitude: latLng.latitude,
-  //     longitude: latLng.longitude,
-  //   );
+      final data = snapshot.value as Map<dynamic, dynamic>?;
 
-  //   final isDuplicate = favourites.any(
-  //     (fav) =>
-  //         fav.latitude == latLng.latitude && fav.longitude == latLng.longitude,
-  //   );
+      if (data == null) return null;
 
-  //   if (isDuplicate) {
-  //     _showError("Location already in favourites.");
-  //     return;
-  //   }
+      // Assuming data has 'latitude' and 'longitude' keys
+      final lat = data['latitude'];
+      final lng = data['longitude'];
 
-  //   ref.read(favouriteLocationsProvider.notifier).state = [
-  //     ...favourites,
-  //     newFav,
-  //   ];
-  //   _showMessage("Location saved to favourites.");
-  // }
+      if (lat == null || lng == null) return null;
+
+      return LatLng(lat.toDouble(), lng.toDouble());
+    } catch (e) {
+      debugPrint('Failed to fetch pickup location from Firebase: $e');
+      return null;
+    }
+  }
 
   void _addStop(Map<String, dynamic> place) {
     final lat = double.parse(place['lat']);
@@ -291,15 +368,172 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
     ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.green));
   }
 
+  //   @override
+  //   Widget build(BuildContext context) {
+  //     final stops = ref.watch(stopsProvider);
+  //     return Scaffold(
+  //       backgroundColor: Colors.white,
+  //       appBar: AppBar(
+  //         backgroundColor: Colors.white,
+  //         elevation: 0,
+  //         title: const Text("Where to?", style: TextStyle(color: Colors.black)),
+  //         centerTitle: true,
+  //         iconTheme: const IconThemeData(color: Colors.black),
+  //       ),
+  //       body: Padding(
+  //         padding: const EdgeInsets.all(16),
+  //         child: Column(
+  //           children: [
+
+  //             Card(
+  //               shape: RoundedRectangleBorder(
+  //                 borderRadius: BorderRadius.circular(12),
+  //               ),
+  //               child: Column(
+  //                 children: [
+
+  //                   if (widget.category == VehicleCategory.exhauster ||
+  //                       widget.category == VehicleCategory.waterBowser) ...[
+  //                     ListTile(
+  //                       leading: const Icon(Icons.location_on, color: Colors.red),
+  //                       title: TextField(
+  //                         controller: destinationController,
+  //                         decoration: const InputDecoration(
+  //                           border: InputBorder.none,
+  //                           hintText: "Enter Destination",
+  //                         ),
+  //                         onTap: () {
+  //                           setState(() {
+  //                             _selectingPickup = false;
+  //                             _suggestions.clear();
+  //                           });
+  //                         },
+  //                       ),
+  //                     ),
+  //                   ]
+  //                   // All others — pickup + destination
+  //                   else ...[
+  //                     ListTile(
+  //                       leading: const Icon(
+  //                         Icons.my_location,
+  //                         color: Colors.green,
+  //                       ),
+  //                       title: TextField(
+  //                         controller: pickupController,
+  //                         decoration: const InputDecoration(
+  //                           border: InputBorder.none,
+  //                           hintText: "Set Pickup Location",
+  //                         ),
+  //                         onTap: () {
+  //                           setState(() {
+  //                             _selectingPickup = true;
+  //                             _suggestions.clear();
+  //                           });
+  //                         },
+  //                       ),
+  //                     ),
+  //                     const Divider(),
+  //                     ListTile(
+  //                       leading: const Icon(Icons.location_on, color: Colors.red),
+  //                       title: TextField(
+  //                         controller: destinationController,
+  //                         decoration: const InputDecoration(
+  //                           border: InputBorder.none,
+  //                           hintText: "Enter Destination",
+  //                         ),
+  //                         onTap: () {
+  //                           setState(() {
+  //                             _selectingPickup = false;
+  //                             _suggestions.clear();
+  //                           });
+  //                         },
+  //                       ),
+  //                     ),
+  //                   ],
+  //                 ],
+  //               ),
+  //             ),
+
+  //             if (_isLoading)
+  //               const Padding(
+  //                 padding: EdgeInsets.all(8),
+  //                 child: LinearProgressIndicator(),
+  //               ),
+  //             if (_suggestions.isNotEmpty)
+  //               Expanded(
+  //                 child: ListView.builder(
+  //                   itemCount: _suggestions.length,
+  //                   itemBuilder: (_, index) {
+  //                     final place = _suggestions[index];
+  //                     return Card(
+  //                       child: ListTile(
+  //                         leading: const Icon(Icons.place_outlined),
+  //                         title: Text(place['description']),
+  //                         onTap: () => _onSuggestionTap(place),
+  //                       ),
+  //                     );
+  //                   },
+  //                 ),
+  //               ),
+  //             if (_suggestions.isEmpty)
+  //               Expanded(
+  //                 child: ListView.builder(
+  //                   itemCount: stops.length,
+  //                   itemBuilder: (_, index) {
+  //                     final stop = stops[index];
+  //                     final latLng = stop['latLng'] as LatLng;
+  //                     final address = stop['address'] as String;
+
+  //                     return ListTile(
+  //                       leading: CircleAvatar(
+  //                         backgroundColor: Colors.blue,
+  //                         child: Text('${index + 1}'),
+  //                       ),
+  //                       title: Text(address),
+  //                       subtitle: Text(
+  //                         '${latLng.latitude.toStringAsFixed(4)}, ${latLng.longitude.toStringAsFixed(4)}',
+  //                       ),
+  //                       trailing: IconButton(
+  //                         icon: const Icon(
+  //                           Icons.remove_circle,
+  //                           color: Colors.red,
+  //                         ),
+  //                         onPressed: () {
+  //                           final updatedStops = [...stops]..removeAt(index);
+  //                           ref.read(stopsProvider.notifier).state = updatedStops;
+  //                         },
+  //                       ),
+  //                     );
+  //                   },
+  //                 ),
+  //               ),
+  //             const SizedBox(height: 8),
+  //             Row(children: [
+
+  //               ],
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //     );
+  //   }
+  // }
   @override
   Widget build(BuildContext context) {
     final stops = ref.watch(stopsProvider);
     return Scaffold(
-      backgroundColor: Colors.grey[200],
+      backgroundColor: const Color(0xFFF9FAFB), // Light background
       appBar: AppBar(
         backgroundColor: Colors.white,
-        elevation: 1,
-        title: const Text("Where to?", style: TextStyle(color: Colors.black)),
+        elevation: 2,
+        title: const Text(
+          "Where to?",
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.black),
       ),
@@ -307,37 +541,29 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.15),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Column(
                 children: [
-                  ListTile(
-                    leading: const Icon(Icons.my_location, color: Colors.green),
-                    title: TextField(
-                      controller: pickupController,
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        hintText: "Set Pickup Location",
-                      ),
-                      onTap: () {
-                        setState(() {
-                          _selectingPickup = true;
-                          _suggestions.clear();
-                        });
-                      },
-                    ),
-                  ),
-                  const Divider(),
-                  ListTile(
-                    leading: const Icon(Icons.location_on, color: Colors.red),
-                    title: TextField(
+                  if (widget.category == VehicleCategory.exhauster ||
+                      widget.category == VehicleCategory.waterBowser) ...[
+                    _buildLocationField(
                       controller: destinationController,
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        hintText: "Enter Destination",
-                      ),
+                      icon: Icons.location_on,
+                      iconColor: Colors.red,
+                      hint: "Enter Destination",
                       onTap: () {
                         setState(() {
                           _selectingPickup = false;
@@ -345,7 +571,46 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
                         });
                       },
                     ),
-                  ),
+                  ] else ...[
+                    _buildLocationField(
+                      controller: pickupController,
+                      icon: Icons.my_location,
+                      iconColor: Colors.green,
+                      hint: "Set Pickup Location",
+                      onTap: () {
+                        setState(() {
+                          _selectingPickup = true;
+                          _suggestions.clear();
+                        });
+                      },
+                    ),
+                    const Divider(height: 1, color: Colors.grey),
+                    //const Divider(),
+                    // Padding(
+                    //   padding: const EdgeInsets.symmetric(horizontal: 16),
+                    //   child: Column(
+                    //     children: const [
+                    //       Icon(
+                    //         Icons.arrow_downward,
+                    //         color: Colors.grey,
+                    //         size: 20,
+                    //       ),
+                    //     ],
+                    //   ),
+                    // ),
+                    _buildLocationField(
+                      controller: destinationController,
+                      icon: Icons.location_on,
+                      iconColor: Colors.red,
+                      hint: "Enter Destination",
+                      onTap: () {
+                        setState(() {
+                          _selectingPickup = false;
+                          _suggestions.clear();
+                        });
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -354,40 +619,45 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
                 padding: EdgeInsets.all(8),
                 child: LinearProgressIndicator(),
               ),
+            const SizedBox(height: 10),
             if (_suggestions.isNotEmpty)
               Expanded(
-                child: ListView.builder(
-                  itemCount: _suggestions.length,
-                  itemBuilder: (_, index) {
+                child: AnimatedList(
+                  initialItemCount: _suggestions.length,
+                  itemBuilder: (context, index, animation) {
                     final place = _suggestions[index];
-                    return Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.place_outlined),
-                        title: Text(place['display_name']),
-                        onTap: () => _onSuggestionTap(place),
+                    return SlideTransition(
+                      position: animation.drive(
+                        Tween(
+                          begin: const Offset(1, 0),
+                          end: Offset.zero,
+                        ).chain(CurveTween(curve: Curves.easeOut)),
+                      ),
+                      child: Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 2,
+                        child: ListTile(
+                          leading: const Icon(
+                            Icons.place_outlined,
+                            color: Colors.blueAccent,
+                          ),
+                          title: Text(
+                            place['description'],
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          onTap: () => _onSuggestionTap(place),
+                        ),
                       ),
                     );
                   },
                 ),
               ),
             if (_suggestions.isEmpty)
-              // Expanded(
-              //   child: ListView.builder(
-              //     itemCount: stops.length,
-              //     itemBuilder: (_, index) {
-              //       final stop = stops[index];
-              //       return ListTile(
-              //         leading: const Icon(
-              //           Icons.stop_circle,
-              //           color: Colors.orange,
-              //         ),
-              //         title: Text(
-              //           'Stop ${index + 1}: ${stop.latitude.toStringAsFixed(4)}, ${stop.longitude.toStringAsFixed(4)}',
-              //         ),
-              //       );
-              //     },
-              //   ),
-              // ),
               Expanded(
                 child: ListView.builder(
                   itemCount: stops.length,
@@ -396,490 +666,413 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
                     final latLng = stop['latLng'] as LatLng;
                     final address = stop['address'] as String;
 
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: Colors.blue,
-                        child: Text('${index + 1}'),
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      title: Text(address),
-                      subtitle: Text(
-                        '${latLng.latitude.toStringAsFixed(4)}, ${latLng.longitude.toStringAsFixed(4)}',
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(
-                          Icons.remove_circle,
-                          color: Colors.red,
+                      elevation: 2,
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.blue,
+                          child: Text(
+                            '${index + 1}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
-                        onPressed: () {
-                          final updatedStops = [...stops]..removeAt(index);
-                          ref.read(stopsProvider.notifier).state = updatedStops;
-                        },
+                        title: Text(
+                          address,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${latLng.latitude.toStringAsFixed(4)}, ${latLng.longitude.toStringAsFixed(4)}',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(
+                            Icons.remove_circle,
+                            color: Colors.redAccent,
+                          ),
+                          onPressed: () {
+                            final updatedStops = [...stops]..removeAt(index);
+                            ref.read(stopsProvider.notifier).state =
+                                updatedStops;
+                          },
+                        ),
                       ),
                     );
                   },
                 ),
               ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                // Expanded(
-                //   child: ElevatedButton.icon(
-                //     onPressed: () {
-                //       if (_selectedPlace != null) {
-                //         _addStop(_selectedPlace!);
-                //         _selectedPlace = null;
-                //       } else {
-                //         _showError(
-                //           "Please select a place from suggestions first.",
-                //         );
-                //       }
-                //     },
-                //     icon: const Icon(Icons.add),
-                //     label: const Text("Add Stop"),
-                //     style: ElevatedButton.styleFrom(
-                //       backgroundColor: Colors.orange[800],
-                //     ),
-                //   ),
-                // ),
-                // const SizedBox(width: 10),
-                // Expanded(
-                //   child: ElevatedButton.icon(
-                //     onPressed: _confirmRouteAndGoToHome,
-                //     icon: const Icon(Icons.check),
-                //     label: const Text("Confirm & Go"),
-                //     style: ElevatedButton.styleFrom(
-                //       backgroundColor: Colors.blue,
-                //     ),
-                //   ),
-                // ),
-              ],
-            ),
           ],
         ),
       ),
     );
   }
+
+  Widget _buildLocationField({
+    required TextEditingController controller,
+    required IconData icon,
+    required Color iconColor,
+    required String hint,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: iconColor, size: 28),
+      title: TextField(
+        controller: controller,
+        style: const TextStyle(fontSize: 18),
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          hintText: hint,
+          hintStyle: const TextStyle(fontSize: 18, color: Colors.grey),
+        ),
+        onTap: onTap,
+      ),
+    );
+  }
 }
 
-// import 'dart:convert';
-// import 'package:flutter/material.dart';
-// import 'package:flutter_riverpod/flutter_riverpod.dart';
-// import 'package:go_router/go_router.dart';
-// import 'package:http/http.dart' as http;
-// // import 'package:vicsacs/constants/constants.dart';
-// // import 'package:vicsacs/providers/location_providers.dart';
-// // import 'package:vicsacs/screens/passenger/home/confirm_location_screen.dart';
-// // import 'package:vicsacs/theme/palette.dart';
-// import 'package:latlong2/latlong.dart';
-// import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/location_providers.dart';
+class LocationResult {
+  final LatLng pickup;
+  final LatLng destination;
 
-// class WhereToScreen extends ConsumerStatefulWidget {
-//   const WhereToScreen({Key? key}) : super(key: key);
+  LocationResult({required this.pickup, required this.destination});
+}
 
-//   @override
-//   ConsumerState<WhereToScreen> createState() => _WhereToScreenState();
-// }
 
-// class _WhereToScreenState extends ConsumerState<WhereToScreen> {
-//   final TextEditingController pickupController = TextEditingController();
-//   final TextEditingController destinationController = TextEditingController();
-//   final FocusNode destinationFocusNode = FocusNode();
-//   List<Map<String, dynamic>> _suggestions = [];
-//   bool _selectingPickup = true;
 
-//   Future<void> _searchLocation(String input) async {
-//     if (input.isEmpty) {
-//       setState(() {
-//         _suggestions = [];
-//       });
-//       return;
-//     }
-//     final url =
-//         'https://nominatim.openstreetmap.org/search?q=$input&format=json&addressdetails=1&limit=5';
-//     final response = await http.get(Uri.parse(url));
-//     if (response.statusCode == 200) {
-//       final List<dynamic> data = json.decode(response.body);
-//       setState(() {
-//         _suggestions = List<Map<String, dynamic>>.from(data);
-//       });
-//     }
-//   }
+ //////working
+  // Future<void> _fetchSuggestions(String query) async {
+  //   setState(() {
+  //     _isLoading = true;
+  //     _suggestions.clear();
+  //   });
 
-//   void _onSuggestionTap(Map<String, dynamic> place) {
-//     final lat = double.parse(place['lat']);
-//     final lon = double.parse(place['lon']);
-//     final latLng = LatLng(lat, lon);
-//     final displayName = place['display_name'];
+  //   final url = Uri.parse(
+  //     "https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=5",
+  //   );
+  //   final res = await http.get(url, headers: {'User-Agent': 'FlutterApp'});
 
-//     setState(() {
-//       if (_selectingPickup) {
-//         ref.read(pickupLocationProvider.notifier).state = latLng;
-//         pickupController.text = displayName;
-//       } else {
-//         ref.read(destinationLocationProvider.notifier).state = latLng;
-//         destinationController.text = displayName;
-//         _addStop(place);
-//       }
-//       _suggestions.clear();
-//     });
-//   }
+  //   if (res.statusCode == 200) {
+  //     final List data = json.decode(res.body);
+  //     if (mounted) {
+  //       setState(() {
+  //         _suggestions = data.cast<Map<String, dynamic>>();
+  //         _isLoading = false;
+  //       });
+  //     }
+  //     // setState(() {
+  //     //   _suggestions = data.cast<Map<String, dynamic>>();
+  //     //   _isLoading = false;
+  //     // });
+  //   } else {
+  //     _showError("Suggestion fetch failed");
+  //   }
+  // }
 
-//   void _addStop(Map<String, dynamic> place) {
-//     final lat = double.parse(place['lat']);
-//     final lon = double.parse(place['lon']);
-//     final latLng = LatLng(lat, lon);
-//     final address = place['display_name'];
+  /////working
+  // void _onSuggestionTap(Map<String, dynamic> place) async {
+  //   final lat = double.parse(place['lat']);
+  //   final lon = double.parse(place['lon']);
+  //   final displayName = place['display_name'];
 
-//     final currentStops = ref.read(stopsProvider);
-//     final isDuplicate = currentStops.any(
-//       (stop) =>
-//           stop['latLng'].latitude == lat && stop['latLng'].longitude == lon,
-//     );
+  //   final latLng = LatLng(lat, lon);
 
-//     if (isDuplicate) {
-//       _showError("This stop is already added.");
-//       return;
-//     }
+  //   setState(() {
+  //     _selectedPlace = place;
+  //     _suggestions.clear();
+  //   });
 
-//     ref.read(stopsProvider.notifier).state = [
-//       ...currentStops,
-//       {'latLng': latLng, 'address': address},
-//     ];
-//     _showMessage("Stop added.");
-//   }
+  //   final favorite = FavoriteLocation(name: displayName, lat: lat, lon: lon);
+  //   await FavoriteLocationService.addFavorite(favorite);
+  //   //_showMessage("Added to favorites");
 
-//   void _showError(String message) {
-//     ScaffoldMessenger.of(context).showSnackBar(
-//       SnackBar(content: Text(message), backgroundColor: Colors.red),
-//     );
-//   }
+  //   if (_selectingPickup) {
+  //     ref.read(pickupLocationProvider.notifier).state = latLng;
+  //     pickupController.text = displayName;
+  //   } else {
+  //     ref.read(destinationLocationProvider.notifier).state = latLng;
+  //     destinationController.text = displayName;
 
-//   void _showMessage(String message) {
-//     ScaffoldMessenger.of(context).showSnackBar(
-//       SnackBar(content: Text(message), backgroundColor: Colors.green),
-//     );
-//   }
+  //     final pickup = ref.read(pickupLocationProvider);
+  //     if (pickup != null ||
+  //         (widget.category == VehicleCategory.waterBowser ||
+  //             widget.category == VehicleCategory.exhauster)) {
+  //       // Navigator.push(
+  //       //   context,
+  //       //   MaterialPageRoute(
+  //       //     builder:
+  //       //         (_) => HomeScreen(
+  //       //           pickup: pickup,
+  //       //           destination: latLng,
+  //       //           stops: ref.read(stopsProvider),
+  //       //         ),
+  //       //   ),
+  //       // );
 
-//   @override
-//   Widget build(BuildContext context) {
-//     final stops = ref.watch(stopsProvider);
+  //       Widget screen;
 
-//     return Scaffold(
-//       appBar: AppBar(
-//         title: const Text('Where to?'),
-//         backgroundColor: Colors.yellow, //Pallete.yellowColor,
-//         centerTitle: true,
-//       ),
-//       body: Padding(
-//         padding: const EdgeInsets.all(16.0),
-//         child: Column(
-//           children: [
-//             TextField(
-//               controller: pickupController,
-//               decoration: const InputDecoration(
-//                 labelText: 'Pickup Location',
-//                 prefixIcon: Icon(Icons.my_location),
-//               ),
-//               onTap: () => setState(() => _selectingPickup = true),
-//               onChanged: _searchLocation,
-//             ),
-//             const SizedBox(height: 10),
-//             TextField(
-//               controller: destinationController,
-//               focusNode: destinationFocusNode,
-//               decoration: const InputDecoration(
-//                 labelText: 'Destination',
-//                 prefixIcon: Icon(Icons.location_on),
-//               ),
-//               onTap: () => setState(() => _selectingPickup = false),
-//               onChanged: _searchLocation,
-//             ),
-//             const SizedBox(height: 10),
-//             if (_suggestions.isNotEmpty)
-//               Expanded(
-//                 child: ListView.builder(
-//                   itemCount: _suggestions.length,
-//                   itemBuilder: (context, index) {
-//                     final suggestion = _suggestions[index];
-//                     return ListTile(
-//                       title: Text(suggestion['display_name'] ?? ''),
-//                       onTap: () => _onSuggestionTap(suggestion),
-//                     );
-//                   },
-//                 ),
-//               )
-//             else if (stops.isNotEmpty)
-//               Expanded(
-//                 child: ListView.builder(
-//                   itemCount: stops.length,
-//                   itemBuilder: (_, index) {
-//                     final stop = stops[index];
-//                     final latLng = stop['latLng'] as LatLng;
-//                     final address = stop['address'] as String;
+  //       // if (widget.category.toUpperCase() == 'MOVERS') {
+  //       //   screen = MoversScreen(
+  //       //    pickupLocation : pickup,
+  //       //     dropLocation: latLng,
+  //       //     stops: ref.read(stopsProvider),
+  //       //   );
+  //       // } else {
+  //       //   screen = HomeScreen(
+  //       //     pickup: pickup,
+  //       //     destination: latLng,
+  //       //     stops: ref.read(stopsProvider),
+  //       //   );
+  //       // }
+  //       if (widget.IsScheduled != true) {
+  //         if (widget.category == VehicleCategory.movers) {
+  //           screen = MoversScreen(
+  //             pickupLocation: pickup,
+  //             dropLocation: latLng,
+  //             category: VehicleCategory.movers,
+  //           );
+  //           Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  //         } else if (widget.category == VehicleCategory.passenger) {
+  //           screen = HomeScreen(
+  //             pickup: pickup,
+  //             destination: latLng,
+  //             stops: ref.read(stopsProvider),
+  //             category: widget.category,
+  //           );
+  //           Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  //         } else if (widget.category == VehicleCategory.cargo) {
+  //           screen = CargoTransportScreen(
+  //             category: widget.category,
+  //             pickup: pickup,
+  //             destination: latLng,
+  //           );
 
-//                     return ListTile(
-//                       leading: CircleAvatar(
-//                         backgroundColor: Colors.blue,
-//                         child: Text('${index + 1}'),
-//                       ),
-//                       title: Text(address),
-//                       subtitle: Text(
-//                         '${latLng.latitude.toStringAsFixed(4)}, ${latLng.longitude.toStringAsFixed(4)}',
-//                       ),
-//                       trailing: IconButton(
-//                         icon: const Icon(
-//                           Icons.remove_circle,
-//                           color: Colors.red,
-//                         ),
-//                         onPressed: () {
-//                           final updatedStops = [...stops]..removeAt(index);
-//                           ref.read(stopsProvider.notifier).state = updatedStops;
-//                         },
-//                       ),
-//                     );
-//                   },
-//                 ),
-//               ),
-//             const SizedBox(height: 16),
-//             ElevatedButton(
-//               onPressed: () {
-//                 if (ref.read(pickupLocationProvider) == null ||
-//                     ref.read(destinationLocationProvider) == null) {
-//                   _showError('Please select both pickup and destination.');
-//                   return;
-//                 }
-//                 context.go('/confirm-location');
-//               },
-//               child: const Text('Confirm'),
-//             ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
+  //           Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  //         } else if (widget.category == VehicleCategory.waterBowser) {
+  //           screen = WaterBowerScreen(
+  //             category: widget.category,
+  //             //pickup: pickup,
+  //             destination: latLng,
+  //           );
 
-//   @override
-//   void dispose() {
-//     pickupController.dispose();
-//     destinationController.dispose();
-//     destinationFocusNode.dispose();
-//     super.dispose();
-//   }
-// }
-// import 'dart:convert';
-// import 'package:flutter/material.dart';
-// import 'package:flutter_riverpod/flutter_riverpod.dart';
-// import 'package:http/http.dart' as http;
-// import 'package:latlong2/latlong.dart';
+  //           Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  //         } else if (widget.category == VehicleCategory.exhauster) {
+  //           // screen = HoneySuckerScreen(
+  //           //   category: widget.category,
+  //           //   //pickup: pickup,
+  //           //   destination: latLng,
+  //           // );
 
-// import 'package:niceapp/View/Screens/Main_Screens/Home_Screen/home_screen.dart';
-// import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/favorite_location_model.dart';
-// import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/favorite_location_service.dart';
-// import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/location_providers.dart';
+  //           // Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  //           Navigator.pop(context, latLng);
+  //         }
+  //       } else {
+  //         screen = ScheduleRideScreen(
+  //           pickupLocation: pickup,
+  //           dropLocation: latLng,
+  //           // stops: ref.read(stopsProvider),
+  //           // category: widget.category,
+  //         );
+  //         Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  //       }
+  //     } else {
+  //       _showError("Please set pickup location first.");
+  //     }
+  //   }
+  // }
 
-// class WhereToScreen extends ConsumerStatefulWidget {
-//   const WhereToScreen({super.key});
+   // Card(
+            //   shape: RoundedRectangleBorder(
+            //     borderRadius: BorderRadius.circular(12),
+            //   ),
+            //   child: Column(
+            //     children: [
+            //       if (widget.category == VehicleCategory.ambulance)
+            //         ListTile(
+            //           leading: const Icon(
+            //             Icons.my_location,
+            //             color: Colors.green,
+            //           ),
+            //           title: TextField(
+            //             controller: pickupController,
+            //             decoration: const InputDecoration(
+            //               border: InputBorder.none,
+            //               hintText: "Set Pickup Location",
+            //             ),
+            //             onTap: () {
+            //               setState(() {
+            //                 _selectingPickup = true;
+            //                 _suggestions.clear();
+            //               });
+            //             },
+            //           ),
+            //         ),
 
-//   @override
-//   ConsumerState<WhereToScreen> createState() => _WhereToScreenState();
-// }
+            //       // if (widget.category != VehicleCategory.waterBowser &&
+            //       //     widget.category != VehicleCategory.exhauster) ...[
+            //       //   ListTile(
+            //       //     leading: const Icon(
+            //       //       Icons.my_location,
+            //       //       color: Colors.green,
+            //       //     ),
+            //       //     title: TextField(
+            //       //       controller: pickupController,
+            //       //       decoration: const InputDecoration(
+            //       //         border: InputBorder.none,
+            //       //         hintText: "Set Pickup Location",
+            //       //       ),
+            //       //       onTap: () {
+            //       //         setState(() {
+            //       //           _selectingPickup = true;
+            //       //           _suggestions.clear();
+            //       //         });
+            //       //       },
+            //       //     ),
+            //       //   ),
+            //       if (widget.category != VehicleCategory.ambulance &&
+            //           widget.category != VehicleCategory.waterBowser &&
+            //           widget.category != VehicleCategory.exhauster) ...[
+            //         ListTile(
+            //           leading: const Icon(
+            //             Icons.my_location,
+            //             color: Colors.green,
+            //           ),
+            //           title: TextField(
+            //             controller: pickupController,
+            //             decoration: const InputDecoration(
+            //               border: InputBorder.none,
+            //               hintText: "Set Pickup Location",
+            //             ),
+            //             onTap: () {
+            //               setState(() {
+            //                 _selectingPickup = true;
+            //                 _suggestions.clear();
+            //               });
+            //             },
+            //           ),
+            //         ),
+            //         const Divider(),
+            //       ],
+            //       ListTile(
+            //         leading: const Icon(Icons.location_on, color: Colors.red),
+            //         title: TextField(
+            //           controller: destinationController,
+            //           decoration: const InputDecoration(
+            //             border: InputBorder.none,
+            //             hintText: "Enter Destination",
+            //           ),
+            //           onTap: () {
+            //             setState(() {
+            //               _selectingPickup = false;
+            //               _suggestions.clear();
+            //             });
+            //           },
+            //         ),
+            //       ),
+            //     ],
+            //   ),
+            // ),
+            // Card(
+            //   shape: RoundedRectangleBorder(
+            //     borderRadius: BorderRadius.circular(12),
+            //   ),
+            //   child: Column(
+            //     children: [
+            //       // Ambulance — pickup only
+            //       if (widget.category == VehicleCategory.ambulance)
+            //         ListTile(
+            //           leading: const Icon(
+            //             Icons.my_location,
+            //             color: Colors.green,
+            //           ),
+            //           title: TextField(
+            //             controller: pickupController,
+            //             decoration: const InputDecoration(
+            //               border: InputBorder.none,
+            //               hintText: "Set Pickup Location",
+            //             ),
+            //             onTap: () {
+            //               setState(() {
+            //                 _selectingPickup = true;
+            //                 _suggestions.clear();
+            //               });
+            //             },
+            //           ),
+            //         ),
 
-// class _WhereToScreenState extends ConsumerState<WhereToScreen> {
-//   final TextEditingController pickupController = TextEditingController();
-//   final TextEditingController destinationController = TextEditingController();
+            //       // Other categories (except waterBowser & exhauster) — pickup + destination
+            //       if (widget.category != VehicleCategory.ambulance &&
+            //           widget.category != VehicleCategory.waterBowser &&
+            //           widget.category != VehicleCategory.exhauster) ...[
+            //         ListTile(
+            //           leading: const Icon(
+            //             Icons.my_location,
+            //             color: Colors.green,
+            //           ),
+            //           title: TextField(
+            //             controller: pickupController,
+            //             decoration: const InputDecoration(
+            //               border: InputBorder.none,
+            //               hintText: "Set Pickup Location",
+            //             ),
+            //             onTap: () {
+            //               setState(() {
+            //                 _selectingPickup = true;
+            //                 _suggestions.clear();
+            //               });
+            //             },
+            //           ),
+            //         ),
+            //         const Divider(),
+            //         ListTile(
+            //           leading: const Icon(Icons.location_on, color: Colors.red),
+            //           title: TextField(
+            //             controller: destinationController,
+            //             decoration: const InputDecoration(
+            //               border: InputBorder.none,
+            //               hintText: "Enter Destination",
+            //             ),
+            //             onTap: () {
+            //               setState(() {
+            //                 _selectingPickup = false;
+            //                 _suggestions.clear();
+            //               });
+            //             },
+            //           ),
+            //         ),
+            //       ],
+            //     ],
+            //   ),
+            // ),
 
-//   List<Map<String, dynamic>> _suggestions = [];
-//   bool _isLoading = false;
-//   bool _selectingPickup = false;
-//   Map<String, dynamic>? _selectedPlace;
-
-//   @override
-//   void initState() {
-//     super.initState();
-//     final pickup = ref.read(pickupLocationProvider);
-//     if (pickup != null) {
-//       pickupController.text = "Pickup location set";
-//     }
-
-//     pickupController.addListener(_onSearchChanged);
-//     destinationController.addListener(_onSearchChanged);
-//   }
-
-//   void _onSearchChanged() {
-//     final text =
-//         _selectingPickup ? pickupController.text : destinationController.text;
-//     if (text.trim().isEmpty) return;
-//     _fetchSuggestions(text);
-//   }
-
-//   Future<void> _fetchSuggestions(String query) async {
-//     setState(() {
-//       _isLoading = true;
-//       _suggestions.clear();
-//     });
-
-//     final url = Uri.parse(
-//       "https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=5",
-//     );
-//     final res = await http.get(url, headers: {'User-Agent': 'FlutterApp'});
-
-//     if (res.statusCode == 200) {
-//       final List data = json.decode(res.body);
-//       setState(() {
-//         _suggestions = data.cast<Map<String, dynamic>>();
-//         _isLoading = false;
-//       });
-//     } else {
-//       _showError("Suggestion fetch failed");
-//     }
-//   }
-
-//   void _onSuggestionTap(Map<String, dynamic> place) async {
-//     final lat = double.parse(place['lat']);
-//     final lon = double.parse(place['lon']);
-//     final displayName = place['display_name'];
-
-//     final latLng = LatLng(lat, lon);
-
-//     setState(() {
-//       _selectedPlace = place;
-//       _suggestions.clear();
-//     });
-
-//     final favorite = FavoriteLocation(name: displayName, lat: lat, lon: lon);
-//     await FavoriteLocationService.addFavorite(favorite);
-//     _showMessage("Added to favorites");
-
-//     if (_selectingPickup) {
-//       ref.read(pickupLocationProvider.notifier).state = latLng;
-//       pickupController.text = displayName;
-//     } else {
-//       ref.read(destinationLocationProvider.notifier).state = latLng;
-//       destinationController.text = displayName;
-
-//       final pickup = ref.read(pickupLocationProvider);
-//       if (pickup != null) {
-//         Navigator.push(
-//           context,
-//           MaterialPageRoute(
-//             builder:
-//                 (_) => HomeScreen(
-//                   pickup: pickup,
-//                   destination: latLng,
-//                   stops: ref.read(stopsProvider),
-//                 ),
-//           ),
-//         );
-//       } else {
-//         _showError("Please set pickup location first.");
-//       }
-//     }
-//   }
-
-//   void _addStop(Map<String, dynamic> place) {
-//     final lat = double.parse(place['lat']);
-//     final lon = double.parse(place['lon']);
-//     final latLng = LatLng(lat, lon);
-//     final address = place['display_name'];
-
-//     final currentStops = ref.read(stopsProvider);
-
-//     final isDuplicate = currentStops.any(
-//       (stop) =>
-//           stop['latLng'].latitude == lat && stop['latLng'].longitude == lon,
-//     );
-
-//     if (isDuplicate) {
-//       _showError("This stop is already added.");
-//       return;
-//     }
-
-//     ref.read(stopsProvider.notifier).state = [
-//       ...currentStops,
-//       {'latLng': latLng, 'address': address},
-//     ];
-//     _showMessage("Stop added.");
-//   }
-
-//   void _showMessage(String message) {
-//     ScaffoldMessenger.of(
-//       context,
-//     ).showSnackBar(SnackBar(content: Text(message)));
-//   }
-
-//   void _showError(String error) {
-//     ScaffoldMessenger.of(
-//       context,
-//     ).showSnackBar(SnackBar(content: Text(error), backgroundColor: Colors.red));
-//   }
-
-//   @override
-//   void dispose() {
-//     pickupController.dispose();
-//     destinationController.dispose();
-//     super.dispose();
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(title: const Text('Where To?')),
-//       body: Padding(
-//         padding: const EdgeInsets.all(12.0),
-//         child: Column(
-//           children: [
-//             Row(
-//               children: [
-//                 Expanded(
-//                   child: TextField(
-//                     controller: pickupController,
-//                     decoration: const InputDecoration(
-//                       labelText: 'Pickup Location',
-//                       prefixIcon: Icon(Icons.my_location),
-//                     ),
-//                     onTap: () {
-//                       _selectingPickup = true;
-//                     },
-//                   ),
-//                 ),
-//               ],
-//             ),
-//             const SizedBox(height: 10),
-//             Row(
-//               children: [
-//                 Expanded(
-//                   child: TextField(
-//                     controller: destinationController,
-//                     decoration: const InputDecoration(
-//                       labelText: 'Destination',
-//                       prefixIcon: Icon(Icons.location_on),
-//                     ),
-//                     onTap: () {
-//                       _selectingPickup = false;
-//                     },
-//                   ),
-//                 ),
-//               ],
-//             ),
-//             const SizedBox(height: 10),
-//             if (_isLoading)
-//               const CircularProgressIndicator()
-//             else
-//               Expanded(
-//                 child: ListView.builder(
-//                   itemCount: _suggestions.length,
-//                   itemBuilder: (context, index) {
-//                     final place = _suggestions[index];
-//                     return ListTile(
-//                       title: Text(place['display_name']),
-//                       onTap: () => _onSuggestionTap(place),
-//                     );
-//                   },
-//                 ),
-//               ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
+             // Ambulance — pickup only
+                  // if (widget.category == VehicleCategory.ambulance) ...[
+                  //   ListTile(
+                  //     leading: const Icon(
+                  //       Icons.my_location,
+                  //       color: Colors.green,
+                  //     ),
+                  //     title: TextField(
+                  //       controller: pickupController,
+                  //       decoration: const InputDecoration(
+                  //         border: InputBorder.none,
+                  //         hintText: "Set Pickup Location",
+                  //       ),
+                  //       onTap: () {
+                  //         setState(() {
+                  //           _selectingPickup = true;
+                  //           _suggestions.clear();
+                  //         });
+                  //       },
+                  //     ),
+                  //   ),
+                  // ]
+                  // Exhauster & WaterBowser — destination only

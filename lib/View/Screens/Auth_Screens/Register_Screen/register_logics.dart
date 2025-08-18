@@ -1,7 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:niceapp/Container/Repositories/auth_repo.dart';
 import 'package:niceapp/Container/utils/error_notification.dart';
 import 'package:niceapp/View/Screens/Auth_Screens/Register_Screen/register_providers.dart';
 

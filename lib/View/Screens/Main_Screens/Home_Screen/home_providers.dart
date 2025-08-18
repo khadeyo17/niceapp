@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:niceapp/Model/driver_model.dart';
+import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/location_providers.dart';
 
 import '../../../../Model/direction_model.dart';
 
@@ -44,3 +45,10 @@ final homeScreenMainMarkersProvider = StateProvider<Set<Marker>>((ref) {
 final homeScreenMainCirclesProvider = StateProvider<Set<Circle>>((ref) {
   return {};
 });
+// final pickupAddressProvider = FutureProvider<String?>((ref) async {
+//   final pickup = ref.watch(pickupLocationProvider);
+//   if (pickup == null) return null;
+
+//   final address = await ReverseGeocodingService.getAddressFromLatLng(pickup);
+//   return address ?? "Current Location";
+// });

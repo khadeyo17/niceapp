@@ -88,14 +88,14 @@
 
 import 'package:flutter/material.dart';
 
-class PaymentScreen extends StatefulWidget {
-  const PaymentScreen({super.key});
+class PaymentHistoryScreen extends StatefulWidget {
+  const PaymentHistoryScreen({super.key});
 
   @override
   _PaymentScreenState createState() => _PaymentScreenState();
 }
 
-class _PaymentScreenState extends State<PaymentScreen> {
+class _PaymentScreenState extends State<PaymentHistoryScreen> {
   final TextEditingController amountController = TextEditingController();
   final TextEditingController transactionIdController = TextEditingController();
   String selectedPaymentMethod = 'M-Pesa';
@@ -103,12 +103,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[200],
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Payments'),
+        centerTitle: true,
         backgroundColor: Colors.white,
+        elevation: 0,
         foregroundColor: Colors.black,
-        elevation: 1,
       ),
       body: Center(
         child: Container(

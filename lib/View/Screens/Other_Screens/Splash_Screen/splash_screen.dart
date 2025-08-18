@@ -93,6 +93,7 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
     SplashLogics().checkPermissions(context);
+    //SplashLogics().handleExistingRide(context);
   }
 
   @override
@@ -115,16 +116,16 @@ class _SplashScreenState extends State<SplashScreen> {
             children: [
               // 👇 Replace with your actual logo if needed
               Image.asset('assets/imgs/logo.png', width: 120, height: 120),
-              const SizedBox(height: 20),
-              Text(
-                "Amini",
-                style: TextStyle(
-                  fontSize: 48,
-                  fontFamily: "bold",
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              // const SizedBox(height: 20),
+              // Text(
+              //   "Amini",
+              //   style: TextStyle(
+              //     fontSize: 48,
+              //     fontFamily: "bold",
+              //     color: Colors.white,
+              //     fontWeight: FontWeight.bold,
+              //   ),
+              // ),
             ],
           ),
         ),

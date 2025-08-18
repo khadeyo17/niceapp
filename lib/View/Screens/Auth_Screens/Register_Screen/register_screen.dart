@@ -1,7 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 import 'package:niceapp/Container/Repositories/auth_repo.dart';
+import 'package:niceapp/Container/utils/keys.dart';
 import 'package:niceapp/View/Routes/routes.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -48,18 +52,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       }
 
       String fullPhone = '$selectedCode$cleanedPhone';
-
+      String apiPhone = fullPhone;
       if (selectedMethod == 'whatsapp') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("WhatsApp OTP not supported yet. Defaulting to SMS."),
-          ),
-        );
-        setState(() => selectedMethod = 'sms');
+        apiPhone = fullPhone;
+        // 'whatsapp:$fullPhone';
       }
 
+      String? otp;
       try {
-        final verificationId = await ref
+        var verificationId = await ref
             .read(globalAuthRepoProvider)
             .startPhoneVerification(
               phone: fullPhone,
@@ -67,12 +68,33 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               context: context,
             );
 
+        if (selectedMethod == 'whatsapp') {
+          final response = await http.post(
+            Uri.parse("$baseUrl/auth/SendWhatsappOTP"),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'phone': apiPhone, 'method': selectedMethod}),
+          );
+
+          if (response.statusCode != 200) {
+            throw Exception('Failed to send WhatsApp OTP: ${response.body}');
+          }
+
+          final json = jsonDecode(response.body);
+          verificationId = json['sid'];
+          otp = json['otp'];
+        }
+
         setState(() => isLoading = false);
 
         if (verificationId != null && mounted) {
           context.goNamed(
             Routes().otp,
-            extra: {'verificationId': verificationId, 'phoneNumber': fullPhone},
+            extra: {
+              'verificationId': verificationId,
+              'phoneNumber': fullPhone,
+              'method': selectedMethod,
+              'otp': otp, // Optional
+            },
           );
         }
       } catch (e) {
@@ -83,6 +105,120 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       }
     }
   }
+
+  // Future<void> sendOTP() async {
+  //   if (_formKey.currentState!.validate()) {
+  //     setState(() => isLoading = true);
+
+  //     String cleanedPhone = phoneController.text.trim().replaceAll(
+  //       RegExp(r'\D'),
+  //       '',
+  //     );
+  //     if (cleanedPhone.startsWith('0')) {
+  //       cleanedPhone = cleanedPhone.substring(1);
+  //     }
+
+  //     String fullPhone = '$selectedCode$cleanedPhone';
+
+  //     // Prefix with whatsapp: only if method is WhatsApp
+  //     if (selectedMethod == 'whatsapp') {
+  //       fullPhone = 'whatsapp:$fullPhone';
+  //     }
+  //     String? otp;
+
+  //     try {
+  //       var verificationId = await ref
+  //           .read(globalAuthRepoProvider)
+  //           .startPhoneVerification(
+  //             phone: fullPhone,
+  //             method: selectedMethod,
+  //             context: context,
+  //           );
+  //       if (selectedMethod == 'whatsapp') {
+  //         final response = await http.post(
+  //           Uri.parse("$baseUrl/auth/SendWhatsappOTP"),
+  //           headers: {'Content-Type': 'application/json'},
+  //           body: jsonEncode({'phone': fullPhone, 'method': selectedMethod}),
+  //         );
+
+  //         final json = jsonDecode(response.body);
+  //         verificationId = json['sid']; // from Twilio
+  //         otp = json['otp'];
+  //       }
+
+  //       setState(() => isLoading = false);
+
+  //       if (verificationId != null && mounted) {
+  //         context.goNamed(
+  //           Routes().otp,
+  //           extra: {
+  //             'verificationId': verificationId,
+  //             'phoneNumber': fullPhone,
+  //             'otp': otp, // Optional: show or store for test/debug
+  //           },
+  //         );
+  //       }
+  //     } catch (e) {
+  //       setState(() => isLoading = false);
+  //       ScaffoldMessenger.of(
+  //         context,
+  //       ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+  //     }
+  //   }
+  // }
+
+  // Future<void> sendOTP() async {
+  //   if (_formKey.currentState!.validate()) {
+  //     setState(() => isLoading = true);
+
+  //     String cleanedPhone = phoneController.text.trim().replaceAll(
+  //       RegExp(r'\D'),
+  //       '',
+  //     );
+  //     if (cleanedPhone.startsWith('0')) {
+  //       cleanedPhone = cleanedPhone.substring(1);
+  //     }
+
+  //     String fullPhone = '$selectedCode$cleanedPhone';
+
+  //     // if (selectedMethod == 'whatsapp') {
+  //     //   ScaffoldMessenger.of(context).showSnackBar(
+  //     //     const SnackBar(
+  //     //       content: Text("WhatsApp OTP not supported yet. Defaulting to SMS."),
+  //     //     ),
+  //     //   );
+  //     //   setState(() => selectedMethod = 'sms');
+  //     // }
+
+  //     if (selectedMethod == 'whatsapp') {
+  //       fullPhone = 'whatsapp:$fullPhone';
+  //     }
+
+  //     try {
+  //       final verificationId = await ref
+  //           .read(globalAuthRepoProvider)
+  //           .startPhoneVerification(
+  //             phone: fullPhone,
+  //             method: selectedMethod,
+  //             context: context,
+  //           );
+
+  //       setState(() => isLoading = false);
+
+  //       if (verificationId != null && mounted) {
+  //         context.goNamed(
+  //           Routes().otp,
+  //           extra: {'verificationId': verificationId, 'phoneNumber': fullPhone},
+  //         );
+  //       }
+  //     } catch (e) {
+  //       setState(() => isLoading = false);
+  //       ScaffoldMessenger.of(
+  //         context,
+  //       ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+  //     }
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {

@@ -13,15 +13,19 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.RECEIVE_SMS"/>
     <uses-permission android:name="android.permission.READ_SMS"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
         android:label="amini"
+        
         android:icon="@mipmap/ic_launcher">
-
+<!-- android:icon="@drawable/launch_background"> -->
         <!-- Google Maps API Key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyCj89S5821WHuOjfnh7JUS2DzeFaYVUQU0"/>
+            android:value="AIzaSyClhaXX1OOVCJLGjLyieDk-mtJvu-4Vp5g"/>
 
         <activity
             android:name="com.example.niceapp.MainActivity"

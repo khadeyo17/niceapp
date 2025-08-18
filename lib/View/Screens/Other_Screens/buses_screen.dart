@@ -23,12 +23,15 @@ class AvailableBusesScreen extends StatelessWidget {
     ];
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Available Buses'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
+        centerTitle: true,
+        backgroundColor: Colors.white,
+        elevation: 0,
+        foregroundColor: Colors.black,
       ),
-      backgroundColor: Colors.grey[100],
+
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: buses.length,

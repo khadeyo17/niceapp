@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/vehicle_category.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/where_to_screen.dart';
 //import 'where_to_screen.dart';
 
@@ -23,9 +24,10 @@ class _BreakdownScreenState extends State<BreakdownScreen> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Breakdown Services'),
+        centerTitle: true,
         backgroundColor: Colors.white,
+        elevation: 0,
         foregroundColor: Colors.black,
-        elevation: 1,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -101,7 +103,10 @@ class _BreakdownScreenState extends State<BreakdownScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const WhereToScreen(),
+                    builder:
+                        (context) => const WhereToScreen(
+                          category: VehicleCategory.breakdown,
+                        ),
                   ),
                 );
               },
