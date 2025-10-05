@@ -67,7 +67,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
         Uri.parse('$baseUrl/auth/check-user/$uid'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
+          // 'Authorization': 'Bearer $token',
         },
       );
 

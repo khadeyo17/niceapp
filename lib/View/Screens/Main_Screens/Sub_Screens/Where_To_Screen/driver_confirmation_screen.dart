@@ -6,15 +6,15 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:niceapp/Container/utils/keys.dart';
-import 'package:niceapp/View/Screens/Main_Screens/Home_Screen/home_screen.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/ride_in_progress_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/transport_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class DriverConfirmationScreen extends StatefulWidget {
   final String driverId;
-  final LatLng pickup;
-  final int rideId;
+  final LatLng? pickup;
+  final LatLng? destination;
+  final String? rideId;
   final String? Phone;
   final String? colour;
   final String? regnumber;
@@ -22,10 +22,12 @@ class DriverConfirmationScreen extends StatefulWidget {
   final String? vehicleModel;
   final String? drivername; //photoUrl
   final String? photoUrl;
+
   const DriverConfirmationScreen({
     super.key,
     required this.driverId,
-    required this.pickup,
+    this.pickup,
+    this.destination,
     required this.rideId,
     this.colour,
     this.Phone,
@@ -51,6 +53,7 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
   int estimatedTimeMin = 0;
   late DatabaseReference _driverLocRef;
   LatLng? _driverLocation;
+  LatLng? _pickdestination;
   Marker? _driverMarker;
   List<LatLng> _fullRoute = [];
   Timer? _rideTimer;
@@ -59,21 +62,51 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
   late DatabaseReference? _rideRef;
   StreamSubscription<DatabaseEvent>? _rideSub;
 
+  // @override
+  // void initState() {
+  //   super.initState();
+
+  //   // _rideRef = FirebaseDatabase.instance.ref('rides/${widget.rideId}');
+  //   //_rideSub = _rideRef!.onValue.listen(_handleRideUpdate);
+  //   _listenToDriverLocation();
+  //   _rideTimer = Timer.periodic(Duration(seconds: 2), (_) {
+  //     _checkRideStatus();
+  //   });
+  // }
+
   @override
   void initState() {
     super.initState();
 
-    // _rideRef = FirebaseDatabase.instance.ref('rides/${widget.rideId}');
-    //_rideSub = _rideRef!.onValue.listen(_handleRideUpdate);
+    // initialize pickdestination immediately
+    if (widget.destination != null) {
+      _pickdestination = widget.destination;
+    } else if (widget.pickup != null) {
+      _pickdestination = widget.pickup;
+    }
+
     _listenToDriverLocation();
-    _rideTimer = Timer.periodic(Duration(seconds: 2), (_) {
-      _checkRideStatus();
-    });
+
+    // _rideTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+    //   _checkRideStatus();
+    // });
+    _rideRef = FirebaseDatabase.instance.ref('rides/${widget.rideId}');
+    _rideSub = _rideRef!.onValue.listen(_handleRideUpdate);
+    if (_pickdestination != null) {
+      _markers.add(
+        Marker(
+          markerId: const MarkerId("pickup"),
+          position: _pickdestination!,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        ),
+      );
+    }
   }
 
   @override
   void dispose() {
     //_rideSub?.cancel();
+    _rideSub?.cancel();
     _rideTimer?.cancel();
     _mapController?.dispose();
     super.dispose();
@@ -84,31 +117,52 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
     if (data == null) return;
 
     final status = data['status']?.toString().toLowerCase();
+    debugPrint("Ride status (listener): $status");
+
+    if (status == "cancelled") {
+      if (!mounted) return;
+
+      // Navigate to home
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const TransportServicesScreen()),
+        (route) => false,
+      );
+    }
+
     if (status == 'in_progress' && !_navigated) {
       _navigated = true;
 
       final driverId = data['driverId'] ?? '';
+
+      final pickupMap = data['pickup'] as Map<dynamic, dynamic>?;
+      final destinationMap = data['destination'] as Map<dynamic, dynamic>?;
+
+      if (pickupMap == null || destinationMap == null) return;
+
       final pickup = LatLng(
-        double.parse(data['pickupLat'].toString()),
-        double.parse(data['pickupLng'].toString()),
+        double.parse(pickupMap['lat'].toString()),
+        double.parse(pickupMap['lng'].toString()),
       );
       final destination = LatLng(
-        double.parse(data['destinationLat'].toString()),
-        double.parse(data['destinationLng'].toString()),
+        double.parse(destinationMap['lat'].toString()),
+        double.parse(destinationMap['lng'].toString()),
       );
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder:
-              (_) => RideInProgressLiveScreen(
-                rideId: widget.rideId,
-                driverId: driverId,
-                pickup: pickup,
-                destination: destination,
-              ),
-        ),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder:
+                (_) => RideInProgressLiveScreen(
+                  rideId: widget.rideId!,
+                  driverId: driverId,
+                  pickup: pickup,
+                  destination: destination,
+                ),
+          ),
+        );
+      });
     }
   }
 
@@ -150,7 +204,7 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
           MaterialPageRoute(
             builder:
                 (_) => RideInProgressLiveScreen(
-                  rideId: widget.rideId,
+                  rideId: widget.rideId!,
                   driverId: driverId,
                   pickup: pickup,
                   destination: destination,
@@ -199,12 +253,23 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
             points: remainingRoute,
           ),
         };
+        if (_pickdestination != null) {
+          _markers.add(
+            Marker(
+              markerId: const MarkerId("pickup"),
+              position: _pickdestination!,
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueRed,
+              ),
+            ),
+          );
+        }
 
         _markers = {
           _driverMarker!,
           Marker(
             markerId: const MarkerId('pickup'),
-            position: widget.pickup,
+            position: _pickdestination!,
             icon: BitmapDescriptor.defaultMarkerWithHue(
               BitmapDescriptor.hueRed,
             ),
@@ -291,27 +356,89 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
     }
   }
 
-  Future<void> cancelRide(int rideId, String reason) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/rides/cancel'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'rideId': rideId, 'reason': reason}),
-    );
+  // Future<void> cancelRide(String rideId, String reason) async {
+  //   final response = await http.post(
+  //     Uri.parse('$baseUrl/rides/cancel'),
+  //     headers: {'Content-Type': 'application/json'},
+  //     body: jsonEncode({'rideId': rideId, 'reason': reason}),
+  //   );
 
-    if (response.statusCode == 200) {
-      print("Cancelled ride successfully");
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => TransportServicesScreen()),
+  //   if (response.statusCode == 200) {
+  //     print("Cancelled ride successfully");
+  //     Navigator.push(
+  //       context,
+  //       MaterialPageRoute(builder: (_) => TransportServicesScreen()),
+  //     );
+  //     final result = jsonDecode(response.body);
+  //     // handle result['rideId'] or show confirmation
+  //   } else {
+  //     print("Error cancelling ride: ${response.body}");
+  //   }
+  // }
+
+  Future<void> cancelRide(String rideId, String reason) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/rides/cancel'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'rideId': rideId, 'reason': reason}),
       );
-      final result = jsonDecode(response.body);
-      // handle result['rideId'] or show confirmation
-    } else {
-      print("Error cancelling ride: ${response.body}");
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+        final realRideRef = FirebaseDatabase.instance.ref(
+          "rides/${result['rideId']}",
+        );
+
+        //final realRideRef = passengerDb.ref("rides/${data['rideId']}");
+        // final snapshot = await realRideRefg.get();
+        await realRideRef.update({
+          "status": "cancelled",
+          "cancelledTime": DateTime.now().toIso8601String(),
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ Ride cancelled successfully")),
+        );
+
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => TransportServicesScreen()),
+          (route) => false,
+        );
+      } else {
+        final data = jsonDecode(response.body);
+        final msg = data['message'] ?? "Failed to cancel ride";
+
+        // ✅ Gracefully handle "already cancelled/completed"
+        if (msg.contains("already completed") || msg.contains("cancelled")) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text("⚠️ $msg")));
+
+          // Still redirect to TransportServicesScreen
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => TransportServicesScreen()),
+            (route) => false,
+          );
+        } else {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text("❌ $msg")));
+        }
+      }
+    } catch (e) {
+      print("Exception cancelling ride: $e");
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("⚠️ Something went wrong.")));
     }
   }
 
-  Future<void> reassignDriver(int rideId, String reason) async {
+  Future<void> reassignDriver(String rideId, String reason) async {
     final response = await http.post(
       Uri.parse('$baseUrl/rides/cancel-reassign'),
       headers: {'Content-Type': 'application/json'},
@@ -323,13 +450,34 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
     }
   }
 
+  Future<String> _getPlaceName(LatLng latLng) async {
+    final url =
+        'https://maps.googleapis.com/maps/api/geocode/json?latlng=${latLng.latitude},${latLng.longitude}&key=$mapKey';
+
+    final response = await http.get(Uri.parse(url));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['results'].isNotEmpty) {
+        return data['results'][0]['formatted_address'];
+      }
+    }
+    return "Unknown location";
+  }
+
   Future<void> _fetchGoogleRoute() async {
     if (_driverLocation == null) return;
+
+    if (widget.destination != null) {
+      _pickdestination = widget.destination;
+    } else if (widget.pickup != null) {
+      _pickdestination = widget.pickup;
+    }
 
     final url =
         'https://maps.googleapis.com/maps/api/directions/json'
         '?origin=${_driverLocation!.latitude},${_driverLocation!.longitude}'
-        '&destination=${widget.pickup.latitude},${widget.pickup.longitude}'
+        '&destination=${_pickdestination!.latitude},${_pickdestination!.longitude}'
         '&key=$mapKey';
 
     final response = await http.get(Uri.parse(url));
@@ -403,7 +551,7 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
           _driverMarker!,
           Marker(
             markerId: const MarkerId('pickup'),
-            position: widget.pickup,
+            position: _pickdestination!,
             icon: BitmapDescriptor.defaultMarkerWithHue(
               BitmapDescriptor.hueRed,
             ),
@@ -415,9 +563,6 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final driverLoc = widget.pickup;
-    // widget.driver.location;
-    //backgroundColor: Colors.white;
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -434,183 +579,307 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            flex: 8,
-            child:
-                (driverLoc.latitude == 0.0 && driverLoc.latitude == 0.0)
-                    ? const Center(child: CircularProgressIndicator())
-                    : GoogleMap(
-                      initialCameraPosition: CameraPosition(
-                        target: widget.pickup,
-                        zoom: 14,
-                      ),
-                      markers: _markers,
-                      polylines: _polylines,
-                      onMapCreated: (controller) {
-                        _mapController = controller;
-                      },
-                    ),
-          ),
 
-          Expanded(
-            flex: 3,
+      body: Stack(
+        children: [
+          // ✅ Google Map background
+          (_pickdestination == null ||
+                  (_pickdestination!.latitude == 0.0 &&
+                      _pickdestination!.longitude == 0.0))
+              ? const Center(child: CircularProgressIndicator())
+              : GoogleMap(
+                initialCameraPosition: CameraPosition(
+                  target: _pickdestination!,
+                  zoom: 14,
+                ),
+                markers: _markers,
+                polylines: _polylines,
+                onMapCreated: (controller) {
+                  _mapController = controller;
+                },
+              ),
+
+          // ✅ Fixed bottom card (quarter screen)
+          // Align(
+          //   alignment: Alignment.bottomCenter,
+          //   child: Container(
+          //     height:
+          //         MediaQuery.of(context).size.height * 0.25, // quarter screen
+          //     width: double.infinity,
+          //     padding: const EdgeInsets.all(16),
+          //     decoration: const BoxDecoration(
+          //       color: Colors.white,
+          //       borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          //       boxShadow: [
+          //         BoxShadow(
+          //           color: Colors.black26,
+          //           blurRadius: 8,
+          //           offset: Offset(0, -2),
+          //         ),
+          //       ],
+          //     ),
+          //     child: Column(
+          //       crossAxisAlignment: CrossAxisAlignment.start,
+          //       children: [
+          //         /// ETA
+          //         Text(
+          //           "Pickup in $estimatedTimeMin mins",
+          //           style: const TextStyle(
+          //             fontSize: 20,
+          //             fontWeight: FontWeight.bold,
+          //           ),
+          //         ),
+          //         const SizedBox(height: 8),
+
+          //         /// Location name (instead of lat/lng)
+          //         if (_pickdestination != null)
+          //           FutureBuilder<String>(
+          //             future: _getPlaceName(
+          //               _pickdestination!,
+          //             ), // ✅ reverse geocode
+          //             builder: (context, snapshot) {
+          //               if (snapshot.connectionState ==
+          //                   ConnectionState.waiting) {
+          //                 return const Text("Getting pickup location...");
+          //               }
+          //               return Text(
+          //                 "Meet at: ${snapshot.data ?? "Unknown location"}",
+          //                 style: const TextStyle(color: Colors.grey),
+          //               );
+          //             },
+          //           ),
+
+          //         const SizedBox(height: 12),
+
+          //         /// Driver Info
+          //         Row(
+          //           children: [
+          //             CircleAvatar(
+          //               radius: 28,
+          //               backgroundImage:
+          //                   (widget.photoUrl != null &&
+          //                           widget.photoUrl!.isNotEmpty)
+          //                       ? NetworkImage(widget.photoUrl!)
+          //                       : const AssetImage('assets/imgs/logo.png')
+          //                           as ImageProvider,
+          //             ),
+          //             const SizedBox(width: 12),
+          //             Expanded(
+          //               child: Column(
+          //                 crossAxisAlignment: CrossAxisAlignment.start,
+          //                 children: [
+          //                   Text(
+          //                     widget.drivername ?? "Driver",
+          //                     style: const TextStyle(
+          //                       fontSize: 18,
+          //                       fontWeight: FontWeight.bold,
+          //                     ),
+          //                   ),
+          //                   Text(
+          //                     "${widget.vehicleMake} ${widget.vehicleModel}",
+          //                   ),
+          //                   Text("Plate: ${widget.regnumber}"),
+          //                   Text("Color: ${widget.colour}"),
+          //                 ],
+          //               ),
+          //             ),
+          //             Column(
+          //               children: [
+          //                 IconButton(
+          //                   icon: const Icon(Icons.phone, color: Colors.green),
+          //                   onPressed: () {
+          //                     launchUrl(Uri.parse("tel:${widget.Phone}"));
+          //                   },
+          //                 ),
+          //                 IconButton(
+          //                   icon: const Icon(Icons.message, color: Colors.blue),
+          //                   onPressed: () async {
+          //                     final Uri smsUri = Uri(
+          //                       scheme: 'sms',
+          //                       path: "${widget.Phone}",
+          //                     );
+          //                     if (await canLaunchUrl(smsUri)) {
+          //                       await launchUrl(smsUri);
+          //                     }
+          //                   },
+          //                 ),
+          //               ],
+          //             ),
+          //           ],
+          //         ),
+          //       ],
+          //     ),
+          //   ),
+          // ),
+          Align(
+            alignment: Alignment.bottomCenter,
             child: Container(
+              height:
+                  MediaQuery.of(context).size.height *
+                  0.35, // now 35% of screen
               width: double.infinity,
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(12),
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(28),
-                  topRight: Radius.circular(28),
-                ),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 8,
+                    color: Colors.black26,
+                    blurRadius: 6,
                     offset: Offset(0, -2),
                   ),
                 ],
               ),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Driver Info
-                          Expanded(
-                            child: Column(
-                              children: [
-                                Row(
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 40,
-                                      backgroundImage:
-                                          (widget.photoUrl != null &&
-                                                  widget.photoUrl!.isNotEmpty)
-                                              ? NetworkImage(widget.photoUrl!)
-                                              : const AssetImage(
-                                                    'assets/imgs/logo.png',
-                                                  )
-                                                  as ImageProvider,
-                                    ),
-                                    //   backgroundImage:
-                                    //       widget.photoUrl!.isNotEmpty
-                                    //           ? NetworkImage(widget.photoUrl!)
-                                    //           : const AssetImage(
-                                    //                 'assets/imgs/logo.png',
-                                    //               )
-                                    //               as ImageProvider,
-                                    // ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            widget.drivername!,
-                                            style: const TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            "Vehicle: ${widget.vehicleMake}",
-                                          ),
-                                          Text("Plate: ${widget.regnumber}"),
-                                          Text("Color: ${widget.colour}"),
-                                          Text(
-                                            "ETA: $estimatedTimeMin min • ${driverDistanceKm.toStringAsFixed(1)} km",
-                                            style: const TextStyle(
-                                              color: Colors.grey,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12.0,
-                              vertical: 8,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceAround,
-                              children: [
-                                _actionButton(Icons.phone, "Call", () {
-                                  launchUrl(Uri.parse("tel:${widget.Phone}"));
-                                }),
-                                _actionButton(
-                                  Icons.message,
-                                  "Message",
-                                  () async {
-                                    final Uri smsUri = Uri(
-                                      scheme: 'sms',
-                                      path: "${widget.Phone}",
-                                    );
-                                    if (await canLaunchUrl(smsUri)) {
-                                      await launchUrl(smsUri);
-                                    } else {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Cannot send message.'),
-                                        ),
-                                      );
-                                    }
-                                  },
-                                ),
-                                // {
-                                //   // TODO: Add chat feature
-                                //   ScaffoldMessenger.of(context).showSnackBar(
-                                //     const SnackBar(
-                                //       content: Text(
-                                //         "Chat feature coming soon!",
-                                //       ),
-                                //     ),
-                                //   );
-                                // }),
-                                // _actionButton(Icons.cancel, "Cancel", () {
-                                //   _showCancelDialog(context);
-                                // }),
-                              ],
-                            ),
-                          ),
-                        ],
+                  /// ETA + pickup location
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.access_time,
+                        size: 18,
+                        color: Colors.black54,
                       ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // ✅ Big Cancel Button at Bottom, inside scroll view
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _showCancelDialog(context),
-                      icon: const Icon(Icons.cancel, color: Colors.white),
-                      label: const Text(
-                        "Cancel Ride",
-                        style: TextStyle(fontSize: 18, color: Colors.white),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[700],
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Pickup in $estimatedTimeMin mins",
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            FutureBuilder<String>(
+                              future: _getPlaceName(_pickdestination!),
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState ==
+                                    ConnectionState.waiting) {
+                                  return const Text(
+                                    "Getting pickup location...",
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey,
+                                    ),
+                                  );
+                                }
+                                return Text(
+                                  "Meet at: ${snapshot.data ?? "Unknown"}",
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                );
+                              },
+                            ),
+                          ],
                         ),
                       ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  /// Driver info row
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        CircleAvatar(
+                          radius: 28,
+                          backgroundImage:
+                              (widget.photoUrl != null &&
+                                      widget.photoUrl!.isNotEmpty)
+                                  ? NetworkImage(widget.photoUrl!)
+                                  : const AssetImage('assets/imgs/logo.png')
+                                      as ImageProvider,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                widget.drivername ?? "Driver",
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                "${widget.vehicleMake} ${widget.vehicleModel}",
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                              Text(
+                                "Plate: ${widget.regnumber}",
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            IconButton(
+                              icon: const Icon(
+                                Icons.phone,
+                                color: Colors.green,
+                                size: 22,
+                              ),
+                              onPressed: () {
+                                launchUrl(Uri.parse("tel:${widget.Phone}"));
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.message,
+                                color: Colors.blue,
+                                size: 22,
+                              ),
+                              onPressed: () async {
+                                final Uri smsUri = Uri(
+                                  scheme: 'sms',
+                                  path: "${widget.Phone}",
+                                );
+                                if (await canLaunchUrl(smsUri)) {
+                                  await launchUrl(smsUri);
+                                }
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.cancel,
+                                color: Colors.red,
+                                size: 22,
+                              ),
+                              onPressed: () {
+                                _showCancelDialog(
+                                  context,
+                                ); // ✅ reuse the bottom sheet logic
+                              },
+                            ),
+
+                            // onPressed: () async {
+                            //   final Uri smsUri = Uri(
+                            //     scheme: 'sms',
+                            //     path: "${widget.Phone}",
+                            //   );
+                            //   if (await canLaunchUrl(smsUri)) {
+                            //     await launchUrl(smsUri);
+                            //   }
+                            // },
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -640,7 +909,6 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
 
   void _showCancelDialog(BuildContext context) async {
     final reasons = await fetchCancellationReasons();
-
     if (!mounted) return;
 
     showModalBottomSheet(
@@ -649,13 +917,13 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) {
+      builder: (ctx) {
         return DraggableScrollableSheet(
           initialChildSize: 0.5,
           minChildSize: 0.4,
           maxChildSize: 0.9,
           expand: false,
-          builder: (context, scrollController) {
+          builder: (_, scrollController) {
             return Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -687,9 +955,8 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
                     child: ListView.builder(
                       controller: scrollController,
                       itemCount: reasons.length,
-                      itemBuilder: (context, index) {
+                      itemBuilder: (ctx, index) {
                         final reason = reasons[index];
-
                         return Card(
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -701,12 +968,14 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
                               style: const TextStyle(color: Colors.black),
                             ),
                             onTap: () async {
-                              Navigator.pop(context); // Close bottom sheet
+                              Navigator.of(
+                                ctx,
+                              ).pop(); // close bottom sheet first
 
-                              final shouldWait = await showDialog<bool>(
+                              final shouldReassign = await showDialog<bool>(
                                 context: context,
                                 builder:
-                                    (ctx) => AlertDialog(
+                                    (dialogCtx) => AlertDialog(
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(16),
                                       ),
@@ -720,11 +989,6 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
                                         "Reason: $reason\n\nShould the rider wait for another driver?",
                                         style: const TextStyle(fontSize: 16),
                                       ),
-                                      actionsPadding:
-                                          const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 10,
-                                          ),
                                       actions: [
                                         TextButton.icon(
                                           icon: const Icon(
@@ -733,37 +997,53 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
                                           ),
                                           label: const Text("No"),
                                           onPressed: () async {
-                                            Navigator.of(ctx).pop(false);
-
-                                            // 🚀 Call backend to mark ride as cancelled without reassignment
+                                            Navigator.of(dialogCtx).pop(false);
                                             await cancelRide(
-                                              widget.rideId,
+                                              widget.rideId.toString(),
                                               reason,
                                             );
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    "Ride cancelled.",
+                                                  ),
+                                                ),
+                                              );
+                                            }
                                           },
                                         ),
                                         ElevatedButton.icon(
-                                          icon: const Icon(
-                                            Icons.check_circle_outline,
-                                          ),
+                                          icon: const Icon(Icons.refresh),
                                           label: const Text("Yes"),
                                           onPressed: () async {
-                                            Navigator.of(ctx).pop(true);
-
-                                            // 🚀 Reassign driver
+                                            Navigator.of(dialogCtx).pop(true);
                                             await reassignDriver(
-                                              widget.rideId,
+                                              widget.rideId.toString(),
                                               reason,
                                             );
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    "Driver reassigned.",
+                                                  ),
+                                                ),
+                                              );
+                                            }
                                           },
                                         ),
                                       ],
                                     ),
                               );
-                              if (!mounted) return;
-                              if (mounted) {
-                                Navigator.of(context).pop(); // Exit ride screen
-                              }
+
+                              // ⚡ Do not force pop parent screen,
+                              // let backend actions decide redirection
+                              if (shouldReassign == null) return;
                             },
                           ),
                         );
@@ -778,305 +1058,7 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
       },
     );
   }
-
-  //   @override
-  // Widget build(BuildContext context) {
-  //   final driverLoc = widget.pickup;
-  //   return Scaffold(
-  //     backgroundColor: Colors.white,
-  //     appBar: AppBar(
-  //       title: const Text(
-  //         "Driver is on the way 🚗",
-  //         style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-  //       ),
-  //       centerTitle: true,
-  //       elevation: 0,
-  //       backgroundColor: Colors.white,
-  //       foregroundColor: Colors.black,
-  //       automaticallyImplyLeading: false,
-  //       actions: [
-  //         IconButton(
-  //           icon: const Icon(Icons.cancel, size: 28, color: Colors.red),
-  //           onPressed: () => _showCancelDialog(context),
-  //         ),
-  //       ],
-  //     ),
-  //     body: Stack(
-  //       children: [
-  //         // Map background
-  //         (driverLoc.latitude == 0.0 && driverLoc.longitude == 0.0)
-  //             ? const Center(child: CircularProgressIndicator())
-  //             : GoogleMap(
-  //               initialCameraPosition: CameraPosition(
-  //                 target: widget.pickup,
-  //                 zoom: 14,
-  //               ),
-  //               markers: _markers,
-  //               polylines: _polylines,
-  //             ),
-
-  //         // Floating driver info card
-  //         Align(
-  //           alignment: Alignment.bottomCenter,
-  //           child: Container(
-  //             margin: const EdgeInsets.all(16),
-  //             padding: const EdgeInsets.all(20),
-  //             decoration: BoxDecoration(
-  //               color: Colors.white,
-  //               borderRadius: BorderRadius.circular(20),
-  //               boxShadow: [
-  //                 BoxShadow(
-  //                   color: Colors.black.withOpacity(0.1),
-  //                   blurRadius: 12,
-  //                   offset: const Offset(0, 6),
-  //                 ),
-  //               ],
-  //             ),
-  //             child: Column(
-  //               mainAxisSize: MainAxisSize.min,
-  //               children: [
-  //                 // Driver row
-  //                 Row(
-  //                   children: [
-  //                     CircleAvatar(
-  //                       radius: 45,
-  //                       backgroundImage:
-  //                           (widget.photoUrl != null &&
-  //                                   widget.photoUrl!.isNotEmpty)
-  //                               ? NetworkImage(widget.photoUrl!)
-  //                               : const AssetImage('assets/imgs/logo.png')
-  //                                   as ImageProvider,
-  //                     ),
-  //                     const SizedBox(width: 16),
-  //                     Expanded(
-  //                       child: Column(
-  //                         crossAxisAlignment: CrossAxisAlignment.start,
-  //                         children: [
-  //                           Text(
-  //                             widget.drivername ?? "Driver",
-  //                             style: const TextStyle(
-  //                               fontSize: 20,
-  //                               fontWeight: FontWeight.bold,
-  //                             ),
-  //                           ),
-  //                           const SizedBox(height: 4),
-  //                           Text(
-  //                             "${widget.vehicleMake ?? ''} ${widget.vehicleModel ?? ''}",
-  //                             style: const TextStyle(
-  //                               fontSize: 16,
-  //                               color: Colors.grey,
-  //                             ),
-  //                           ),
-  //                           Text(
-  //                             "Plate: ${widget.regnumber ?? ''} • ${widget.colour ?? ''}",
-  //                             style: const TextStyle(fontSize: 15),
-  //                           ),
-  //                           const SizedBox(height: 4),
-  //                           Text(
-  //                             "ETA: $estimatedTimeMin min • ${driverDistanceKm.toStringAsFixed(1)} km",
-  //                             style: const TextStyle(
-  //                               fontSize: 15,
-  //                               color: Colors.blueGrey,
-  //                             ),
-  //                           ),
-  //                         ],
-  //                       ),
-  //                     ),
-  //                   ],
-  //                 ),
-
-  //                 const SizedBox(height: 20),
-
-  //                 // Action buttons
-  //                 Row(
-  //                   mainAxisAlignment: MainAxisAlignment.spaceAround,
-  //                   children: [
-  //                     _modernActionButton(
-  //                       Icons.phone,
-  //                       "Call",
-  //                       Colors.green,
-  //                       () {
-  //                         launchUrl(Uri.parse("tel:${widget.Phone}"));
-  //                       },
-  //                     ),
-  //                     _modernActionButton(
-  //                       Icons.message,
-  //                       "Message",
-  //                       Colors.blue,
-  //                       () async {
-  //                         final Uri smsUri = Uri(
-  //                           scheme: 'sms',
-  //                           path: "${widget.Phone}",
-  //                         );
-  //                         if (await canLaunchUrl(smsUri)) {
-  //                           await launchUrl(smsUri);
-  //                         }
-  //                       },
-  //                     ),
-  //                   ],
-  //                 ),
-
-  //                 const SizedBox(height: 20),
-
-  //                 // Cancel button
-  //                 SizedBox(
-  //                   width: double.infinity,
-  //                   height: 55,
-  //                   child: ElevatedButton.icon(
-  //                     onPressed: () => _showCancelDialog(context),
-  //                     icon: const Icon(Icons.cancel, color: Colors.white),
-  //                     label: const Text(
-  //                       "Cancel Ride",
-  //                       style: TextStyle(fontSize: 18, color: Colors.white),
-  //                     ),
-  //                     style: ElevatedButton.styleFrom(
-  //                       backgroundColor: Colors.redAccent,
-  //                       shape: RoundedRectangleBorder(
-  //                         borderRadius: BorderRadius.circular(14),
-  //                       ),
-  //                       elevation: 4,
-  //                     ),
-  //                   ),
-  //                 ),
-  //               ],
-  //             ),
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
-  // Widget _modernActionButton(
-  //   IconData icon,
-  //   String label,
-  //   Color color,
-  //   VoidCallback onTap,
-  // ) {
-  //   return Column(
-  //     children: [
-  //       InkWell(
-  //         onTap: onTap,
-  //         borderRadius: BorderRadius.circular(50),
-  //         child: Container(
-  //           padding: const EdgeInsets.all(14),
-  //           decoration: BoxDecoration(
-  //             color: color.withOpacity(0.1),
-  //             shape: BoxShape.circle,
-  //           ),
-  //           child: Icon(icon, color: color, size: 28),
-  //         ),
-  //       ),
-  //       const SizedBox(height: 6),
-  //       Text(
-  //         label,
-  //         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-  //       ),
-  //     ],
-  //   );
-  // }
-
-  // void _showCancelDialog(BuildContext context) async {
-  //   final reasons = await fetchCancellationReasons();
-
-  //   if (!mounted) return;
-
-  //   showModalBottomSheet(
-  //     context: context,
-  //     isScrollControlled: true,
-  //     shape: const RoundedRectangleBorder(
-  //       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-  //     ),
-  //     builder: (context) {
-  //       return DraggableScrollableSheet(
-  //         initialChildSize: 0.5,
-  //         minChildSize: 0.4,
-  //         maxChildSize: 0.9,
-  //         expand: false,
-  //         builder: (context, scrollController) {
-  //           return Padding(
-  //             padding: const EdgeInsets.all(16),
-  //             child: Column(
-  //               children: [
-  //                 const Text(
-  //                   "Select Cancellation Reason",
-  //                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-  //                 ),
-  //                 const SizedBox(height: 16),
-  //                 Expanded(
-  //                   child: ListView.builder(
-  //                     controller: scrollController,
-  //                     itemCount: reasons.length,
-  //                     itemBuilder: (context, index) {
-  //                       final reason = reasons[index];
-
-  //                       return Card(
-  //                         color: Colors.grey[700],
-  //                         child: ListTile(
-  //                           title: Text(
-  //                             reason,
-  //                             style: const TextStyle(color: Colors.white),
-  //                           ),
-  //                           //final dialogContext = context;
-  //                           onTap: () async {
-  //                             Navigator.pop(context); // Close bottom sheet
-
-  //                             final shouldWait = await showDialog<bool>(
-  //                               context: context,
-  //                               builder:
-  //                                   (ctx) => AlertDialog(
-  //                                     title: const Text("Cancel Ride"),
-  //                                     content: Text(
-  //                                       "Reason: $reason\n\nShould the rider wait for another driver?",
-  //                                     ),
-  //                                     actions: [
-  //                                       TextButton(
-  //                                         onPressed:
-  //                                             () =>
-  //                                                 Navigator.of(ctx).pop(false),
-  //                                         child: const Text("No"),
-  //                                       ),
-  //                                       ElevatedButton(
-  //                                         onPressed:
-  //                                             () => Navigator.of(ctx).pop(true),
-  //                                         child: const Text("Yes"),
-  //                                       ),
-  //                                     ],
-  //                                   ),
-  //                             );
-
-  //                             if (shouldWait == true) {
-  //                               await reassignDriver(widget.rideId, reason);
-  //                             } else {
-  //                               // Navigator.push(
-  //                               //   context,
-  //                               //   MaterialPageRoute(
-  //                               //     builder:
-  //                               //         (_) => TransportServicesScreen()
-
-  //                               //   ),
-  //                               // );
-  //                             }
-
-  //                             if (mounted) {
-  //                               Navigator.of(context).pop(); // Exit ride screen
-  //                             }
-  //                           },
-  //                         ),
-  //                       );
-  //                     },
-  //                   ),
-  //                 ),
-  //               ],
-  //             ),
-  //           );
-  //         },
-  //       );
-  //     },
-  //   );
-  // }
 }
-
 //   void _showCancelDialog(BuildContext context) async {
 //     final reasons = await fetchCancellationReasons();
 
@@ -1098,12 +1080,30 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
 //             return Padding(
 //               padding: const EdgeInsets.all(16),
 //               child: Column(
+//                 crossAxisAlignment: CrossAxisAlignment.start,
 //                 children: [
-//                   const Text(
-//                     "Select Cancellation Reason",
-//                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+//                   Center(
+//                     child: Container(
+//                       width: 40,
+//                       height: 4,
+//                       margin: const EdgeInsets.only(bottom: 16),
+//                       decoration: BoxDecoration(
+//                         color: Colors.grey[400],
+//                         borderRadius: BorderRadius.circular(4),
+//                       ),
+//                     ),
 //                   ),
-//                   const SizedBox(height: 16),
+//                   const Center(
+//                     child: Text(
+//                       "Why do you want to cancel?",
+//                       style: TextStyle(
+//                         fontSize: 20,
+//                         fontWeight: FontWeight.bold,
+//                         color: Colors.black87,
+//                       ),
+//                     ),
+//                   ),
+//                   const SizedBox(height: 20),
 //                   Expanded(
 //                     child: ListView.builder(
 //                       controller: scrollController,
@@ -1112,45 +1112,81 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
 //                         final reason = reasons[index];
 
 //                         return Card(
-//                           color: Colors.grey[700],
+//                           shape: RoundedRectangleBorder(
+//                             borderRadius: BorderRadius.circular(12),
+//                           ),
+//                           color: Colors.red[50],
 //                           child: ListTile(
 //                             title: Text(
 //                               reason,
-//                               style: const TextStyle(color: Colors.white),
+//                               style: const TextStyle(color: Colors.black),
 //                             ),
-//                             onTap: () async {
-//                               Navigator.pop(context); // Close bottom sheet
 
+//                             onTap: () async {
+//                               // Close the bottom sheet first
+//                               Navigator.of(context).pop();
+
+//                               // Show dialog using the parent context safely
 //                               final shouldWait = await showDialog<bool>(
-//                                 context: context,
+//                                 context:
+//                                     context, // still valid, we closed sheet already
 //                                 builder:
-//                                     (ctx) => AlertDialog(
-//                                       title: const Text("Cancel Ride"),
+//                                     (dialogCtx) => AlertDialog(
+//                                       shape: RoundedRectangleBorder(
+//                                         borderRadius: BorderRadius.circular(16),
+//                                       ),
+//                                       title: const Text(
+//                                         "Cancel Ride",
+//                                         style: TextStyle(
+//                                           fontWeight: FontWeight.bold,
+//                                         ),
+//                                       ),
 //                                       content: Text(
 //                                         "Reason: $reason\n\nShould the rider wait for another driver?",
+//                                         style: const TextStyle(fontSize: 16),
 //                                       ),
+//                                       actionsPadding:
+//                                           const EdgeInsets.symmetric(
+//                                             horizontal: 16,
+//                                             vertical: 10,
+//                                           ),
 //                                       actions: [
-//                                         TextButton(
-//                                           onPressed:
-//                                               () =>
-//                                                   Navigator.of(ctx).pop(false),
-//                                           child: const Text("No"),
+//                                         TextButton.icon(
+//                                           icon: const Icon(
+//                                             Icons.close,
+//                                             color: Colors.red,
+//                                           ),
+//                                           label: const Text("No"),
+//                                           onPressed: () async {
+//                                             Navigator.of(dialogCtx).pop(false);
+//                                             await cancelRide(
+//                                               widget.rideId.toString(),
+//                                               reason,
+//                                             );
+//                                           },
 //                                         ),
-//                                         ElevatedButton(
-//                                           onPressed:
-//                                               () => Navigator.of(ctx).pop(true),
-//                                           child: const Text("Yes"),
+//                                         ElevatedButton.icon(
+//                                           icon: const Icon(
+//                                             Icons.check_circle_outline,
+//                                           ),
+//                                           label: const Text("Yes"),
+//                                           onPressed: () async {
+//                                             Navigator.of(dialogCtx).pop(true);
+//                                             await reassignDriver(
+//                                               widget.rideId.toString(),
+//                                               reason,
+//                                             );
+//                                           },
 //                                         ),
 //                                       ],
 //                                     ),
 //                               );
 
-//                               if (shouldWait == true) {
-//                                 await reassignDriver(widget.rideId, reason);
-//                               }
+//                               if (!mounted) return;
 
-//                               if (mounted) {
-//                                 Navigator.of(context).pop(); // Exit ride screen
+//                               // Only exit ride screen if the widget is still mounted
+//                               if (shouldWait != null) {
+//                                 Navigator.of(context).pop();
 //                               }
 //                             },
 //                           ),
@@ -1166,13 +1202,306 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
 //       },
 //     );
 //   }
+// }
+  // void _handleRideUpdate(DatabaseEvent event) {
+  //   final data = event.snapshot.value as Map<dynamic, dynamic>?;
+  //   if (data == null) return;
+
+  //   final status = data['status']?.toString().toLowerCase();
+  //   if (status == 'in_progress' && !_navigated) {
+  //     _navigated = true;
+
+  //     final driverId = data['driverId'] ?? '';
+  //     final pickup = LatLng(
+  //       double.parse(data['pickupLat'].toString()),
+  //       double.parse(data['pickupLng'].toString()),
+  //     );
+  //     final destination = LatLng(
+  //       double.parse(data['destinationLat'].toString()),
+  //       double.parse(data['destinationLng'].toString()),
+  //     );
+
+  //     Navigator.push(
+  //       context,
+  //       MaterialPageRoute(
+  //         builder:
+  //             (_) => RideInProgressLiveScreen(
+  //               rideId: widget.rideId!,
+  //               driverId: driverId,
+  //               pickup: pickup,
+  //               destination: destination,
+  //             ),
+  //       ),
+  //     );
+  //   }
+  // }
+                              // onTap: () async {
+                            //   Navigator.pop(context); // Close bottom sheet
+
+                            //   final shouldWait = await showDialog<bool>(
+                            //     context: context,
+                            //     builder:
+                            //         (ctx) => AlertDialog(
+                            //           shape: RoundedRectangleBorder(
+                            //             borderRadius: BorderRadius.circular(16),
+                            //           ),
+                            //           title: const Text(
+                            //             "Cancel Ride",
+                            //             style: TextStyle(
+                            //               fontWeight: FontWeight.bold,
+                            //             ),
+                            //           ),
+                            //           content: Text(
+                            //             "Reason: $reason\n\nShould the rider wait for another driver?",
+                            //             style: const TextStyle(fontSize: 16),
+                            //           ),
+                            //           actionsPadding:
+                            //               const EdgeInsets.symmetric(
+                            //                 horizontal: 16,
+                            //                 vertical: 10,
+                            //               ),
+                            //           actions: [
+                            //             TextButton.icon(
+                            //               icon: const Icon(
+                            //                 Icons.close,
+                            //                 color: Colors.red,
+                            //               ),
+                            //               label: const Text("No"),
+                            //               onPressed: () async {
+                            //                 Navigator.of(ctx).pop(false);
+
+                            //                 // 🚀 Call backend to mark ride as cancelled without reassignment
+                            //                 await cancelRide(
+                            //                   widget.rideId,
+                            //                   reason,
+                            //                 );
+                            //               },
+                            //             ),
+                            //             ElevatedButton.icon(
+                            //               icon: const Icon(
+                            //                 Icons.check_circle_outline,
+                            //               ),
+                            //               label: const Text("Yes"),
+                            //               onPressed: () async {
+                            //                 Navigator.of(ctx).pop(true);
+
+                            //                 // 🚀 Reassign driver
+                            //                 await reassignDriver(
+                            //                   widget.rideId,
+                            //                   reason,
+                            //                 );
+                            //               },
+                            //             ),
+                            //           ],
+                            //         ),
+                            //   );
+                            //   if (!mounted) return;
+                            //   if (mounted) {
+                            //     Navigator.of(context).pop(); // Exit ride screen
+                            //   }
+                            // },
+
+//   //   @override
+//   // Widget build(BuildContext context) {
+//   //   final driverLoc = widget.pickup;
+//   //   return Scaffold(
+//   //     backgroundColor: Colors.white,
+//   //     appBar: AppBar(
+//   //       title: const Text(
+//   //         "Driver is on the way 🚗",
+//   //         style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+//   //       ),
+//   //       centerTitle: true,
+//   //       elevation: 0,
+//   //       backgroundColor: Colors.white,
+//   //       foregroundColor: Colors.black,
+//   //       automaticallyImplyLeading: false,
+//   //       actions: [
+//   //         IconButton(
+//   //           icon: const Icon(Icons.cancel, size: 28, color: Colors.red),
+//   //           onPressed: () => _showCancelDialog(context),
+//   //         ),
+//   //       ],
+//   //     ),
+//   //     body: Stack(
+//   //       children: [
+//   //         // Map background
+//   //         (driverLoc.latitude == 0.0 && driverLoc.longitude == 0.0)
+//   //             ? const Center(child: CircularProgressIndicator())
+//   //             : GoogleMap(
+//   //               initialCameraPosition: CameraPosition(
+//   //                 target: widget.pickup,
+//   //                 zoom: 14,
+//   //               ),
+//   //               markers: _markers,
+//   //               polylines: _polylines,
+//   //             ),
+
+//   //         // Floating driver info card
+//   //         Align(
+//   //           alignment: Alignment.bottomCenter,
+//   //           child: Container(
+//   //             margin: const EdgeInsets.all(16),
+//   //             padding: const EdgeInsets.all(20),
+//   //             decoration: BoxDecoration(
+//   //               color: Colors.white,
+//   //               borderRadius: BorderRadius.circular(20),
+//   //               boxShadow: [
+//   //                 BoxShadow(
+//   //                   color: Colors.black.withOpacity(0.1),
+//   //                   blurRadius: 12,
+//   //                   offset: const Offset(0, 6),
+//   //                 ),
+//   //               ],
+//   //             ),
+//   //             child: Column(
+//   //               mainAxisSize: MainAxisSize.min,
+//   //               children: [
+//   //                 // Driver row
+//   //                 Row(
+//   //                   children: [
+//   //                     CircleAvatar(
+//   //                       radius: 45,
+//   //                       backgroundImage:
+//   //                           (widget.photoUrl != null &&
+//   //                                   widget.photoUrl!.isNotEmpty)
+//   //                               ? NetworkImage(widget.photoUrl!)
+//   //                               : const AssetImage('assets/imgs/logo.png')
+//   //                                   as ImageProvider,
+//   //                     ),
+//   //                     const SizedBox(width: 16),
+//   //                     Expanded(
+//   //                       child: Column(
+//   //                         crossAxisAlignment: CrossAxisAlignment.start,
+//   //                         children: [
+//   //                           Text(
+//   //                             widget.drivername ?? "Driver",
+//   //                             style: const TextStyle(
+//   //                               fontSize: 20,
+//   //                               fontWeight: FontWeight.bold,
+//   //                             ),
+//   //                           ),
+//   //                           const SizedBox(height: 4),
+//   //                           Text(
+//   //                             "${widget.vehicleMake ?? ''} ${widget.vehicleModel ?? ''}",
+//   //                             style: const TextStyle(
+//   //                               fontSize: 16,
+//   //                               color: Colors.grey,
+//   //                             ),
+//   //                           ),
+//   //                           Text(
+//   //                             "Plate: ${widget.regnumber ?? ''} • ${widget.colour ?? ''}",
+//   //                             style: const TextStyle(fontSize: 15),
+//   //                           ),
+//   //                           const SizedBox(height: 4),
+//   //                           Text(
+//   //                             "ETA: $estimatedTimeMin min • ${driverDistanceKm.toStringAsFixed(1)} km",
+//   //                             style: const TextStyle(
+//   //                               fontSize: 15,
+//   //                               color: Colors.blueGrey,
+//   //                             ),
+//   //                           ),
+//   //                         ],
+//   //                       ),
+//   //                     ),
+//   //                   ],
+//   //                 ),
+
+//   //                 const SizedBox(height: 20),
+
+//   //                 // Action buttons
+//   //                 Row(
+//   //                   mainAxisAlignment: MainAxisAlignment.spaceAround,
+//   //                   children: [
+//   //                     _modernActionButton(
+//   //                       Icons.phone,
+//   //                       "Call",
+//   //                       Colors.green,
+//   //                       () {
+//   //                         launchUrl(Uri.parse("tel:${widget.Phone}"));
+//   //                       },
+//   //                     ),
+//   //                     _modernActionButton(
+//   //                       Icons.message,
+//   //                       "Message",
+//   //                       Colors.blue,
+//   //                       () async {
+//   //                         final Uri smsUri = Uri(
+//   //                           scheme: 'sms',
+//   //                           path: "${widget.Phone}",
+//   //                         );
+//   //                         if (await canLaunchUrl(smsUri)) {
+//   //                           await launchUrl(smsUri);
+//   //                         }
+//   //                       },
+//   //                     ),
+//   //                   ],
+//   //                 ),
+
+//   //                 const SizedBox(height: 20),
+
+//   //                 // Cancel button
+//   //                 SizedBox(
+//   //                   width: double.infinity,
+//   //                   height: 55,
+//   //                   child: ElevatedButton.icon(
+//   //                     onPressed: () => _showCancelDialog(context),
+//   //                     icon: const Icon(Icons.cancel, color: Colors.white),
+//   //                     label: const Text(
+//   //                       "Cancel Ride",
+//   //                       style: TextStyle(fontSize: 18, color: Colors.white),
+//   //                     ),
+//   //                     style: ElevatedButton.styleFrom(
+//   //                       backgroundColor: Colors.redAccent,
+//   //                       shape: RoundedRectangleBorder(
+//   //                         borderRadius: BorderRadius.circular(14),
+//   //                       ),
+//   //                       elevation: 4,
+//   //                     ),
+//   //                   ),
+//   //                 ),
+//   //               ],
+//   //             ),
+//   //           ),
+//   //         ),
+//   //       ],
+//   //     ),
+//   //   );
+//   // }
+
+//   // Widget _modernActionButton(
+//   //   IconData icon,
+//   //   String label,
+//   //   Color color,
+//   //   VoidCallback onTap,
+//   // ) {
+//   //   return Column(
+//   //     children: [
+//   //       InkWell(
+//   //         onTap: onTap,
+//   //         borderRadius: BorderRadius.circular(50),
+//   //         child: Container(
+//   //           padding: const EdgeInsets.all(14),
+//   //           decoration: BoxDecoration(
+//   //             color: color.withOpacity(0.1),
+//   //             shape: BoxShape.circle,
+//   //           ),
+//   //           child: Icon(icon, color: color, size: 28),
+//   //         ),
+//   //       ),
+//   //       const SizedBox(height: 6),
+//   //       Text(
+//   //         label,
+//   //         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+//   //       ),
+//   //     ],
+//   //   );
+//   // }
 
 //   // void _showCancelDialog(BuildContext context) async {
 //   //   final reasons = await fetchCancellationReasons();
 
 //   //   if (!mounted) return;
-
-//   //   String? selectedReason;
 
 //   //   showModalBottomSheet(
 //   //     context: context,
@@ -1202,48 +1531,62 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
 //   //                     itemCount: reasons.length,
 //   //                     itemBuilder: (context, index) {
 //   //                       final reason = reasons[index];
-//   //                       final isSelected = reason == selectedReason;
 
 //   //                       return Card(
-//   //                         color: isSelected ? Colors.red[100] : null,
+//   //                         color: Colors.grey[700],
 //   //                         child: ListTile(
-//   //                           title: Text(reason),
-//   //                           trailing:
-//   //                               isSelected
-//   //                                   ? const Icon(
-//   //                                     Icons.check_circle,
-//   //                                     color: Colors.red,
-//   //                                   )
-//   //                                   : null,
-//   //                           onTap: () {
-//   //                             setState(() {
-//   //                               selectedReason = reason;
-//   //                             });
+//   //                           title: Text(
+//   //                             reason,
+//   //                             style: const TextStyle(color: Colors.white),
+//   //                           ),
+//   //                           //final dialogContext = context;
+//   //                           onTap: () async {
+//   //                             Navigator.pop(context); // Close bottom sheet
+
+//   //                             final shouldWait = await showDialog<bool>(
+//   //                               context: context,
+//   //                               builder:
+//   //                                   (ctx) => AlertDialog(
+//   //                                     title: const Text("Cancel Ride"),
+//   //                                     content: Text(
+//   //                                       "Reason: $reason\n\nShould the rider wait for another driver?",
+//   //                                     ),
+//   //                                     actions: [
+//   //                                       TextButton(
+//   //                                         onPressed:
+//   //                                             () =>
+//   //                                                 Navigator.of(ctx).pop(false),
+//   //                                         child: const Text("No"),
+//   //                                       ),
+//   //                                       ElevatedButton(
+//   //                                         onPressed:
+//   //                                             () => Navigator.of(ctx).pop(true),
+//   //                                         child: const Text("Yes"),
+//   //                                       ),
+//   //                                     ],
+//   //                                   ),
+//   //                             );
+
+//   //                             if (shouldWait == true) {
+//   //                               await reassignDriver(widget.rideId, reason);
+//   //                             } else {
+//   //                               // Navigator.push(
+//   //                               //   context,
+//   //                               //   MaterialPageRoute(
+//   //                               //     builder:
+//   //                               //         (_) => TransportServicesScreen()
+
+//   //                               //   ),
+//   //                               // );
+//   //                             }
+
+//   //                             if (mounted) {
+//   //                               Navigator.of(context).pop(); // Exit ride screen
+//   //                             }
 //   //                           },
 //   //                         ),
 //   //                       );
 //   //                     },
-//   //                   ),
-//   //                 ),
-//   //                 const SizedBox(height: 8),
-//   //                 ElevatedButton.icon(
-//   //                   onPressed:
-//   //                       selectedReason == null
-//   //                           ? null
-//   //                           : () async {
-//   //                             Navigator.pop(context); // close sheet
-//   //                             await cancelRide(widget.rideId, selectedReason!);
-//   //                             if (mounted) Navigator.pop(context); // pop screen
-//   //                           },
-//   //                   icon: const Icon(Icons.cancel),
-//   //                   label: const Text("Confirm Cancel"),
-//   //                   style: ElevatedButton.styleFrom(
-//   //                     minimumSize: const Size.fromHeight(48),
-//   //                     backgroundColor: Colors.red[600],
-//   //                     foregroundColor: Colors.white,
-//   //                     shape: RoundedRectangleBorder(
-//   //                       borderRadius: BorderRadius.circular(12),
-//   //                     ),
 //   //                   ),
 //   //                 ),
 //   //               ],
@@ -1254,101 +1597,450 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
 //   //     },
 //   //   );
 //   // }
-
-//   // void _showCancelDialog(BuildContext context) {
-//   //   showDialog(
-//   //     context: context,
-//   //     builder: (context) {
-//   //       return FutureBuilder<List<String>>(
-//   //         future: fetchCancellationReasons().then((_) => cancellationReasons),
-//   //         builder: (context, snapshot) {
-//   //           if (snapshot.connectionState == ConnectionState.waiting) {
-//   //             return const AlertDialog(
-//   //               content: SizedBox(
-//   //                 height: 80,
-//   //                 child: Center(child: CircularProgressIndicator()),
-//   //               ),
-//   //             );
-//   //           } else if (snapshot.hasError ||
-//   //               snapshot.data == null ||
-//   //               snapshot.data!.isEmpty) {
-//   //             return AlertDialog(
-//   //               title: const Text("Error"),
-//   //               content: const Text("Failed to load cancellation reasons."),
-//   //               actions: [
-//   //                 TextButton(
-//   //                   onPressed: () => Navigator.pop(context),
-//   //                   child: const Text("Back"),
-//   //                 ),
-//   //               ],
-//   //             );
-//   //           } else {
-//   //             String? selectedReason;
-
-//   //             return StatefulBuilder(
-//   //               builder:
-//   //                   (context, setState) => AlertDialog(
-//   //                     title: const Text("Select Cancellation Reason"),
-//   //                     content: SizedBox(
-//   //                       height: 250,
-//   //                       width: double.maxFinite,
-//   //                       child: Scrollbar(
-//   //                         child: ListView.builder(
-//   //                           itemCount: snapshot.data!.length,
-//   //                           itemBuilder: (context, index) {
-//   //                             final reason = snapshot.data![index];
-//   //                             final isSelected = selectedReason == reason;
-
-//   //                             return Card(
-//   //                               color: isSelected ? Colors.red[100] : null,
-//   //                               child: ListTile(
-//   //                                 title: Text(reason),
-//   //                                 trailing:
-//   //                                     isSelected
-//   //                                         ? const Icon(
-//   //                                           Icons.check_circle,
-//   //                                           color: Colors.red,
-//   //                                         )
-//   //                                         : null,
-//   //                                 onTap: () {
-//   //                                   setState(() {
-//   //                                     selectedReason = reason;
-//   //                                   });
-//   //                                 },
-//   //                               ),
-//   //                             );
-//   //                           },
-//   //                         ),
-//   //                       ),
-//   //                     ),
-//   //                     actions: [
-//   //                       TextButton(
-//   //                         onPressed: () => Navigator.pop(context),
-//   //                         child: const Text("Back"),
-//   //                       ),
-//   //                       ElevatedButton(
-//   //                         onPressed:
-//   //                             selectedReason == null
-//   //                                 ? null
-//   //                                 : () async {
-//   //                                   Navigator.pop(context); // Close dialog
-//   //                                   await cancelRide(
-//   //                                     widget.rideId,
-//   //                                     selectedReason!,
-//   //                                   );
-//   //                                   Navigator.pop(
-//   //                                     context,
-//   //                                   ); // Close DriverConfirmationScreen
-//   //                                 },
-//   //                         child: const Text("Confirm Cancel"),
-//   //                       ),
-//   //                     ],
-//   //                   ),
-//   //             );
-//   //           }
-//   //         },
-//   //       );
-//   //     },
-//   //   );
-//   // }
 // }
+
+// //   void _showCancelDialog(BuildContext context) async {
+// //     final reasons = await fetchCancellationReasons();
+
+// //     if (!mounted) return;
+
+// //     showModalBottomSheet(
+// //       context: context,
+// //       isScrollControlled: true,
+// //       shape: const RoundedRectangleBorder(
+// //         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+// //       ),
+// //       builder: (context) {
+// //         return DraggableScrollableSheet(
+// //           initialChildSize: 0.5,
+// //           minChildSize: 0.4,
+// //           maxChildSize: 0.9,
+// //           expand: false,
+// //           builder: (context, scrollController) {
+// //             return Padding(
+// //               padding: const EdgeInsets.all(16),
+// //               child: Column(
+// //                 children: [
+// //                   const Text(
+// //                     "Select Cancellation Reason",
+// //                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+// //                   ),
+// //                   const SizedBox(height: 16),
+// //                   Expanded(
+// //                     child: ListView.builder(
+// //                       controller: scrollController,
+// //                       itemCount: reasons.length,
+// //                       itemBuilder: (context, index) {
+// //                         final reason = reasons[index];
+
+// //                         return Card(
+// //                           color: Colors.grey[700],
+// //                           child: ListTile(
+// //                             title: Text(
+// //                               reason,
+// //                               style: const TextStyle(color: Colors.white),
+// //                             ),
+// //                             onTap: () async {
+// //                               Navigator.pop(context); // Close bottom sheet
+
+// //                               final shouldWait = await showDialog<bool>(
+// //                                 context: context,
+// //                                 builder:
+// //                                     (ctx) => AlertDialog(
+// //                                       title: const Text("Cancel Ride"),
+// //                                       content: Text(
+// //                                         "Reason: $reason\n\nShould the rider wait for another driver?",
+// //                                       ),
+// //                                       actions: [
+// //                                         TextButton(
+// //                                           onPressed:
+// //                                               () =>
+// //                                                   Navigator.of(ctx).pop(false),
+// //                                           child: const Text("No"),
+// //                                         ),
+// //                                         ElevatedButton(
+// //                                           onPressed:
+// //                                               () => Navigator.of(ctx).pop(true),
+// //                                           child: const Text("Yes"),
+// //                                         ),
+// //                                       ],
+// //                                     ),
+// //                               );
+
+// //                               if (shouldWait == true) {
+// //                                 await reassignDriver(widget.rideId, reason);
+// //                               }
+
+// //                               if (mounted) {
+// //                                 Navigator.of(context).pop(); // Exit ride screen
+// //                               }
+// //                             },
+// //                           ),
+// //                         );
+// //                       },
+// //                     ),
+// //                   ),
+// //                 ],
+// //               ),
+// //             );
+// //           },
+// //         );
+// //       },
+// //     );
+// //   }
+
+// //   // void _showCancelDialog(BuildContext context) async {
+// //   //   final reasons = await fetchCancellationReasons();
+
+// //   //   if (!mounted) return;
+
+// //   //   String? selectedReason;
+
+// //   //   showModalBottomSheet(
+// //   //     context: context,
+// //   //     isScrollControlled: true,
+// //   //     shape: const RoundedRectangleBorder(
+// //   //       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+// //   //     ),
+// //   //     builder: (context) {
+// //   //       return DraggableScrollableSheet(
+// //   //         initialChildSize: 0.5,
+// //   //         minChildSize: 0.4,
+// //   //         maxChildSize: 0.9,
+// //   //         expand: false,
+// //   //         builder: (context, scrollController) {
+// //   //           return Padding(
+// //   //             padding: const EdgeInsets.all(16),
+// //   //             child: Column(
+// //   //               children: [
+// //   //                 const Text(
+// //   //                   "Select Cancellation Reason",
+// //   //                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+// //   //                 ),
+// //   //                 const SizedBox(height: 16),
+// //   //                 Expanded(
+// //   //                   child: ListView.builder(
+// //   //                     controller: scrollController,
+// //   //                     itemCount: reasons.length,
+// //   //                     itemBuilder: (context, index) {
+// //   //                       final reason = reasons[index];
+// //   //                       final isSelected = reason == selectedReason;
+
+// //   //                       return Card(
+// //   //                         color: isSelected ? Colors.red[100] : null,
+// //   //                         child: ListTile(
+// //   //                           title: Text(reason),
+// //   //                           trailing:
+// //   //                               isSelected
+// //   //                                   ? const Icon(
+// //   //                                     Icons.check_circle,
+// //   //                                     color: Colors.red,
+// //   //                                   )
+// //   //                                   : null,
+// //   //                           onTap: () {
+// //   //                             setState(() {
+// //   //                               selectedReason = reason;
+// //   //                             });
+// //   //                           },
+// //   //                         ),
+// //   //                       );
+// //   //                     },
+// //   //                   ),
+// //   //                 ),
+// //   //                 const SizedBox(height: 8),
+// //   //                 ElevatedButton.icon(
+// //   //                   onPressed:
+// //   //                       selectedReason == null
+// //   //                           ? null
+// //   //                           : () async {
+// //   //                             Navigator.pop(context); // close sheet
+// //   //                             await cancelRide(widget.rideId, selectedReason!);
+// //   //                             if (mounted) Navigator.pop(context); // pop screen
+// //   //                           },
+// //   //                   icon: const Icon(Icons.cancel),
+// //   //                   label: const Text("Confirm Cancel"),
+// //   //                   style: ElevatedButton.styleFrom(
+// //   //                     minimumSize: const Size.fromHeight(48),
+// //   //                     backgroundColor: Colors.red[600],
+// //   //                     foregroundColor: Colors.white,
+// //   //                     shape: RoundedRectangleBorder(
+// //   //                       borderRadius: BorderRadius.circular(12),
+// //   //                     ),
+// //   //                   ),
+// //   //                 ),
+// //   //               ],
+// //   //             ),
+// //   //           );
+// //   //         },
+// //   //       );
+// //   //     },
+// //   //   );
+// //   // }
+
+// //   // void _showCancelDialog(BuildContext context) {
+// //   //   showDialog(
+// //   //     context: context,
+// //   //     builder: (context) {
+// //   //       return FutureBuilder<List<String>>(
+// //   //         future: fetchCancellationReasons().then((_) => cancellationReasons),
+// //   //         builder: (context, snapshot) {
+// //   //           if (snapshot.connectionState == ConnectionState.waiting) {
+// //   //             return const AlertDialog(
+// //   //               content: SizedBox(
+// //   //                 height: 80,
+// //   //                 child: Center(child: CircularProgressIndicator()),
+// //   //               ),
+// //   //             );
+// //   //           } else if (snapshot.hasError ||
+// //   //               snapshot.data == null ||
+// //   //               snapshot.data!.isEmpty) {
+// //   //             return AlertDialog(
+// //   //               title: const Text("Error"),
+// //   //               content: const Text("Failed to load cancellation reasons."),
+// //   //               actions: [
+// //   //                 TextButton(
+// //   //                   onPressed: () => Navigator.pop(context),
+// //   //                   child: const Text("Back"),
+// //   //                 ),
+// //   //               ],
+// //   //             );
+// //   //           } else {
+// //   //             String? selectedReason;
+
+// //   //             return StatefulBuilder(
+// //   //               builder:
+// //   //                   (context, setState) => AlertDialog(
+// //   //                     title: const Text("Select Cancellation Reason"),
+// //   //                     content: SizedBox(
+// //   //                       height: 250,
+// //   //                       width: double.maxFinite,
+// //   //                       child: Scrollbar(
+// //   //                         child: ListView.builder(
+// //   //                           itemCount: snapshot.data!.length,
+// //   //                           itemBuilder: (context, index) {
+// //   //                             final reason = snapshot.data![index];
+// //   //                             final isSelected = selectedReason == reason;
+
+// //   //                             return Card(
+// //   //                               color: isSelected ? Colors.red[100] : null,
+// //   //                               child: ListTile(
+// //   //                                 title: Text(reason),
+// //   //                                 trailing:
+// //   //                                     isSelected
+// //   //                                         ? const Icon(
+// //   //                                           Icons.check_circle,
+// //   //                                           color: Colors.red,
+// //   //                                         )
+// //   //                                         : null,
+// //   //                                 onTap: () {
+// //   //                                   setState(() {
+// //   //                                     selectedReason = reason;
+// //   //                                   });
+// //   //                                 },
+// //   //                               ),
+// //   //                             );
+// //   //                           },
+// //   //                         ),
+// //   //                       ),
+// //   //                     ),
+// //   //                     actions: [
+// //   //                       TextButton(
+// //   //                         onPressed: () => Navigator.pop(context),
+// //   //                         child: const Text("Back"),
+// //   //                       ),
+// //   //                       ElevatedButton(
+// //   //                         onPressed:
+// //   //                             selectedReason == null
+// //   //                                 ? null
+// //   //                                 : () async {
+// //   //                                   Navigator.pop(context); // Close dialog
+// //   //                                   await cancelRide(
+// //   //                                     widget.rideId,
+// //   //                                     selectedReason!,
+// //   //                                   );
+// //   //                                   Navigator.pop(
+// //   //                                     context,
+// //   //                                   ); // Close DriverConfirmationScreen
+// //   //                                 },
+// //   //                         child: const Text("Confirm Cancel"),
+// //   //                       ),
+// //   //                     ],
+// //   //                   ),
+// //   //             );
+// //   //           }
+// //   //         },
+// //   //       );
+// //   //     },
+// //   //   );
+// //   // }
+// // }
+      // body: Stack(
+      //   children: [
+      //     /// ✅ Google Map at the back
+      //     (_pickdestination == null ||
+      //             (_pickdestination!.latitude == 0.0 &&
+      //                 _pickdestination!.longitude == 0.0))
+      //         ? const Center(child: CircularProgressIndicator())
+      //         : GoogleMap(
+      //           initialCameraPosition: CameraPosition(
+      //             target: _pickdestination!,
+      //             zoom: 14,
+      //           ),
+      //           markers: _markers,
+      //           polylines: _polylines,
+      //           onMapCreated: (controller) {
+      //             _mapController = controller;
+      //           },
+      //         ),
+
+      //     /// ✅ Uber-like Bottom Sheet
+      //     DraggableScrollableSheet(
+      //       initialChildSize: 0.25, // starts at 25% of screen
+      //       minChildSize: 0.2,
+      //       maxChildSize: 0.75, // can expand up to 3/4 of screen
+      //       builder: (context, scrollController) {
+      //         return Container(
+      //           padding: const EdgeInsets.all(16),
+      //           decoration: const BoxDecoration(
+      //             color: Colors.white,
+      //             borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      //             boxShadow: [
+      //               BoxShadow(
+      //                 color: Colors.black26,
+      //                 blurRadius: 8,
+      //                 offset: Offset(0, -2),
+      //               ),
+      //             ],
+      //           ),
+      //           child: SingleChildScrollView(
+      //             controller: scrollController,
+      //             child: Column(
+      //               crossAxisAlignment: CrossAxisAlignment.start,
+      //               children: [
+      //                 Center(
+      //                   child: Container(
+      //                     width: 50,
+      //                     height: 5,
+      //                     margin: const EdgeInsets.only(bottom: 12),
+      //                     decoration: BoxDecoration(
+      //                       color: Colors.grey[400],
+      //                       borderRadius: BorderRadius.circular(10),
+      //                     ),
+      //                   ),
+      //                 ),
+
+      //                 /// ETA + Pickup info
+      //                 Text(
+      //                   "Pickup in $estimatedTimeMin mins",
+      //                   style: const TextStyle(
+      //                     fontSize: 20,
+      //                     fontWeight: FontWeight.bold,
+      //                   ),
+      //                 ),
+      //                 const SizedBox(height: 8),
+      //                 if (_pickdestination != null)
+      //                   Text(
+      //                     "Meet at: Lat ${_pickdestination!.latitude.toStringAsFixed(4)}, "
+      //                     "Lng ${_pickdestination!.longitude.toStringAsFixed(4)}",
+      //                     style: const TextStyle(color: Colors.grey),
+      //                   ),
+
+      //                 const SizedBox(height: 20),
+
+      //                 /// Driver + Car Info
+      //                 Row(
+      //                   children: [
+      //                     CircleAvatar(
+      //                       radius: 40,
+      //                       backgroundImage:
+      //                           (widget.photoUrl != null &&
+      //                                   widget.photoUrl!.isNotEmpty)
+      //                               ? NetworkImage(widget.photoUrl!)
+      //                               : const AssetImage('assets/imgs/logo.png')
+      //                                   as ImageProvider,
+      //                     ),
+      //                     const SizedBox(width: 16),
+      //                     Expanded(
+      //                       child: Column(
+      //                         crossAxisAlignment: CrossAxisAlignment.start,
+      //                         children: [
+      //                           Text(
+      //                             widget.drivername ?? "Driver",
+      //                             style: const TextStyle(
+      //                               fontSize: 18,
+      //                               fontWeight: FontWeight.bold,
+      //                             ),
+      //                           ),
+      //                           const SizedBox(height: 6),
+      //                           Text(
+      //                             "${widget.vehicleMake} ${widget.vehicleModel}",
+      //                             style: const TextStyle(fontSize: 16),
+      //                           ),
+      //                           Text(
+      //                             "Plate: ${widget.regnumber}",
+      //                             style: const TextStyle(
+      //                               fontSize: 18,
+      //                               fontWeight: FontWeight.bold,
+      //                             ),
+      //                           ),
+      //                           Text("Color: ${widget.colour}"),
+      //                           Text(
+      //                             "Distance: ${driverDistanceKm.toStringAsFixed(1)} km",
+      //                             style: const TextStyle(color: Colors.grey),
+      //                           ),
+      //                         ],
+      //                       ),
+      //                     ),
+      //                   ],
+      //                 ),
+
+      //                 const SizedBox(height: 20),
+
+      //                 /// Actions
+      //                 Row(
+      //                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      //                   children: [
+      //                     _actionButton(Icons.phone, "Call", () {
+      //                       launchUrl(Uri.parse("tel:${widget.Phone}"));
+      //                     }),
+      //                     _actionButton(Icons.message, "Message", () async {
+      //                       final Uri smsUri = Uri(
+      //                         scheme: 'sms',
+      //                         path: "${widget.Phone}",
+      //                       );
+      //                       if (await canLaunchUrl(smsUri)) {
+      //                         await launchUrl(smsUri);
+      //                       }
+      //                     }),
+      //                   ],
+      //                 ),
+
+      //                 const SizedBox(height: 20),
+
+      //                 /// Cancel Ride Button
+      //                 SizedBox(
+      //                   width: double.infinity,
+      //                   height: 55,
+      //                   child: ElevatedButton.icon(
+      //                     onPressed: () => _showCancelDialog(context),
+      //                     icon: const Icon(Icons.cancel, color: Colors.white),
+      //                     label: const Text(
+      //                       "Cancel Ride",
+      //                       style: TextStyle(fontSize: 18, color: Colors.white),
+      //                     ),
+      //                     style: ElevatedButton.styleFrom(
+      //                       backgroundColor: Colors.red,
+      //                       shape: RoundedRectangleBorder(
+      //                         borderRadius: BorderRadius.circular(14),
+      //                       ),
+      //                     ),
+      //                   ),
+      //                 ),
+      //               ],
+      //             ),
+      //           ),
+      //         );
+      //       },
+      //     ),
+      //   ],
+      // ),

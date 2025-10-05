@@ -52,3 +52,4 @@ final homeScreenMainCirclesProvider = StateProvider<Set<Circle>>((ref) {
 //   final address = await ReverseGeocodingService.getAddressFromLatLng(pickup);
 //   return address ?? "Current Location";
 // });
+//final ValueNotifier<List<FloatingTask>> taskManager = ValueNotifier([]);

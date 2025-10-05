@@ -1,10 +1,54 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:niceapp/TaskManager/task_manager.dart';
 import 'package:niceapp/View/Screens/Other_Screens/payments_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/wallet_screen.dart';
 
-class TransportServicesScreen extends StatelessWidget {
+class TransportServicesScreen extends StatefulWidget {
   const TransportServicesScreen({super.key});
+  // class TransportServicesScreen extends StatelessWidget {
+  //   const TransportServicesScreen({super.key});
+
+  @override
+  State<TransportServicesScreen> createState() =>
+      _TransportServicesScreenState();
+}
+
+class _TransportServicesScreenState extends State<TransportServicesScreen> {
+  final PageController _pageController = PageController(viewportFraction: 1);
+  int _currentPage = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startAutoScroll();
+  }
+
+  void _startAutoScroll() {
+    _timer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (_pageController.hasClients) {
+        _currentPage++;
+        if (_currentPage >= 5) {
+          _currentPage = 0;
+        }
+        _pageController.animateToPage(
+          _currentPage,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,6 +63,7 @@ class TransportServicesScreen extends StatelessWidget {
       "Water Bowser": "assets/imgs/waterlorry1.png",
       "Breakdown Services": "assets/imgs/Breakdown.jpeg",
       "Mechanical Services": "assets/imgs/Garage.png",
+      "Machinery": "assets/imgs/Machinery2.png",
       "Payments": "assets/imgs/Payment.jpg",
       "Wallet": "assets/imgs/Wallet.png",
     };
@@ -151,6 +196,12 @@ class TransportServicesScreen extends StatelessWidget {
         'color': Colors.indigo,
         'route': '/services/transport/mechanical',
       },
+      {
+        'name': 'Machinery',
+        'image': iconAssets['Machinery'],
+        'color': Colors.indigo,
+        'route': '/services/transport/machinery',
+      },
     ];
 
     final List<Map<String, dynamic>> payments = [
@@ -197,12 +248,184 @@ class TransportServicesScreen extends StatelessWidget {
       // ),
       //  ),
       // backgroundColor: Colors.white,
+      // body: SingleChildScrollView(
+      //   padding: const EdgeInsets.all(16),
+      //   child: Column(
+      //     crossAxisAlignment: CrossAxisAlignment.start,
+      //     children: [
+      //       // Transport Section Header
+      //       const Text(
+      //         'Transport Services',
+      //         style: TextStyle(
+      //           fontSize: 16,
+      //           fontWeight: FontWeight.bold,
+      //           color: Colors.black,
+      //         ),
+      //       ),
+      //       const SizedBox(height: 12),
+      //       GridView.count(
+      //         shrinkWrap: true,
+      //         physics: const NeverScrollableScrollPhysics(),
+      //         crossAxisCount: 3, // two per row so each card is bigger
+      //         crossAxisSpacing: 16,
+      //         mainAxisSpacing: 16,
+      //         childAspectRatio: 0.95, // <— less than 1.0 makes them taller
+      //         children:
+      //             transport.map((service) {
+      //               return _buildServiceCard(
+      //                 context,
+      //                 title: service['name'],
+      //                 image: service['image'],
+      //                 color: service['color'],
+      //                 route: service['route'],
+      //               );
+      //             }).toList(),
+      //       ),
+
+      //       const SizedBox(height: 32),
+
+      //       // Payments Section Header
+      //       const Text(
+      //         'Payment Services',
+      //         style: TextStyle(
+      //           fontSize: 16,
+      //           fontWeight: FontWeight.bold,
+      //           color: Colors.black,
+      //         ),
+      //       ),
+      //       const SizedBox(height: 12),
+
+      //       // Payments Grid
+      //       GridView.count(
+      //         shrinkWrap: true,
+      //         physics: const NeverScrollableScrollPhysics(),
+      //         crossAxisCount: 3,
+      //         crossAxisSpacing: 16,
+      //         mainAxisSpacing: 16,
+      //         childAspectRatio: 0.95, // even taller for payment cards
+      //         children:
+      //             payments.map((service) {
+      //               return _buildPaymentCard(
+      //                 context,
+      //                 title: service['title'],
+      //                 image: service['image'],
+      //                 color: service['color'],
+      //                 screen: service['screen'],
+      //               );
+      //             }).toList(),
+      //       ),
+      //     ],
+      //   ),
+      // ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Transport Section Header
+            // 👇 Advert Section
+            // const Text(
+            //   'Adverts',
+            //   style: TextStyle(
+            //     fontSize: 16,
+            //     fontWeight: FontWeight.bold,
+            //     color: Colors.black,
+            //   ),
+            // ),
+            const SizedBox(height: 12),
+
+            // SizedBox(
+            //   height: 140, // fixed height for advert cards
+            //   child: SingleChildScrollView(
+            //     scrollDirection: Axis.horizontal,
+            //     child: Row(
+            //       children: List.generate(5, (index) {
+            //         return Container(
+            //           width: 220,
+            //           margin: const EdgeInsets.only(right: 12),
+            //           decoration: BoxDecoration(
+            //             borderRadius: BorderRadius.circular(16),
+            //             color: Colors.white,
+            //             boxShadow: [
+            //               BoxShadow(
+            //                 color: Colors.black12,
+            //                 blurRadius: 6,
+            //                 offset: Offset(0, 3),
+            //               ),
+            //             ],
+            //             image: DecorationImage(
+            //               image: AssetImage(
+            //                 "assets/imgs/ad${index + 1}.png",
+            //               ), // 👈 your advert images
+            //               fit: BoxFit.cover,
+            //             ),
+            //           ),
+            //         );
+            //       }),
+            //     ),
+            //   ),
+            // ),
+
+            // Auto-moving Adverts Section
+            SizedBox(
+              height: 160,
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: 5,
+                itemBuilder: (context, index) {
+                  return Container(
+                    margin: const EdgeInsets.only(right: 0),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 6,
+                          offset: Offset(0, 3),
+                        ),
+                      ],
+                      image: DecorationImage(
+                        image: AssetImage("assets/imgs/ad${index + 1}.png"),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // SizedBox(
+            //   height: 160, // height for advert cards
+            //   child: PageView.builder(
+            //     controller: PageController(
+            //       viewportFraction: 1,
+            //     ), // 👈 makes it full width
+            //     itemCount: 5,
+            //     itemBuilder: (context, index) {
+            //       return Container(
+            //         margin: const EdgeInsets.only(
+            //           right: 0,
+            //         ), // no gap needed now
+            //         decoration: BoxDecoration(
+            //           borderRadius: BorderRadius.circular(16),
+            //           boxShadow: [
+            //             BoxShadow(
+            //               color: Colors.black12,
+            //               blurRadius: 6,
+            //               offset: Offset(0, 3),
+            //             ),
+            //           ],
+            //           image: DecorationImage(
+            //             image: AssetImage("assets/imgs/ad${index + 1}.png"),
+            //             fit: BoxFit.cover, // 👈 makes image cover full space
+            //           ),
+            //         ),
+            //       );
+            //     },
+            //   ),
+            // ),
+            const SizedBox(height: 24),
+
+            // 👇 Transport Section Header
             const Text(
               'Transport Services',
               style: TextStyle(
@@ -213,13 +436,13 @@ class TransportServicesScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
-            // Transport Grid
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: 3,
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
+              childAspectRatio: 0.95,
               children:
                   transport.map((service) {
                     return _buildServiceCard(
@@ -234,7 +457,7 @@ class TransportServicesScreen extends StatelessWidget {
 
             const SizedBox(height: 32),
 
-            // Payments Section Header
+            // 👇 Payments Section Header
             const Text(
               'Payment Services',
               style: TextStyle(
@@ -245,13 +468,13 @@ class TransportServicesScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
-            // Payments Grid
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
+              crossAxisCount: 3,
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
+              childAspectRatio: 0.95,
               children:
                   payments.map((service) {
                     return _buildPaymentCard(
@@ -263,6 +486,36 @@ class TransportServicesScreen extends StatelessWidget {
                     );
                   }).toList(),
             ),
+
+            // Positioned(
+            //   right: 16,
+            //   bottom: 100,
+            //   child: ValueListenableBuilder<List<FloatingTask>>(
+            //     valueListenable: taskManager, // global notifier
+            //     builder: (context, tasks, _) {
+            //       return Column(
+            //         crossAxisAlignment: CrossAxisAlignment.end,
+            //         children:
+            //             tasks.map((task) {
+            //               return GestureDetector(
+            //                 onTap: task.onTap,
+            //                 child: Container(
+            //                   margin: const EdgeInsets.only(bottom: 8),
+            //                   child: Chip(
+            //                     avatar: Icon(task.icon, color: Colors.white),
+            //                     label: Text(
+            //                       task.title,
+            //                       style: const TextStyle(color: Colors.white),
+            //                     ),
+            //                     backgroundColor: Colors.blueAccent,
+            //                   ),
+            //                 ),
+            //               );
+            //             }).toList(),
+            //       );
+            //     },
+            //   ),
+            // ),
           ],
         ),
       ),
@@ -272,37 +525,53 @@ class TransportServicesScreen extends StatelessWidget {
   Widget _buildServiceCard(
     BuildContext context, {
     required String title,
-    required String image, // image path (e.g., "assets/imgs/Sedan2.png")
+    required String image,
     required Color color,
     required String route,
   }) {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () => GoRouter.of(context).go(route),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color.withOpacity(0.2),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 4,
+              offset: Offset(0, 2),
             ),
-            padding: const EdgeInsets.all(8),
-            child: Image.asset(image, fit: BoxFit.contain),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
+          ],
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 55,
+              height: 55,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color.withOpacity(0.2),
+              ),
+              padding: const EdgeInsets.all(8),
+              child: Image.asset(image, fit: BoxFit.contain),
             ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+            const SizedBox(height: 6),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 12, // reduced font size
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis, // prevents overflow
+              maxLines: 2, // wrap into 2 lines if needed
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -316,39 +585,153 @@ class TransportServicesScreen extends StatelessWidget {
   }) {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      //onTap: () => GoRouter.of(context).go(route),
       onTap:
           () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => screen),
           ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color.withOpacity(0.2),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 4,
+              offset: Offset(0, 2),
             ),
-            padding: const EdgeInsets.all(8),
-            child: Image.asset(image, fit: BoxFit.contain),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
+          ],
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 55,
+              height: 55,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color.withOpacity(0.2),
+              ),
+              padding: const EdgeInsets.all(8),
+              child: Image.asset(image, fit: BoxFit.contain),
             ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+            const SizedBox(height: 6),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 12, // smaller font
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  // Widget _buildPaymentCard(
+  //   BuildContext context, {
+  //   required String title,
+  //   required String image,
+  //   required Color color,
+  //   required Widget screen,
+  // }) {
+  //   return InkWell(
+  //     borderRadius: BorderRadius.circular(16),
+  //     onTap:
+  //         () => Navigator.push(
+  //           context,
+  //           MaterialPageRoute(builder: (_) => screen),
+  //         ),
+  //     child: Container(
+  //       decoration: BoxDecoration(
+  //         color: Colors.white,
+  //         borderRadius: BorderRadius.circular(16),
+  //         boxShadow: [
+  //           BoxShadow(
+  //             color: Colors.black12,
+  //             blurRadius: 6,
+  //             offset: Offset(0, 3),
+  //           ),
+  //         ],
+  //       ),
+  //       padding: const EdgeInsets.all(16),
+  //       child: Column(
+  //         mainAxisAlignment: MainAxisAlignment.center,
+  //         children: [
+  //           Container(
+  //             width: 70,
+  //             height: 70,
+  //             decoration: BoxDecoration(
+  //               shape: BoxShape.circle,
+  //               color: color.withOpacity(0.2),
+  //             ),
+  //             padding: const EdgeInsets.all(12),
+  //             child: Image.asset(image, fit: BoxFit.contain),
+  //           ),
+  //           const SizedBox(height: 12),
+  //           Text(
+  //             title,
+  //             style: const TextStyle(
+  //               fontSize: 14,
+  //               fontWeight: FontWeight.bold,
+  //               color: Colors.black87,
+  //             ),
+  //             textAlign: TextAlign.center,
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
+
+  // Widget _buildPaymentCard(
+  //   BuildContext context, {
+  //   required String title,
+  //   required String image,
+  //   required Color color,
+  //   required Widget screen,
+  // }) {
+  //   return InkWell(
+  //     borderRadius: BorderRadius.circular(12),
+  //     //onTap: () => GoRouter.of(context).go(route),
+  //     onTap:
+  //         () => Navigator.push(
+  //           context,
+  //           MaterialPageRoute(builder: (_) => screen),
+  //         ),
+  //     child: Column(
+  //       mainAxisAlignment: MainAxisAlignment.center,
+  //       children: [
+  //         Container(
+  //           width: 60,
+  //           height: 60,
+  //           decoration: BoxDecoration(
+  //             shape: BoxShape.circle,
+  //             color: color.withOpacity(0.2),
+  //           ),
+  //           padding: const EdgeInsets.all(8),
+  //           child: Image.asset(image, fit: BoxFit.contain),
+  //         ),
+  //         const SizedBox(height: 8),
+  //         Text(
+  //           title,
+  //           style: const TextStyle(
+  //             fontSize: 13,
+  //             fontWeight: FontWeight.w600,
+  //             color: Colors.black87,
+  //           ),
+  //           textAlign: TextAlign.center,
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   // return InkWell(
   //   borderRadius: BorderRadius.circular(12),

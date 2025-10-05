@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 //import 'package:flutter_map/flutter_map.dart';
 ///import 'package:flutter_map/flutter_map.dart' as gmap;
@@ -9,14 +11,12 @@ import 'package:geolocator/geolocator.dart';
 //import 'package:google_maps_flutter/google_maps_flutter.dart' as gmap;
 import 'package:http/http.dart' as http;
 import 'package:niceapp/Container/utils/keys.dart';
-import 'package:niceapp/View/Screens/Main_Screens/Home_Screen/ride_map.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/confirm_ride_screen.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/driver_provider.dart';
+import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/ride_in_progress_screen.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/vehicle_category.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/where_to_screen.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/location_providers.dart';
-import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/ride_in_progress.dart';
-import 'package:niceapp/View/Screens/Other_Screens/Splash_Screen/splash_logics.dart';
 import 'package:niceapp/View/Screens/Vehicles/fare_estimate_model.dart';
 import 'package:niceapp/View/Screens/Vehicles/fare_service.dart';
 import 'package:niceapp/View/Screens/Vehicles/vehicle_service.dart';
@@ -47,15 +47,18 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   //final vehicleCategories = ["Sedan", "SUV", "Van", "Bike"];
+  Set<Marker> _markers = {};
   List<VehicleSubCategory> vehicleCategories = [];
   List<FareEstimate?> fareEstimates = [];
   bool isLoadingCategories = true;
   int selectedIndex = -1;
   LatLng? currentLocation;
+  String? pickupAddress;
+  String? destinationAddress;
   //LatLng? pickup;
   List<LatLng> routePoints = [];
   double? routeDistance;
-  int durationInMinutes = 0;
+  double durationInMinutes = 0;
   LatLng _initialFallback = const LatLng(-1.286389, 36.817223);
   //GoogleMapController? mapController;
   //late ScrollController _scrollController;
@@ -72,6 +75,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     //_getCurrentLocation();
     _setCurrentLocation();
 
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId != null) {
+      canStartRide(userId).then((allowed) {
+        if (!allowed) {
+          _listenToActiveRide(userId);
+        }
+      });
+    }
+
     if (widget.destination != null) {
       fetchVehicleSubCategoriesByType(widget.category.index).then((
         categories,
@@ -87,29 +99,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           }
         });
         if (widget.pickup != null && widget.destination != null) {
-          for (int i = 0; i < categories.length; i++) {
-            final category = categories[i];
-            try {
-              final estimate = await FareService.getFareEstimate(
-                categoryId: category.id,
-                pickupLat: widget.pickup!.latitude,
-                pickupLng: widget.pickup!.longitude,
-                destLat: widget.destination!.latitude,
-                destLng: widget.destination!.longitude,
-                countryCode: "KE",
-              );
-              print('Received estimate for ${category.name}: $estimate');
-              setState(() {
-                fareEstimates[i] = estimate;
-              });
-            } catch (e) {
-              print('Failed to load fare for category ${category.name}: $e');
-            }
-          }
+          await _fetchRoute();
+          //for (int i = 0; i < categories.length; i++) {
+          // final category = categories[i];
+          // try {
+          //   final estimate = await FareService.getFareEstimate(
+          //     categoryId: category.id,
+          //     pickupLat: widget.pickup!.latitude,
+          //     pickupLng: widget.pickup!.longitude,
+          //     destLat: widget.destination!.latitude,
+          //     destLng: widget.destination!.longitude,
+          //     distanceKm: ,
+          //     countryCode: "KE",
+          //   );
+          //   print('Received estimate for ${category.name}: $estimate');
+          //   setState(() {
+          //     fareEstimates[i] = estimate;
+          //   });
+          // } catch (e) {
+          //   print('Failed to load fare for category ${category.name}: $e');
+          // }
+          // }
         }
       });
       _setupMarkers();
-      _fetchRoute();
+      // _fetchRoute();
     }
     // _scrollController = ScrollController();
 
@@ -125,6 +139,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         _mapOffsetY = newMapOffset;
       });
     });
+    // canStartRide();
     // _scrollController.addListener(() {
     //   if (widget.pickup != null && widget.destination != null) {
     //     _moveCameraToBounds(context, widget.pickup!, widget.destination!);
@@ -138,6 +153,122 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     //   // Optional post-frame logic
     // });
   }
+
+  bool _isRideScreenOpen = false;
+
+  // void _listenToActiveRide(String userId) {
+  //   final ridesRef = FirebaseDatabase.instance.ref("rides");
+
+  //   ridesRef.orderByChild("riderId").equalTo(userId).onValue.listen((event) {
+  //     if (!event.snapshot.exists) return;
+
+  //     final rides = Map<String, dynamic>.from(
+  //       event.snapshot.value as Map<dynamic, dynamic>,
+  //     );
+
+  //     // Find all active rides
+  //     final activeRides =
+  //         rides.entries.where((entry) {
+  //           final status = entry.value['status']?.toString();
+  //           return status == 'assigned' || status == 'in-progress';
+  //         }).toList();
+
+  //     if (activeRides.isEmpty) {
+  //       // 🚪 No active rides → close if screen open
+  //       if (_isRideScreenOpen) {
+  //         Navigator.of(context).pop();
+  //         _isRideScreenOpen = false;
+  //       }
+  //       return;
+  //     }
+
+  //     // 🚀 Always take the last active ride
+  //     final activeRide = activeRides.last;
+  //     final rideData = Map<String, dynamic>.from(activeRide.value);
+  //     final rideId = rideData['rideId'] ?? activeRide.key;
+
+  //     if (!_isRideScreenOpen) {
+  //       _isRideScreenOpen = true;
+
+  //       Navigator.of(context)
+  //           .push(
+  //             MaterialPageRoute(
+  //               builder: (_) => RideInProgressLiveScreen(rideId: rideId),
+  //             ),
+  //           )
+  //           .then((_) {
+  //             // Reset when screen is popped
+  //             _isRideScreenOpen = false;
+  //           });
+  //     }
+  //   });
+  // }
+  bool _hasActiveRide = false;
+
+  void _listenToActiveRide(String userId) {
+    final ridesRef = FirebaseDatabase.instance.ref("rides");
+
+    ridesRef.orderByChild("riderId").equalTo(userId).onValue.listen((event) {
+      if (!event.snapshot.exists) {
+        _hasActiveRide = false;
+        return;
+      }
+
+      final rides = Map<String, dynamic>.from(
+        event.snapshot.value as Map<dynamic, dynamic>,
+      );
+
+      // Find all active rides
+      final activeRides =
+          rides.entries.where((entry) {
+            final status = entry.value['status']?.toString();
+            return status == 'assigned' || status == 'in-progress';
+          }).toList();
+
+      if (activeRides.isEmpty) {
+        // ✅ No active rides
+        _hasActiveRide = false;
+        return;
+      }
+
+      // ✅ At least one active ride → block new booking
+      _hasActiveRide = true;
+    });
+  }
+
+  Future<bool> canStartRide(String userId) async {
+    final snap =
+        await FirebaseDatabase.instance
+            .ref("rides")
+            .orderByChild("riderId")
+            .equalTo(userId)
+            .get();
+
+    if (snap.exists) {
+      final rides = snap.value as Map;
+      return !rides.values.any(
+        (ride) =>
+            ride['status'] == 'assigned' || ride['status'] == 'in-progress',
+      );
+    }
+    return true; // no rides → allow
+  }
+
+  // Future<bool> driverHasActiveRide(String driverId) async {
+  //   final snap =
+  //       await passengerDb
+  //           .ref("rides")
+  //           .orderByChild("driverId")
+  //           .equalTo(driverId)
+  //           .get();
+
+  //   if (!snap.exists) return false;
+
+  //   final rides = (snap.value as Map).values;
+  //   return rides.any(
+  //     (ride) => ride['status'] == 'assigned' || ride['status'] == 'in-progress',
+  //   );
+  // }
 
   @override
   void dispose() {
@@ -162,14 +293,81 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     };
   }
 
+  // Future<void> _fetchRoute() async {
+  //   final origin = '${widget.pickup!.latitude},${widget.pickup!.longitude}';
+  //   final destination =
+  //       '${widget.destination!.latitude},${widget.destination!.longitude}';
+  //   final apiKey = mapKey; // Your Google Maps API Key
+
+  //   final url = Uri.parse(
+  //     'https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$destination&key=$apiKey',
+  //   );
+
+  //   final response = await http.get(url);
+
+  //   if (response.statusCode == 200) {
+  //     final data = jsonDecode(response.body);
+
+  //     if (data['status'] == 'OK') {
+  //       final route = data['routes'][0];
+  //       final leg = route['legs'][0];
+
+  //       final overviewPolyline = route['overview_polyline']['points'];
+  //       final points = _decodePolyline(overviewPolyline);
+
+  //       setState(() {
+  //         routePoints = points;
+  //         routeDistance = leg['distance']['value'] / 1000.0; // meters to km
+  //         durationInMinutes = (leg['duration']['value'] / 60).round();
+
+  //         polylines = {
+  //           Polyline(
+  //             polylineId: const PolylineId('route'),
+  //             color: Colors.blue,
+  //             width: 5,
+  //             points: routePoints,
+  //           ),
+  //         };
+  //       });
+
+  //       // Move camera to show both points + route
+  //       if (_mapController != null) {
+  //         _moveCameraToBounds(widget.pickup!, widget.destination!);
+  //       }
+  //     } else {
+  //       print('Google Directions API error: ${data['status']}');
+  //     }
+  //   } else {
+  //     print('Failed to fetch directions. Status: ${response.statusCode}');
+  //   }
+  // }
+
+  Future<String> _getPlaceName(LatLng position) async {
+    final apiKey = mapKey; // Google API key
+    final url = Uri.parse(
+      'https://maps.googleapis.com/maps/api/geocode/json?latlng=${position.latitude},${position.longitude}&key=$apiKey',
+    );
+
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['status'] == 'OK' && data['results'].isNotEmpty) {
+        return data['results'][0]['formatted_address'];
+      }
+    }
+    return "Unknown location";
+  }
+
   Future<void> _fetchRoute() async {
     final origin = '${widget.pickup!.latitude},${widget.pickup!.longitude}';
     final destination =
         '${widget.destination!.latitude},${widget.destination!.longitude}';
-    final apiKey = mapKey; // Your Google Maps API Key
+    final apiKey = mapKey;
 
     final url = Uri.parse(
-      'https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$destination&key=$apiKey',
+      'https://maps.googleapis.com/maps/api/directions/json'
+      '?origin=$origin&destination=$destination&key=$apiKey',
     );
 
     final response = await http.get(url);
@@ -184,11 +382,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         final overviewPolyline = route['overview_polyline']['points'];
         final points = _decodePolyline(overviewPolyline);
 
+        final double distanceKm = leg['distance']['value'] / 1000.0;
+        final double durationMinutes = leg['duration']['value'] / 60.0;
+
+        // Get route midpoint for info marker
+        LatLng? midPoint;
+        if (points.isNotEmpty) {
+          final midIndex = (points.length / 2).floor();
+          midPoint = LatLng(
+            points[midIndex].latitude,
+            points[midIndex].longitude,
+          );
+        }
+
+        // Resolve addresses
+        pickupAddress = await _getPlaceName(widget.pickup!);
+        destinationAddress = await _getPlaceName(widget.destination!);
+
         setState(() {
           routePoints = points;
-          routeDistance = leg['distance']['value'] / 1000.0; // meters to km
-          durationInMinutes = (leg['duration']['value'] / 60).round();
+          routeDistance = distanceKm;
+          this.durationInMinutes = durationMinutes;
 
+          /// ✅ Update polylines
           polylines = {
             Polyline(
               polylineId: const PolylineId('route'),
@@ -197,9 +413,88 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               points: routePoints,
             ),
           };
+
+          /// ✅ Update markers
+          _markers
+            ..clear()
+            ..add(
+              Marker(
+                markerId: const MarkerId('pickup'),
+                position: widget.pickup!,
+                icon: BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueGreen,
+                ),
+                infoWindow: InfoWindow(title: pickupAddress ?? "Pickup"),
+              ),
+            )
+            ..add(
+              Marker(
+                markerId: const MarkerId('destination'),
+                position: widget.destination!,
+                icon: BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueRed,
+                ),
+                infoWindow: InfoWindow(
+                  title: destinationAddress ?? "Destination",
+                ),
+              ),
+            );
+
+          // ✅ Distance & duration marker at center
+          if (midPoint != null) {
+            _markers.add(
+              Marker(
+                markerId: const MarkerId('route_center'),
+                position: midPoint,
+                icon: BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueBlue,
+                ),
+                infoWindow: InfoWindow(
+                  title: "${distanceKm.toStringAsFixed(1)} km",
+                  snippet: "${durationMinutes.toStringAsFixed(0)} min",
+                ),
+              ),
+            );
+          }
         });
 
-        // Move camera to show both points + route
+        // Fetch fares per category
+        for (int i = 0; i < vehicleCategories.length; i++) {
+          final category = vehicleCategories[i];
+          try {
+            final estimate = await FareService.getFareEstimate(
+              categoryId: category.id,
+              pickupLat: widget.pickup!.latitude,
+              pickupLng: widget.pickup!.longitude,
+              destLat: widget.destination!.latitude,
+              destLng: widget.destination!.longitude,
+              distanceKm: distanceKm,
+              durationMinutes: durationMinutes,
+              waitingMinutes: 0,
+              countryCode: "KE",
+            );
+
+            if (!mounted) return;
+            setState(() {
+              fareEstimates[i] = estimate;
+            });
+          } catch (e) {
+            print('❌ Failed to load fare for ${category.name}: $e');
+
+            if (!mounted) return;
+            setState(() {
+              fareEstimates[i] = FareEstimate(
+                fare: 0,
+                currency: "KES",
+                timeEstimate: durationMinutes,
+                categoryName: category.name,
+                distanceKm: distanceKm,
+              );
+            });
+          }
+        }
+
+        // Move camera to fit route
         if (_mapController != null) {
           _moveCameraToBounds(widget.pickup!, widget.destination!);
         }
@@ -211,21 +506,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  // void _moveCameraToBounds(LatLng pos1, LatLng pos2) async {
-  //   final southWest = LatLng(
-  //     min(pos1.latitude, pos2.latitude),
-  //     min(pos1.longitude, pos2.longitude),
-  //   );
-  //   final northEast = LatLng(
-  //     max(pos1.latitude, pos2.latitude),
-  //     max(pos1.longitude, pos2.longitude),
-  //   );
-
-  //   final bounds = LatLngBounds(southwest: southWest, northeast: northEast);
-
-  //   final cameraUpdate = CameraUpdate.newLatLngBounds(bounds, 50);
-  //   await _mapController?.animateCamera(cameraUpdate);
-  // }
+  // Helper method to calculate midpoint
+  LatLng _getMidPoint(LatLng p1, LatLng p2) {
+    final midLat = (p1.latitude + p2.latitude) / 2;
+    final midLng = (p1.longitude + p2.longitude) / 2;
+    return LatLng(midLat, midLng);
+  }
 
   // Decode encoded polyline from Google Directions API
   List<LatLng> _decodePolyline(String encoded) {
@@ -286,6 +572,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _navigateToWhereTo() {
+    if (_hasActiveRide) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "You already have an active ride. Complete or cancel it before booking a new one.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return; // ❌ Prevent booking
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -331,7 +629,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     //   );
     // }
     if (pickup != null && destination != null) {
-      tripDistanceKm = _calculateDistanceKm(pickup, destination);
+      tripDistanceKm = routeDistance;
+
+      final tripDuration = durationInMinutes;
+
+      //_calculateDistanceKm(pickup, destination);
       midPoint = LatLng(
         (pickup.latitude + destination.latitude) / 2,
         (pickup.longitude + destination.longitude) / 2,
@@ -341,14 +643,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (driver == null) {
         return const Center(child: Text('No driver linked'));
       }
-
-      // return RideInProgressLiveScreen(
-      //   driverStart: LatLng(
-      //     driver.location.latitude,
-      //     driver.location.longitude,
-      //   ),
-      //   pickup: widget.pickup!,
-      // );
     }
     if (midPoint != null) {
       midPoint = LatLng(
@@ -397,6 +691,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   myLocationButtonEnabled: false,
                 ),
               ),
+
+              if (routeDistance != null && durationInMinutes > 0)
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black87,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black38, blurRadius: 6),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          "${pickupAddress ?? 'Pickup'} → ${destinationAddress ?? 'Destination'}",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "${routeDistance!.toStringAsFixed(1)} km • ${durationInMinutes.toStringAsFixed(0)} min",
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
 
@@ -524,27 +857,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           if (widget.destination != null)
             NotificationListener<DraggableScrollableNotification>(
               onNotification: (notification) {
-                // final sheetSize =
-                //     notification
-                //         .extent; // fractional size between minChildSize and maxChildSize
-                // final bottomPadding =
-                //     MediaQuery.of(context).size.height * (1 - sheetSize) + 20;
-                // final topPadding =
-                //     MediaQuery.of(context).size.height * (1 - sheetSize) + 20;
-                // final leftPadding =
-                //     MediaQuery.of(context).size.height * (1 - sheetSize) + 20;
-                // final rightPadding =
-                //     MediaQuery.of(context).size.height * (1 - sheetSize) + 20;
-
-                // _moveCameraToBounds(
-                //   context,
-                //   pickup!,
-                //   destination!,
-                //   bottomPadding: bottomPadding,
-                //   topPadding: topPadding,
-                //   //leftPadding: leftPadding,
-                //   // rightPadding: rightPadding,
-                // );
                 final sheetExtent =
                     notification.extent; // 0.25 to 0.8 for example
                 // Map extent to 0-1 scrollFraction (or invert as needed)
@@ -699,13 +1011,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                             //     fontSize: 13,
                                             //   ),
                                             // ),
-                                            Text(
-                                              timeAway,
-                                              style: const TextStyle(
-                                                color: Colors.grey,
-                                                fontSize: 13,
-                                              ),
-                                            ),
+
+                                            // Text(
+                                            //   timeAway,
+                                            //   style: const TextStyle(
+                                            //     color: Colors.grey,
+                                            //     fontSize: 13,
+                                            //   ),
+                                            // ),
                                             const SizedBox(height: 4),
                                             Text(
                                               "$passengers Passengers",
@@ -807,96 +1120,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  double _calculateDistanceKm(LatLng start, LatLng end) {
-    const double R = 6371; // Earth radius in KM
-    final dLat = _deg2rad(end.latitude - start.latitude);
-    final dLon = _deg2rad(end.longitude - start.longitude);
-    final a =
-        (sin(dLat / 2) * sin(dLat / 2)) +
-        cos(_deg2rad(start.latitude)) *
-            cos(_deg2rad(end.latitude)) *
-            (sin(dLon / 2) * sin(dLon / 2));
-    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
-    return R * c;
-  }
+  // double _calculateDistanceKm(LatLng start, LatLng end) {
+  //   const double R = 6371; // Earth radius in KM
+  //   final dLat = _deg2rad(end.latitude - start.latitude);
+  //   final dLon = _deg2rad(end.longitude - start.longitude);
+  //   final a =
+  //       (sin(dLat / 2) * sin(dLat / 2)) +
+  //       cos(_deg2rad(start.latitude)) *
+  //           cos(_deg2rad(end.latitude)) *
+  //           (sin(dLon / 2) * sin(dLon / 2));
+  //   final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+  //   return R * c;
+  // }
 
   double _deg2rad(double deg) => deg * (pi / 180);
-
-  // Future<void> _moveCameraToBounds(
-  //   BuildContext context,
-  //   LatLng pickup,
-  //   LatLng destination, {
-  //   double? bottomPadding,
-  // }) async {
-  //   if (_mapController == null) return;
-
-  //   final bounds = LatLngBounds(
-  //     southwest: LatLng(
-  //       min(pickup.latitude, destination.latitude),
-  //       min(pickup.longitude, destination.longitude),
-  //     ),
-  //     northeast: LatLng(
-  //       max(pickup.latitude, destination.latitude),
-  //       max(pickup.longitude, destination.longitude),
-  //     ),
-  //   );
-
-  //   const sidePadding = 50.0;
-  //   final topPadding = 20.0;
-  //   final padding =
-  //       bottomPadding != null
-  //           ? max(max(sidePadding, topPadding), bottomPadding)
-  //           : max(sidePadding, topPadding);
-  //   if (mounted) {
-  //     await _mapController!.animateCamera(
-  //       CameraUpdate.newLatLngBounds(bounds, padding),
-  //     );
-  //   }
-
-  // Future<void> _moveCameraToBounds(
-  //   BuildContext context,
-  //   LatLng pickup,
-  //   LatLng destination, {
-  //   double? bottomPadding,
-  //   double? topPadding,
-  // }) async {
-  //   if (_mapController == null) return;
-
-  //   final bounds = LatLngBounds(
-  //     southwest: LatLng(
-  //       min(pickup.latitude, destination.latitude),
-  //       min(pickup.longitude, destination.longitude),
-  //     ),
-  //     northeast: LatLng(
-  //       max(pickup.latitude, destination.latitude),
-  //       max(pickup.longitude, destination.longitude),
-  //     ),
-  //   );
-
-  //   final mediaQuery = MediaQuery.of(context);
-  //   final screenWidth = mediaQuery.size.width;
-  //   final screenHeight = mediaQuery.size.height;
-
-  //   // Fixed horizontal padding so pickup/destination always on screen edges horizontally
-  //   const horizontalPadding = 50.0;
-
-  //   // Vertical padding based on draggable sheet or fixed defaults
-  //   final topPad = (topPadding ?? 20).clamp(0, screenHeight / 2 - 1);
-  //   final bottomPad = (bottomPadding ?? 20).clamp(0, screenHeight / 2 - 1);
-
-  //   // Max vertical padding needed
-  //   final verticalPadding = max(topPad, bottomPad);
-
-  //   // Final padding is max(horizontalPadding, verticalPadding)
-  //   // This makes sure horizontal padding is respected and vertical padding adjusts for draggable sheet height
-  //   final padding = max(horizontalPadding, verticalPadding).toDouble();
-
-  //   if (mounted) {
-  //     await _mapController!.animateCamera(
-  //       CameraUpdate.newLatLngBounds(bounds, padding),
-  //     );
-  //   }
-  // }
 
   void _moveCameraToBounds(LatLng pickup, LatLng destination) {
     final southwest = LatLng(
@@ -960,3 +1197,139 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _mapController!.animateCamera(CameraUpdate.scrollBy(0, dy));
   }
 }
+
+
+// Future<void> _fetchRoute() async {
+  //   final origin = '${widget.pickup!.latitude},${widget.pickup!.longitude}';
+  //   final destination =
+  //       '${widget.destination!.latitude},${widget.destination!.longitude}';
+  //   final apiKey = mapKey; // Your Google Maps API Key
+
+  //   final url = Uri.parse(
+  //     'https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$destination&key=$apiKey',
+  //   );
+
+  //   final response = await http.get(url);
+
+  //   if (response.statusCode == 200) {
+  //     final data = jsonDecode(response.body);
+
+  //     if (data['status'] == 'OK') {
+  //       final route = data['routes'][0];
+  //       final leg = route['legs'][0];
+
+  //       final overviewPolyline = route['overview_polyline']['points'];
+  //       final points = _decodePolyline(overviewPolyline);
+
+  //       final double distanceKm =
+  //           leg['distance']['value'] / 1000.0; // meters → km
+  //       final double durationMinutes =
+  //           leg['duration']['value'] / 60.0; // sec → min
+
+  //       setState(() {
+  //         routePoints = points;
+  //         routeDistance = distanceKm;
+  //         durationInMinutes = durationMinutes;
+
+  //         polylines = {
+  //           Polyline(
+  //             polylineId: const PolylineId('route'),
+  //             color: Colors.blue,
+  //             width: 5,
+  //             points: routePoints,
+  //           ),
+  //         };
+
+  //         /// ✅ Update markers
+  //         _markers
+  //           ..clear()
+  //           ..add(
+  //             Marker(
+  //               markerId: const MarkerId('pickup'),
+  //               position: widget.pickup!,
+  //               icon: BitmapDescriptor.defaultMarkerWithHue(
+  //                 BitmapDescriptor.hueGreen,
+  //               ),
+  //               infoWindow: InfoWindow(title: pickupAddress ?? "Pickup"),
+  //             ),
+  //           )
+  //           ..add(
+  //             Marker(
+  //               markerId: const MarkerId('destination'),
+  //               position: widget.destination!,
+  //               icon: BitmapDescriptor.defaultMarkerWithHue(
+  //                 BitmapDescriptor.hueRed,
+  //               ),
+  //               infoWindow: InfoWindow(
+  //                 title: destinationAddress ?? "Destination",
+  //               ),
+  //             ),
+  //           );
+
+  //         // ✅ Distance & duration marker at center
+  //         if (midPoint != null) {
+  //           _markers.add(
+  //             Marker(
+  //               markerId: const MarkerId('route_center'),
+  //               position: midPoint,
+  //               icon: BitmapDescriptor.defaultMarkerWithHue(
+  //                 BitmapDescriptor.hueBlue,
+  //               ),
+  //               infoWindow: InfoWindow(
+  //                 title: "${distanceKm.toStringAsFixed(1)} km",
+  //                 snippet: "${durationMinutes.toStringAsFixed(0)} min",
+  //               ),
+  //             ),
+  //           );
+  //         }
+  //       });
+  //       pickupAddress = await _getPlaceName(widget.pickup!);
+  //       destinationAddress = await _getPlaceName(widget.destination!);
+  //       final midPoint = _getMidPoint(widget.pickup!, widget.destination!);
+
+  //       for (int i = 0; i < vehicleCategories.length; i++) {
+  //         final category = vehicleCategories[i];
+  //         try {
+  //           final estimate = await FareService.getFareEstimate(
+  //             categoryId: category.id,
+  //             pickupLat: widget.pickup!.latitude,
+  //             pickupLng: widget.pickup!.longitude,
+  //             destLat: widget.destination!.latitude,
+  //             destLng: widget.destination!.longitude,
+  //             distanceKm: distanceKm,
+  //             durationMinutes: durationMinutes,
+  //             waitingMinutes: 0,
+  //             countryCode: "KE",
+  //           );
+
+  //           if (!mounted) return;
+  //           setState(() {
+  //             fareEstimates[i] = estimate; // ✅ update this index
+  //           });
+  //         } catch (e) {
+  //           print('❌ Failed to load fare for ${category.name}: $e');
+
+  //           if (!mounted) return;
+  //           setState(() {
+  //             fareEstimates[i] = FareEstimate(
+  //               fare: 0,
+  //               currency: "KES",
+  //               timeEstimate: durationInMinutes,
+  //               categoryName: category.name,
+  //               distanceKm: distanceKm,
+  //             ); // ✅ fallback instead of keeping null
+  //           });
+  //         }
+  //       }
+
+  //       // Move camera to show both points + route
+  //       if (_mapController != null) {
+  //         _moveCameraToBounds(widget.pickup!, widget.destination!);
+  //       }
+  //     } else {
+  //       print('Google Directions API error: ${data['status']}');
+  //     }
+  //   } else {
+  //     print('Failed to fetch directions. Status: ${response.statusCode}');
+  //   }
+  // }

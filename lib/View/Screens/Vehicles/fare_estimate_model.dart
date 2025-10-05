@@ -28,7 +28,7 @@
 class FareEstimate {
   final String currency;
   final double fare;
-  final int timeEstimate;
+  final double timeEstimate;
   final String categoryName;
   final double distanceKm;
   final String? iconUrl;
@@ -47,7 +47,8 @@ class FareEstimate {
     return FareEstimate(
       currency: json['currency'] ?? 'KES',
       fare: (json['estimatedFare'] ?? 0).toDouble(), // ✅ corrected
-      timeEstimate: json['estimatedTimeMinutes'] ?? 0, // ✅ corrected
+      timeEstimate:
+          (json['estimatedTimeMinutes'] ?? 0).toDouble(), // ✅ corrected
       categoryName: json['categoryName'] ?? 'Unknown',
       distanceKm: (json['distanceKm'] ?? 0).toDouble(),
       //iconUrl: json['iconUrl'],

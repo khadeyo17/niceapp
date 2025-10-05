@@ -1,17 +1,18 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:niceapp/Container/utils/keys.dart';
-import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/driver_confirmation_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/driver_confirmation_screen.dart';
+import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/finding_driver_screen.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/reverse_geocoding_service.dart';
-import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/ride_in_progress_screen.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/location_providers.dart';
-import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/ride_in_progress.dart';
 import 'package:niceapp/View/Screens/Other_Screens/ride_history_screen.dart';
 
 class ConfirmRideScreen extends ConsumerStatefulWidget {
@@ -38,28 +39,33 @@ class ConfirmRideScreen extends ConsumerStatefulWidget {
   ConsumerState<ConfirmRideScreen> createState() => _ConfirmRideScreenState();
 }
 
+// class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
+//     with SingleTickerProviderStateMixin {
+//   late AnimationController _panelController;
+//   // late Animation<Offset> _panelOffset;
+//   late Animation<Offset> _panelOffset;
+//   final StreamController<bool> _driverLinkedController =
+//       StreamController<bool>.broadcast();
 class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _panelController;
-  // late Animation<Offset> _panelOffset;
   late Animation<Offset> _panelOffset;
+  final StreamController<bool> _driverLinkedController =
+      StreamController<bool>.broadcast();
+
+  StreamSubscription<DatabaseEvent>? _rideSub;
+
   //Offset _panelOffset = const Offset(0, 1);
   double distanceInKm = 0;
   int durationInMinutes = 0;
   List<LatLng> routePoints = [];
   int? rideId2;
-
+  //late StreamSubscription<DatabaseEvent> _rideSub;
   GoogleMapController? _mapController;
 
   Set<Marker> markers = {};
   Set<Polyline> polylines = {};
 
-  // @override
-  // void initState() {
-  //   super.initState();
-  //   _setupMarkers();
-  //   _fetchRoute();
-  // }
   void initState() {
     super.initState();
     _panelController = AnimationController(
@@ -80,9 +86,15 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
     _fetchRoute();
   }
 
+  // @override
+  // void dispose() {
+  //   _panelController.dispose();
+  //   super.dispose();
+  // }
   @override
   void dispose() {
     _panelController.dispose();
+    _rideSub?.cancel(); // cancel listener when screen is disposed
     super.dispose();
   }
 
@@ -199,19 +211,167 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
     return poly;
   }
 
+  // Future<void> bookRide() async {
+  //   final user = FirebaseAuth.instance.currentUser;
+
+  //   if (user == null) {
+  //     _closeFindingDriverDialog();
+  //     print("User is not authenticated");
+  //     return;
+  //   }
+
+  //   try {
+  //     final idToken = await user.getIdToken();
+  //     final url = '$baseUrl/rides/passenger/request';
+
+  //     final pickupLat = widget.pickup.latitude;
+  //     final pickupLng = widget.pickup.longitude;
+  //     final destLat = widget.destination.latitude;
+  //     final destLng = widget.destination.longitude;
+  //     final subCategoryId = widget.category;
+  //     final scheduledTime = widget.scheduledDate;
+
+  //     final pickupAddress = await ReverseGeocodingService.getAddressFromLatLng(
+  //       LatLng(pickupLat, pickupLng),
+  //     );
+  //     final destinationAddress =
+  //         await ReverseGeocodingService.getAddressFromLatLng(
+  //           LatLng(destLat, destLng),
+  //         );
+
+  //     final body = {
+  //       "firebaseIdToken": user.uid,
+  //       "pickupLocation": pickupAddress,
+  //       "destination": destinationAddress,
+  //       "pickupLat": pickupLat,
+  //       "pickupLng": pickupLng,
+  //       "destLat": destLat,
+  //       "destLng": destLng,
+  //       "subCategoryId": subCategoryId,
+  //       "scheduledTime": scheduledTime?.toIso8601String(),
+  //       "fare": widget.fare.toStringAsFixed(2),
+  //     };
+
+  //     if (!mounted) return;
+
+  //     final response = await http.post(
+  //       Uri.parse(url),
+  //       headers: {'Content-Type': 'application/json'},
+  //       body: jsonEncode(body),
+  //     );
+
+  //     if (response.statusCode == 200) {
+  //       final responseData = jsonDecode(response.body);
+  //       final rideId = responseData['rideId'];
+  //       rideId2 = responseData['rideId'];
+
+  //       if (scheduledTime == null) {
+  //         await pollForDriverAssignment(rideId);
+  //       } else {
+  //         _closeFindingDriverDialog();
+  //         Navigator.push(
+  //           context,
+  //           MaterialPageRoute(builder: (_) => RideHistoryScreen()),
+  //         );
+  //       }
+  //     } else {
+  //       _closeFindingDriverDialog();
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(
+  //           content: Text('Failed to book ride: ${response.statusCode}'),
+  //         ),
+  //       );
+  //       print('Failed to book ride: ${response.statusCode}');
+  //       print(response.body);
+  //     }
+  //   } catch (e) {
+  //     _closeFindingDriverDialog();
+  //     ScaffoldMessenger.of(
+  //       context,
+  //     ).showSnackBar(SnackBar(content: Text('Error booking ride: $e')));
+  //     print('Error booking ride: $e');
+  //   }
+  // }
+
+  void _closeFindingDriverDialog() {
+    if (_dialogContext != null && Navigator.canPop(_dialogContext!)) {
+      Navigator.pop(_dialogContext!);
+    }
+  }
+
+  //late StreamSubscription<DatabaseEvent> _rideSub;
+
+  /// Start listening to Firebase for driver assignment
+  void listenForDriverAssignment(int requestId) {
+    final dbRef = FirebaseDatabase.instance.ref("rideRequests/$requestId");
+
+    _rideSub = dbRef.onValue.listen((event) async {
+      if (!mounted || event.snapshot.value == null) return;
+
+      final requestData = event.snapshot.value as Map;
+
+      // Check if rideId is present
+      if (requestData['rideId'] == null) return;
+      final realRideId = requestData['rideId'];
+
+      try {
+        // Fetch ride from backend (optional if Firebase contains driver info)
+        final url = '$baseUrl/rides/myrides/$realRideId';
+        final response = await http.get(Uri.parse(url));
+
+        if (response.statusCode == 200) {
+          final rideData = jsonDecode(response.body);
+
+          if (rideData['driver'] != null) {
+            final driverData = rideData['driver'];
+
+            // Notify "Finding Driver" screen
+            _driverLinkedController.add(true);
+
+            // Cancel the listener after driver is found
+            await _rideSub?.cancel();
+
+            // Navigate instantly
+            if (!mounted) return;
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (_) => DriverConfirmationScreen(
+                      rideId: realRideId,
+                      pickup: widget.pickup,
+                      destination: widget.destination,
+                      driverId: driverData['firebaseId'],
+                      Phone: driverData['phoneNumber'],
+                      regnumber: driverData['registrationNumber'],
+                      vehicleMake: driverData['vehicleMake'],
+                      vehicleModel: driverData['vehicleModel'],
+                      colour: driverData['vehicleColour'],
+                      drivername: driverData['firstName'],
+                      photoUrl: driverData['photoUrl'],
+                    ),
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        debugPrint("Error in listener: $e");
+      }
+    });
+  }
+
+  /// Call this instead of pollForDriverAssignment()
   Future<void> bookRide() async {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       _closeFindingDriverDialog();
-      print("User is not authenticated");
+      print("User not authenticated");
       return;
     }
 
     try {
-      final idToken = await user.getIdToken();
-      final url = '$baseUrl/rides/passenger/book';
-
+      final url = '$baseUrl/rides/passenger/request';
       final pickupLat = widget.pickup.latitude;
       final pickupLng = widget.pickup.longitude;
       final destLat = widget.destination.latitude;
@@ -228,7 +388,7 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
           );
 
       final body = {
-        "firebaseIdToken": idToken,
+        "firebaseIdToken": user.uid,
         "pickupLocation": pickupAddress,
         "destination": destinationAddress,
         "pickupLat": pickupLat,
@@ -237,9 +397,8 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
         "destLng": destLng,
         "subCategoryId": subCategoryId,
         "scheduledTime": scheduledTime?.toIso8601String(),
+        "fare": widget.fare.toStringAsFixed(2),
       };
-
-      if (!mounted) return;
 
       final response = await http.post(
         Uri.parse(url),
@@ -250,12 +409,11 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         final rideId = responseData['rideId'];
-        rideId2 = responseData['rideId'];
 
         if (scheduledTime == null) {
-          await pollForDriverAssignment(rideId);
+          // 👇 Start realtime listener instead of polling
+          listenForDriverAssignment(rideId);
         } else {
-          _closeFindingDriverDialog();
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => RideHistoryScreen()),
@@ -263,92 +421,63 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
         }
       } else {
         _closeFindingDriverDialog();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to book ride: ${response.statusCode}'),
-          ),
-        );
-        print('Failed to book ride: ${response.statusCode}');
-        print(response.body);
+        print('Failed to book ride: ${response.body}');
       }
     } catch (e) {
       _closeFindingDriverDialog();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error booking ride: $e')));
-      print('Error booking ride: $e');
+      print("Error booking ride: $e");
     }
   }
 
-  void _closeFindingDriverDialog() {
-    if (_dialogContext != null && Navigator.canPop(_dialogContext!)) {
-      Navigator.pop(_dialogContext!);
-    }
-  }
+  // void listenForDriverAssignment(int requestId) {
+  //   final dbRef = FirebaseDatabase.instance.ref("rideRequests/$requestId");
 
-  // Future<void> bookRide() async {
-  //   final user = FirebaseAuth.instance.currentUser;
+  //   _rideSub = dbRef.onValue.listen((event) async {
+  //     if (!mounted || event.snapshot.value == null) return;
 
-  //   if (user == null) {
-  //     print("User is not authenticated");
-  //     return null;
-  //   }
+  //     final requestData = event.snapshot.value as Map;
+  //     if (requestData['rideId'] == null) return;
 
-  //   final idToken = await user.getIdToken();
-  //   final url = '$baseUrl/rides/passenger/book';
+  //     final realRideId = requestData['rideId'];
 
-  //   final pickupLat = widget.pickup.latitude;
-  //   final pickupLng = widget.pickup.longitude;
-  //   final destLat = widget.destination.latitude;
-  //   final destLng = widget.destination.longitude;
-  //   final subCategoryId = widget.category;
-  //   final scheduledTime = widget.scheduledDate;
+  //     // 🔥 Option A: If Firebase already has driver info, navigate immediately.
+  //     // 🔥 Option B: If not, still call backend but no need to poll repeatedly.
+  //     final url = '$baseUrl/rides/myrides/$realRideId';
+  //     final response = await http.get(Uri.parse(url));
 
-  //   final pickupAddress = await ReverseGeocodingService.getAddressFromLatLng(
-  //     LatLng(pickupLat, pickupLng),
-  //   );
-  //   final destinationAddress =
-  //       await ReverseGeocodingService.getAddressFromLatLng(
-  //         LatLng(destLat, destLng),
-  //       );
+  //     if (response.statusCode == 200) {
+  //       final rideData = jsonDecode(response.body);
 
-  //   final body = {
-  //     "firebaseIdToken": idToken,
-  //     "pickupLocation": pickupAddress,
-  //     "destination": destinationAddress,
-  //     "pickupLat": pickupLat,
-  //     "pickupLng": pickupLng,
-  //     "destLat": destLat,
-  //     "destLng": destLng,
-  //     "subCategoryId": subCategoryId,
-  //     "scheduledTime": scheduledTime?.toIso8601String(),
-  //   };
+  //       if (rideData['driver'] != null) {
+  //         final driverData = rideData['driver'];
 
-  //   if (!mounted) return;
-  //   final response = await http.post(
-  //     Uri.parse(url),
-  //     headers: {'Content-Type': 'application/json'},
-  //     body: jsonEncode(body),
-  //   );
-
-  //   if (response.statusCode == 200) {
-  //     final responseData = jsonDecode(response.body);
-  //     final rideId = responseData['rideId'];
-  //     rideId2 = responseData['rideId'];
-
-  //     if (scheduledTime == null) {
-  //       // showFindingDriverDialog(context);
-  //       await pollForDriverAssignment(rideId);
-  //     } else {
-  //       Navigator.pushReplacement(
-  //         context,
-  //         MaterialPageRoute(builder: (_) => RideHistoryScreen()),
-  //       );
+  //         if (!mounted) return;
+  //         Navigator.pushReplacement(
+  //           context,
+  //           MaterialPageRoute(
+  //             builder: (_) => DriverConfirmationScreen(
+  //               rideId: realRideId,
+  //               pickup: widget.pickup,
+  //               driverId: driverData['firebaseId'],
+  //               Phone: driverData['phoneNumber'],
+  //               regnumber: driverData['registrationNumber'],
+  //               vehicleMake: driverData['vehicleMake'],
+  //               vehicleModel: driverData['vehicleModel'],
+  //               colour: driverData['vehicleColour'],
+  //               drivername: driverData['firstName'],
+  //               photoUrl: driverData['photoUrl'],
+  //             ),
+  //           ),
+  //         );
+  //       }
   //     }
-  //   } else {
-  //     print('Failed to book ride: ${response.statusCode}');
-  //     print(response.body);
-  //   }
+  //   });
+  // }
+
+  // @override
+  // void dispose() {
+  //   _rideSub.cancel();
+  //   super.dispose();
   // }
 
   Future<bool> checkForExistingRide() async {
@@ -397,67 +526,72 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
     );
   }
 
-  Future<void> pollForDriverAssignment(int rideId) async {
-    final url = '$baseUrl/rides/myrides/$rideId';
+  Future<void> pollForDriverAssignment(int requestId) async {
     const maxAttempts = 20;
     const interval = Duration(seconds: 5);
 
     for (int i = 0; i < maxAttempts; i++) {
       if (!mounted) return;
-      final response = await http.get(Uri.parse(url));
 
-      if (response.statusCode == 200) {
-        final rideData = jsonDecode(response.body);
+      try {
+        // 1. Check Firebase first
+        //final dbRef = FirebaseDatabase.instance.ref("rideRequests/$requestId");
+        final dbRef = FirebaseDatabase.instance.ref(
+          "rideRequests/${requestId.toString()}",
+        );
 
-        if (rideData['driver'] != null) {
-          final driverData = rideData['driver'];
+        final dbSnapshot = await dbRef.get();
 
-          if (_dialogContext != null && Navigator.canPop(_dialogContext!)) {
-            Navigator.pop(_dialogContext!);
-          }
+        if (dbSnapshot.exists) {
+          final requestData = dbSnapshot.value as Map;
 
-          await Future.delayed(const Duration(milliseconds: 100));
+          if (requestData['rideId'] != null) {
+            final realRideId = requestData['rideId'];
 
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder:
-                  (context) => DriverConfirmationScreen(
-                    rideId: rideId,
-                    pickup: widget.pickup,
-                    driverId: driverData['firebaseId'],
-                    Phone: driverData['phoneNumber'],
-                    regnumber: driverData['registrationNumber'],
-                    vehicleMake: driverData['vehicleMake'],
-                    vehicleModel: driverData['vehicleModel'],
-                    colour: driverData['vehicleColour'],
-                    drivername: driverData['firstName'],
+            // 2. Now check backend ride
+            final url = '$baseUrl/rides/myrides/$realRideId';
+            final response = await http.get(Uri.parse(url));
+
+            if (response.statusCode == 200) {
+              final rideData = jsonDecode(response.body);
+
+              if (rideData['driver'] != null) {
+                final driverData = rideData['driver'];
+
+                _driverLinkedController.add(true);
+
+                await Future.delayed(const Duration(milliseconds: 200));
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (_) => DriverConfirmationScreen(
+                          rideId: realRideId,
+                          pickup: widget.pickup,
+                          driverId: driverData['firebaseId'],
+                          Phone: driverData['phoneNumber'],
+                          regnumber: driverData['registrationNumber'],
+                          vehicleMake: driverData['vehicleMake'],
+                          vehicleModel: driverData['vehicleModel'],
+                          colour: driverData['vehicleColour'],
+                          drivername: driverData['firstName'],
+                        ),
                   ),
-              // (context) => RideInProgressLiveScreen(
-              //   rideId: rideId,
-              //   pickup: widget.pickup,
-              //   destination: widget.destination,
-              //   driverId: driverData['firebaseId'],
-              //   baseFare: widget.fare,
-              //   // Phone: driverData['phoneNumber'],
-              //   // regnumber: driverData['registrationNumber'],
-              //   // vehicleMake: driverData['vehicleMake'],
-              //   // vehicleModel: driverData['vehicleModel'],
-              //   // colour: driverData['vehicleColour'],
-              //   // drivername: driverData['firstName'],
-              // ),
-            ),
-          );
-          return;
+                );
+                return;
+              }
+            }
+          }
         }
+      } catch (e) {
+        debugPrint("Error checking driver assignment: $e");
       }
+
       await Future.delayed(interval);
     }
 
-    if (Navigator.canPop(context)) {
-      Navigator.pop(context);
-    }
-
+    _driverLinkedController.add(false);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text("No driver accepted your ride. Try again later."),
@@ -576,12 +710,66 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
             ),
           ),
           const SizedBox(height: 20),
+
+          // SizedBox(
+          //   width: double.infinity,
+          //   child: ElevatedButton(
+          //     onPressed: () async {
+          //       if (mounted) {
+          //         showFindingDriverDialog(context);
+          //         await bookRide();
+          //       }
+          //     },
+          //     style: ElevatedButton.styleFrom(
+          //       backgroundColor: Colors.grey[700],
+          //       foregroundColor: Colors.white,
+          //       padding: const EdgeInsets.symmetric(vertical: 14),
+          //       textStyle: const TextStyle(fontSize: 18),
+          //       shape: RoundedRectangleBorder(
+          //         borderRadius: BorderRadius.circular(12),
+          //       ),
+          //     ),
+          //     child: Text(
+          //       widget.isScheduled == true
+          //           ? "📅 Confirm Booking"
+          //           : "✅ Confirm Ride",
+          //     ),
+          //   ),
+          // ),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () async {
                 if (mounted) {
-                  showFindingDriverDialog(context);
+                  // Instead of dialog, push full screen
+                  // Navigator.push(
+                  //   context,
+                  //   MaterialPageRoute(
+                  //     builder:
+                  //         (_) => FindingDriverScreen(
+                  //           onCancel: () async {
+                  //             // TODO: cancel ride request via API
+                  //             print("Ride canceled by passenger");
+                  //           },
+                  //         ),
+                  //   ),
+                  // );
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      fullscreenDialog: true,
+                      builder:
+                          (_) => FindingDriverScreen(
+                            onCancel: () async {
+                              // Call cancel API
+                              print("Ride canceled by passenger");
+                            },
+                            driverLinkedStream: _driverLinkedController.stream,
+                          ),
+                    ),
+                  );
+
                   await bookRide();
                 }
               },
@@ -606,753 +794,258 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
     );
   }
 }
-//   @override
-//   Widget build(BuildContext context) {
-//     final pickupAddressAsync = ref.watch(pickupAddressProvider);
-//     final fare = widget.fare;
 
-//     return Scaffold(
-//       body: Stack(
-//         children: [
-//           // Google Map
-//           GoogleMap(
-//             initialCameraPosition: CameraPosition(
-//               target: widget.pickup,
-//               zoom: 12,
-//             ),
-//             markers: markers,
-//             polylines: polylines,
-//             onMapCreated: (controller) {
-//               _mapController = controller;
-//               _moveCameraToBounds(widget.pickup, widget.destination);
-//               // trigger panel animation after small delay
-//               Future.delayed(const Duration(milliseconds: 300), () {
-//                 _panelController.forward();
-//               });
-//             },
-//           ),
+  // Future<void> bookRide() async {
+  //   final user = FirebaseAuth.instance.currentUser;
 
-//           // Animated Bottom Panel
-//           AnimatedBuilder(
-//             animation: _panelOffset,
-//             builder: (context, child) {
-//               return AnimatedSlide(
-//                 offset: _panelOffset.value,
-//                 duration: const Duration(milliseconds: 400),
-//                 curve: Curves.easeOutCubic,
-//                 child: child,
-//               );
-//             },
-//             child: Positioned(
-//               bottom: 0,
-//               left: 0,
-//               right: 0,
-//               child: _buildBottomPanel(pickupAddressAsync, fare),
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
+  //   if (user == null) {
+  //     print("User is not authenticated");
+  //     return null;
+  //   }
 
-//   Widget _buildBottomPanel(
-//     AsyncValue<String?> pickupAddressAsync,
-//     double fare,
-//   ) {
-//     return Container(
-//       padding: const EdgeInsets.all(20),
-//       decoration: BoxDecoration(
-//         color: Colors.white,
-//         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-//         boxShadow: [
-//           BoxShadow(
-//             color: Colors.black26,
-//             blurRadius: 12,
-//             offset: const Offset(0, -4),
-//           ),
-//         ],
-//       ),
-//       child: Column(
-//         mainAxisSize: MainAxisSize.min,
-//         crossAxisAlignment: CrossAxisAlignment.start,
-//         children: [
-//           pickupAddressAsync.when(
-//             data:
-//                 (address) => Text(
-//                   "📍 Pickup: ${address ?? 'Unknown'}",
-//                   style: const TextStyle(
-//                     fontSize: 18,
-//                     fontWeight: FontWeight.w600,
-//                   ),
-//                 ),
-//             loading:
-//                 () => const Text(
-//                   "📍 Pickup: Loading...",
-//                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-//                 ),
-//             error:
-//                 (err, _) => const Text(
-//                   "📍 Pickup: Error",
-//                   style: TextStyle(
-//                     fontSize: 18,
-//                     fontWeight: FontWeight.w600,
-//                     color: Colors.red,
-//                   ),
-//                 ),
-//           ),
-//           const SizedBox(height: 8),
-//           Text(
-//             "🚗 Category: ${widget.optionSelected}",
-//             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-//           ),
-//           const SizedBox(height: 8),
-//           Text(
-//             "💰 Fare: KES ${fare.toStringAsFixed(2)}",
-//             style: const TextStyle(
-//               fontSize: 20,
-//               fontWeight: FontWeight.bold,
-//               color: Colors.green,
-//             ),
-//           ),
-//           const SizedBox(height: 20),
-//           SizedBox(
-//             width: double.infinity,
-//             child: ElevatedButton(
-//               onPressed: () async {
-//                 if (mounted) {
-//                   await bookRide();
-//                 }
-//               },
-//               style: ElevatedButton.styleFrom(
-//                 backgroundColor: Colors.black,
-//                 foregroundColor: Colors.white,
-//                 padding: const EdgeInsets.symmetric(vertical: 14),
-//                 textStyle: const TextStyle(fontSize: 18),
-//                 shape: RoundedRectangleBorder(
-//                   borderRadius: BorderRadius.circular(12),
-//                 ),
-//               ),
-//               child: Text(
-//                 widget.isScheduled == true
-//                     ? "📅 Confirm Booking"
-//                     : "✅ Confirm Ride",
-//               ),
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
-//   @override
-//   Widget build(BuildContext context) {
-//     final optionSelected = widget.optionSelected;
-//     final pickupAddressAsync = ref.watch(pickupAddressProvider);
-//     final fare = widget.fare;
+  //   final idToken = await user.getIdToken();
+  //   final url = '$baseUrl/rides/passenger/book';
 
-//     return Scaffold(
-//       body: Stack(
-//         children: [
-//           GoogleMap(
-//             initialCameraPosition: CameraPosition(
-//               target: widget.pickup,
-//               zoom: 12,
-//             ),
-//             markers: markers,
-//             polylines: polylines,
-//             onMapCreated: (controller) {
-//               _mapController = controller;
-//               _moveCameraToBounds(widget.pickup, widget.destination);
-//             },
-//             myLocationEnabled: false,
-//             myLocationButtonEnabled: false,
-//           ),
+  //   final pickupLat = widget.pickup.latitude;
+  //   final pickupLng = widget.pickup.longitude;
+  //   final destLat = widget.destination.latitude;
+  //   final destLng = widget.destination.longitude;
+  //   final subCategoryId = widget.category;
+  //   final scheduledTime = widget.scheduledDate;
 
-//           // Positioned Bottom Panel
-//           Positioned(
-//             bottom: 0,
-//             left: 0,
-//             right: 0,
-//             child: Container(
-//               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-//               decoration: const BoxDecoration(
-//                 color: Colors.white,
-//                 boxShadow: [
-//                   BoxShadow(
-//                     color: Colors.black12,
-//                     blurRadius: 8,
-//                     offset: Offset(0, -2),
-//                   ),
-//                 ],
-//               ),
-//               child: Column(
-//                 mainAxisSize: MainAxisSize.min,
-//                 crossAxisAlignment: CrossAxisAlignment.start,
-//                 children: [
-//                   pickupAddressAsync.when(
-//                     data:
-//                         (address) => Text(
-//                           "Pickup: ${address ?? 'Unknown'}",
-//                           style: const TextStyle(
-//                             fontSize: 14,
-//                             fontWeight: FontWeight.w500,
-//                           ),
-//                         ),
-//                     loading:
-//                         () => const Text(
-//                           "Pickup: Loading...",
-//                           style: TextStyle(
-//                             fontSize: 14,
-//                             fontWeight: FontWeight.w500,
-//                           ),
-//                         ),
-//                     error:
-//                         (err, _) => const Text(
-//                           "Pickup: Error",
-//                           style: TextStyle(
-//                             fontSize: 14,
-//                             fontWeight: FontWeight.w500,
-//                             color: Colors.red,
-//                           ),
-//                         ),
-//                   ),
-//                   const SizedBox(height: 6),
-//                   Text(
-//                     "Category: ${widget.optionSelected}",
-//                     style: const TextStyle(
-//                       fontSize: 14,
-//                       fontWeight: FontWeight.bold,
-//                     ),
-//                   ),
-//                   const SizedBox(height: 6),
-//                   Text(
-//                     "Fare: KES ${fare.toStringAsFixed(2)}",
-//                     style: const TextStyle(
-//                       fontSize: 14,
-//                       fontWeight: FontWeight.w600,
-//                       color: Colors.blueAccent,
-//                     ),
-//                   ),
-//                   const SizedBox(height: 16),
-//                   SizedBox(
-//                     width: double.infinity,
-//                     child: ElevatedButton(
-//                       onPressed: () async {
-//                         if (mounted) {
-//                           await bookRide();
-//                         }
-//                       },
-//                       style: ElevatedButton.styleFrom(
-//                         backgroundColor: Colors.grey[700],
-//                         foregroundColor: Colors.white,
-//                         padding: const EdgeInsets.symmetric(vertical: 12.0),
-//                         textStyle: const TextStyle(fontSize: 16),
-//                         shape: RoundedRectangleBorder(
-//                           borderRadius: BorderRadius.circular(8),
-//                         ),
-//                       ),
-//                       child: Text(
-//                         widget.isScheduled == true
-//                             ? "Confirm Booking"
-//                             : "Confirm Ride",
-//                       ),
-//                     ),
-//                   ),
-//                 ],
-//               ),
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
+  //   final pickupAddress = await ReverseGeocodingService.getAddressFromLatLng(
+  //     LatLng(pickupLat, pickupLng),
+  //   );
+  //   final destinationAddress =
+  //       await ReverseGeocodingService.getAddressFromLatLng(
+  //         LatLng(destLat, destLng),
+  //       );
 
-// import 'dart:convert';
+  //   final body = {
+  //     "firebaseIdToken": idToken,
+  //     "pickupLocation": pickupAddress,
+  //     "destination": destinationAddress,
+  //     "pickupLat": pickupLat,
+  //     "pickupLng": pickupLng,
+  //     "destLat": destLat,
+  //     "destLng": destLng,
+  //     "subCategoryId": subCategoryId,
+  //     "scheduledTime": scheduledTime?.toIso8601String(),
+  //   };
 
-// import 'package:firebase_auth/firebase_auth.dart';
-// import 'package:flutter/material.dart';
-// import 'package:flutter_map/flutter_map.dart';
-// import 'package:google_maps_flutter/google_maps_flutter.dart';
-// import 'package:http/http.dart' as http;
-// import 'package:niceapp/Container/utils/keys.dart';
-// //import 'package:latlong2/latlong.dart';
-// //import 'package:niceapp/Container/utils/keys.dart';
-// import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/driver_confirmation_screen.dart';
-// import 'package:flutter_riverpod/flutter_riverpod.dart';
-// import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/reverse_geocoding_service.dart';
-// import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/location_providers.dart';
-// import 'package:niceapp/View/Screens/Other_Screens/ride_history_screen.dart';
+  //   if (!mounted) return;
+  //   final response = await http.post(
+  //     Uri.parse(url),
+  //     headers: {'Content-Type': 'application/json'},
+  //     body: jsonEncode(body),
+  //   );
 
-// class ConfirmRideScreen extends ConsumerStatefulWidget {
-//   final int category;
-//   final String? optionSelected;
-//   final double fare;
-//   final LatLng pickup;
-//   final LatLng destination;
-//   final DateTime? scheduledDate;
-//   final bool? isScheduled;
+  //   if (response.statusCode == 200) {
+  //     final responseData = jsonDecode(response.body);
+  //     final rideId = responseData['rideId'];
+  //     rideId2 = responseData['rideId'];
 
-//   const ConfirmRideScreen({
-//     super.key,
-//     required this.category,
-//     this.optionSelected,
-//     required this.fare,
-//     required this.pickup,
-//     required this.destination,
-//     this.scheduledDate,
-//     this.isScheduled,
+  //     if (scheduledTime == null) {
+  //       // showFindingDriverDialog(context);
+  //       await pollForDriverAssignment(rideId);
+  //     } else {
+  //       Navigator.pushReplacement(
+  //         context,
+  //         MaterialPageRoute(builder: (_) => RideHistoryScreen()),
+  //       );
+  //     }
+  //   } else {
+  //     print('Failed to book ride: ${response.statusCode}');
+  //     print(response.body);
+  //   }
+  // }
+    // Future<void> pollForDriverAssignment(int rideId) async {
+  //   final url = '$baseUrl/rides/myrides/$rideId';
+  //   const maxAttempts = 20;
+  //   const interval = Duration(seconds: 5);
 
-//     //String? selectedCategory,
-//   });
+  //   for (int i = 0; i < maxAttempts; i++) {
+  //     if (!mounted) return;
+  //     final response = await http.get(Uri.parse(url));
 
-//   @override
-//   ConsumerState<ConfirmRideScreen> createState() => _ConfirmRideScreenState();
-// }
+  //     if (response.statusCode == 200) {
+  //       final rideData = jsonDecode(response.body);
 
-// class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen> {
-//   double distanceInKm = 0;
-//   int durationInMinutes = 0;
-//   List<LatLng> routePoints = [];
-//   int? rideId2;
+  //       if (rideData['driver'] != null) {
+  //         final driverData = rideData['driver'];
 
-//   @override
-//   void initState() {
-//     super.initState();
-//     _fetchRoute();
-//   }
+  //         if (_dialogContext != null && Navigator.canPop(_dialogContext!)) {
+  //           Navigator.pop(_dialogContext!);
+  //         }
 
-//   Future<void> bookRide() async {
-//     final user = FirebaseAuth.instance.currentUser;
+  //         await Future.delayed(const Duration(milliseconds: 100));
 
-//     if (user == null) {
-//       print("User is not authenticated");
-//       return null;
-//     }
+  //         Navigator.pushReplacement(
+  //           context,
+  //           MaterialPageRoute(
+  //             builder:
+  //                 (context) => DriverConfirmationScreen(
+  //                   rideId: rideId,
+  //                   pickup: widget.pickup,
+  //                   driverId: driverData['firebaseId'],
+  //                   Phone: driverData['phoneNumber'],
+  //                   regnumber: driverData['registrationNumber'],
+  //                   vehicleMake: driverData['vehicleMake'],
+  //                   vehicleModel: driverData['vehicleModel'],
+  //                   colour: driverData['vehicleColour'],
+  //                   drivername: driverData['firstName'],
+  //                 ),
+  //             // (context) => RideInProgressLiveScreen(
+  //             //   rideId: rideId,
+  //             //   pickup: widget.pickup,
+  //             //   destination: widget.destination,
+  //             //   driverId: driverData['firebaseId'],
+  //             //   baseFare: widget.fare,
+  //             //   // Phone: driverData['phoneNumber'],
+  //             //   // regnumber: driverData['registrationNumber'],
+  //             //   // vehicleMake: driverData['vehicleMake'],
+  //             //   // vehicleModel: driverData['vehicleModel'],
+  //             //   // colour: driverData['vehicleColour'],
+  //             //   // drivername: driverData['firstName'],
+  //             // ),
+  //           ),
+  //         );
+  //         return;
+  //       }
+  //     }
+  //     await Future.delayed(interval);
+  //   }
 
-//     final idToken = await user.getIdToken();
-//     final url = '$baseUrl/rides/passenger/book';
+  //   if (Navigator.canPop(context)) {
+  //     Navigator.pop(context);
+  //   }
 
-//     final pickupLat = widget.pickup.latitude;
-//     final pickupLng = widget.pickup.longitude;
-//     final destLat = widget.destination.latitude;
-//     final destLng = widget.destination.longitude;
-//     final subCategoryId = widget.category;
-//     final scheduledTime = widget.scheduledDate;
+  //   ScaffoldMessenger.of(context).showSnackBar(
+  //     const SnackBar(
+  //       content: Text("No driver accepted your ride. Try again later."),
+  //     ),
+  //   );
+  // }
 
-//     final pickupAddress = await ReverseGeocodingService.getAddressFromLatLng(
-//       LatLng(pickupLat, pickupLng),
-//     );
-//     final destinationAddress =
-//         await ReverseGeocodingService.getAddressFromLatLng(
-//           LatLng(destLat, destLng),
-//         );
+  // Future<void> pollForDriverAssignment(int rideId) async {
+  //   final url = '$baseUrl/rides/myrides/$rideId';
+  //   const maxAttempts = 20;
+  //   const interval = Duration(seconds: 5);
 
-//     // // final pickupAddress = await ReverseGeocodingService.getAddressFromLatLng(
-//     // //   LatLng(pickupLat, pickupLng,'$mapKey'),
-//     // // );
-//     // final pickupAddress = await ReverseGeocodingService.getAddressFromLatLng(
-//     //   widget.pickup,
-//     //   mapKey, // ✅ Pass Google API key
-//     // );
-//     // // final destinationAddress =
-//     // //     await ReverseGeocodingService.getAddressFromLatLng(
-//     // //       LatLng(destLat, destLng),
-//     // //     );
+  //   for (int i = 0; i < maxAttempts; i++) {
+  //     if (!mounted) return;
+  //     final response = await http.get(Uri.parse(url));
 
-//     // final destinationAddress =
-//     //     await ReverseGeocodingService.getAddressFromLatLng(
-//     //       widget.destination,
-//     //       mapKey, // ✅ Pass Google API key
-//     //     );
+  //     if (response.statusCode == 200) {
+  //       final rideData = jsonDecode(response.body);
 
-//     final body = {
-//       "firebaseIdToken": idToken,
-//       "pickupLocation": pickupAddress,
-//       "destination": destinationAddress,
-//       "pickupLat": pickupLat,
-//       "pickupLng": pickupLng,
-//       "destLat": destLat,
-//       "destLng": destLng,
-//       "subCategoryId": subCategoryId,
-//       "scheduledTime": scheduledTime?.toIso8601String(),
-//     };
-//     if (!mounted) return;
-//     final response = await http.post(
-//       Uri.parse(url),
-//       headers: {
-//         'Content-Type': 'application/json',
-//         // Add this if you use Firebase Auth:
-//         // 'Authorization': 'Bearer ${await FirebaseAuth.instance.currentUser?.getIdToken()}',
-//       },
-//       body: jsonEncode(body),
-//     );
+  //       if (rideData['driver'] != null) {
+  //         final driverData = rideData['driver'];
 
-//     if (response.statusCode == 200) {
-//       final responseData = jsonDecode(response.body);
-//       //print('Ride booked successfully: $responseData');
-//       //final responseData = jsonDecode(response.body);
-//       final rideId = responseData['rideId'];
-//       rideId2 = responseData['rideId'];
+  //         // ✅ notify FindingDriverScreen to close
+  //         _driverLinkedController.add(true);
 
-//       if (scheduledTime == null) {
-//         showFindingDriverDialog(context);
-//         await pollForDriverAssignment(rideId);
-//       } else {
-//         Navigator.pushReplacement(
-//           context,
-//           MaterialPageRoute(builder: (_) => RideHistoryScreen()),
-//         );
-//       }
-//       // Navigate to trip screen if needed
-//     } else {
-//       print('Failed to book ride: ${response.statusCode}');
-//       print(response.body);
-//     }
-//   }
+  //         // ✅ then navigate to DriverConfirmation
+  //         await Future.delayed(const Duration(milliseconds: 200));
 
-//   Future<bool> checkForExistingRide() async {
-//     final user = FirebaseAuth.instance.currentUser;
-//     if (user == null) return false;
+  //         Navigator.push(
+  //           context,
+  //           MaterialPageRoute(
+  //             builder:
+  //                 (_) => DriverConfirmationScreen(
+  //                   rideId: rideId,
+  //                   pickup: widget.pickup,
+  //                   driverId: driverData['firebaseId'],
+  //                   Phone: driverData['phoneNumber'],
+  //                   regnumber: driverData['registrationNumber'],
+  //                   vehicleMake: driverData['vehicleMake'],
+  //                   vehicleModel: driverData['vehicleModel'],
+  //                   colour: driverData['vehicleColour'],
+  //                   drivername: driverData['firstName'],
+  //                 ),
+  //           ),
+  //         );
+  //         return;
+  //       }
+  //     }
+  //     await Future.delayed(interval);
+  //   }
 
-//     final idToken = await user.getIdToken();
-//     final url = '$baseUrl/rides/passenger/current';
+  //   // No driver
+  //   _driverLinkedController.add(false);
+  //   ScaffoldMessenger.of(context).showSnackBar(
+  //     const SnackBar(
+  //       content: Text("No driver accepted your ride. Try again later."),
+  //     ),
+  //   );
+  // }
+  // Future<void> pollForDriverAssignment(int rideId) async {
+  //   final url = '$baseUrl/rides/myrides/$rideId';
+  //   const maxAttempts = 20;
+  //   const interval = Duration(seconds: 5);
 
-//     final response = await http.get(
-//       Uri.parse(url),
-//       headers: {
-//         'Content-Type': 'application/json',
-//         'Authorization': 'Bearer $idToken',
-//       },
-//     );
+  //   for (int i = 0; i < maxAttempts; i++) {
+  //     if (!mounted) return;
 
-//     if (response.statusCode == 200) {
-//       final currentRide = jsonDecode(response.body);
-//       // Ride is ongoing
-//       return true;
-//     }
+  //     try {
+  //       // Step 1: Check backend ride
+  //       final response = await http.get(Uri.parse(url));
 
-//     return false;
-//   }
+  //       if (response.statusCode == 200) {
+  //         final rideData = jsonDecode(response.body);
 
-//   BuildContext? _dialogContext;
+  //         if (rideData['driver'] != null) {
+  //           final driverData = rideData['driver'];
 
-//   void showFindingDriverDialog(BuildContext context) {
-//     showDialog(
-//       context: context,
-//       barrierDismissible: false,
-//       builder: (BuildContext dialogContext) {
-//         _dialogContext = dialogContext;
-//         return AlertDialog(
-//           title: Text("Finding you a driver..."),
-//           content: Column(
-//             mainAxisSize: MainAxisSize.min,
-//             children: const [
-//               CircularProgressIndicator(),
-//               SizedBox(height: 10),
-//               Text("Please wait while we assign a driver."),
-//             ],
-//           ),
-//         );
-//       },
-//     );
-//   }
+  //           // Step 2: Fetch from Firebase Realtime DB
+  //           final dbRef = FirebaseDatabase.instance.ref("rides/$rideId");
+  //           final dbSnapshot = await dbRef.get();
 
-//   Future<void> pollForDriverAssignment(int rideId) async {
-//     final url = '$baseUrl/rides/myrides/$rideId';
-//     const maxAttempts = 20;
-//     const interval = Duration(seconds: 3);
+  //           if (dbSnapshot.exists) {
+  //             final firebaseData = dbSnapshot.value as Map;
 
-//     for (int i = 0; i < maxAttempts; i++) {
-//       if (!mounted) return;
-//       final response = await http.get(Uri.parse(url));
+  //             // Step 3: Compare rideIds
+  //             if (firebaseData['rideId'] == rideId) {
+  //               // ✅ notify FindingDriverScreen to close
+  //               _driverLinkedController.add(true);
 
-//       if (response.statusCode == 200) {
-//         final rideData = jsonDecode(response.body);
+  //               // ✅ then navigate to DriverConfirmation
+  //               await Future.delayed(const Duration(milliseconds: 200));
 
-//         if (rideData['driver'] != null) {
-//           final driverData = rideData['driver'];
+  //               Navigator.push(
+  //                 context,
+  //                 MaterialPageRoute(
+  //                   builder:
+  //                       (_) => DriverConfirmationScreen(
+  //                         rideId: rideId,
+  //                         pickup: widget.pickup,
+  //                         driverId: driverData['firebaseId'],
+  //                         Phone: driverData['phoneNumber'],
+  //                         regnumber: driverData['registrationNumber'],
+  //                         vehicleMake: driverData['vehicleMake'],
+  //                         vehicleModel: driverData['vehicleModel'],
+  //                         colour: driverData['vehicleColour'],
+  //                         drivername: driverData['firstName'],
+  //                       ),
+  //                 ),
+  //               );
+  //               return;
+  //             }
+  //           }
+  //         }
+  //       }
+  //     } catch (e) {
+  //       debugPrint("Error checking driver assignment: $e");
+  //     }
 
-//           // ✅ Close dialog using dialog context
-//           if (_dialogContext != null && Navigator.canPop(_dialogContext!)) {
-//             Navigator.pop(_dialogContext!);
-//           }
+  //     await Future.delayed(interval);
+  //   }
 
-//           // ✅ Delay navigation slightly to ensure dialog is fully closed
-//           await Future.delayed(Duration(milliseconds: 100));
-
-//           Navigator.pushReplacement(
-//             context,
-//             MaterialPageRoute(
-//               builder:
-//                   (context) => DriverConfirmationScreen(
-//                     rideId: rideId,
-//                     pickup: widget.pickup,
-//                     driverId: driverData['firebaseId'],
-//                     Phone: driverData['phoneNumber'],
-//                     regnumber: driverData['registrationNumber'],
-//                     vehicleMake: driverData['vehicleMake'],
-//                     vehicleModel: driverData['vehicleModel'],
-//                     colour: driverData['vehicleColour'],
-//                     drivername: driverData['firstName'],
-//                   ),
-//             ),
-//           );
-//           return;
-//         }
-//       }
-//       await Future.delayed(interval);
-//     }
-
-//     if (Navigator.canPop(context)) {
-//       Navigator.pop(context); // ✅ Ensure dialog is closed if no driver found
-//     }
-
-//     ScaffoldMessenger.of(context).showSnackBar(
-//       SnackBar(content: Text("No driver accepted your ride. Try again later.")),
-//     );
-//   }
-
-//   Future<void> _fetchRoute() async {
-//     final url = Uri.parse(
-
-//       'https://maps.googleapis.com/maps/api/directions/json?origin=LAT1,LNG1&destination=LAT2,LNG2&key=$mapKey',
-
-//       //'https://router.project-osrm.org/route/v1/driving/${widget.pickup.longitude},${widget.pickup.latitude};${widget.destination.longitude},${widget.destination.latitude}?overview=full&geometries=geojson',
-//     );
-
-//     final response = await http.get(url);
-//     if (response.statusCode == 200) {
-//       final data = jsonDecode(response.body);
-//       final route = data['routes'][0];
-//       final geometry = route['geometry']['coordinates'];
-//       final distance = route['distance']; // meters
-//       final duration = route['duration']; // seconds
-
-//       final simplified =
-//           geometry.map<LatLng>((coord) => LatLng(coord[1], coord[0])).toList();
-
-//       if (mounted) {
-//         setState(() {
-//           routePoints = simplified;
-//           distanceInKm = distance / 1000;
-//           durationInMinutes = (duration / 60).round();
-
-//           // distanceInKm = distance / 1000;
-//           // durationInMinutes = (duration / 60).round();
-//           // routePoints =
-//           //     geometry
-//           //         .map<LatLng>((coord) => LatLng(coord[1], coord[0]))
-//           //         .toList();
-//         });
-//       }
-//     }
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     //final category = widget.category;
-//     final optionSelected = widget.optionSelected;
-//     final pickupAddressAsync = ref.watch(pickupAddressProvider);
-
-//     final fare = widget.fare;
-
-//     return Scaffold(
-//       body: Stack(
-//         children: [
-//           Column(
-//             children: [
-//               Expanded(
-//                 flex: 2,
-//                 child: FlutterMap(
-//                   mapController: mapController,
-//                   options: MapOptions(
-//                     onMapReady: () {
-//                       // if (widget.pickup != null && widget.destination != null) {
-//                       //   fitBounds(widget.pickup, widget.destination);
-//                       // }
-//                       Future.delayed(Duration(milliseconds: 200), () {
-//                         fitBounds(widget.pickup, widget.destination);
-//                       });
-//                     },
-//                     center: widget.pickup,
-//                     zoom: 12,
-//                   ),
-
-//                   //options: MapOptions(center: widget.pickup, zoom: 13.0),
-//                   children: [
-//                     TileLayer(
-//                       urlTemplate:
-//                           'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-//                       subdomains: const ['a', 'b', 'c'],
-//                     ),
-//                     MarkerLayer(
-//                       markers: [
-//                         Marker(
-//                           point: widget.pickup,
-//                           width: 40,
-//                           height: 40,
-//                           builder:
-//                               (ctx) => const Icon(
-//                                 Icons.location_pin,
-//                                 color: Colors.green,
-//                                 size: 35,
-//                               ),
-//                         ),
-//                         Marker(
-//                           point: widget.destination,
-//                           width: 40,
-//                           height: 40,
-//                           builder:
-//                               (ctx) => const Icon(
-//                                 Icons.flag,
-//                                 color: Colors.red,
-//                                 size: 35,
-//                               ),
-//                         ),
-//                       ],
-//                     ),
-//                     if (routePoints.isNotEmpty)
-//                       PolylineLayer(
-//                         polylines: [
-//                           Polyline(
-//                             points: routePoints,
-//                             color: Colors.blue,
-//                             strokeWidth: 5.0,
-//                           ),
-//                         ],
-//                       ),
-//                   ],
-//                 ),
-//               ),
-//             ],
-//           ),
-
-//           // Positioned Bottom Panel
-//           Positioned(
-//             bottom: 0,
-//             left: 0,
-//             right: 0,
-//             child: Container(
-//               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-//               decoration: const BoxDecoration(
-//                 color: Colors.white,
-//                 boxShadow: [
-//                   BoxShadow(
-//                     color: Colors.black12,
-//                     blurRadius: 8,
-//                     offset: Offset(0, -2),
-//                   ),
-//                 ],
-//               ),
-//               child: Column(
-//                 mainAxisSize: MainAxisSize.min,
-//                 crossAxisAlignment: CrossAxisAlignment.start,
-//                 children: [
-//                   // Pickup
-//                   pickupAddressAsync.when(
-//                     data:
-//                         (address) => Text(
-//                           "Pickup: ${address ?? 'Unknown'}",
-//                           style: const TextStyle(
-//                             fontSize: 14,
-//                             fontWeight: FontWeight.w500,
-//                           ),
-//                         ),
-//                     loading:
-//                         () => const Text(
-//                           "Pickup: Loading...",
-//                           style: TextStyle(
-//                             fontSize: 14,
-//                             fontWeight: FontWeight.w500,
-//                           ),
-//                         ),
-//                     error:
-//                         (err, _) => Text(
-//                           "Pickup: Error",
-//                           style: const TextStyle(
-//                             fontSize: 14,
-//                             fontWeight: FontWeight.w500,
-//                             color: Colors.red,
-//                           ),
-//                         ),
-//                   ),
-
-//                   const SizedBox(height: 6),
-
-//                   // Category
-//                   Text(
-//                     "Category: ${widget.optionSelected}",
-//                     style: const TextStyle(
-//                       fontSize: 14,
-//                       fontWeight: FontWeight.bold,
-//                     ),
-//                   ),
-//                   const SizedBox(height: 6),
-
-//                   // Fare
-//                   Text(
-//                     "Fare: KES ${fare.toStringAsFixed(2)}",
-//                     style: const TextStyle(
-//                       fontSize: 14,
-//                       fontWeight: FontWeight.w600,
-//                       color: Colors.blueAccent,
-//                     ),
-//                   ),
-//                   const SizedBox(height: 16),
-
-//                   // Confirm Button
-//                   SizedBox(
-//                     width: double.infinity,
-//                     child: ElevatedButton(
-//                       onPressed: () async {
-//                         if (mounted) {
-//                           await bookRide();
-//                         }
-//                         // Navigator.push(
-//                         //   context,
-//                         //   MaterialPageRoute(
-//                         //     builder:
-//                         //         (_) => DriverConfirmationScreen(
-//                         //           driver: driver,
-//                         //           pickup: widget.pickup,
-//                         //           rideId: widget.rideId,
-//                         //           // onConfirm: () {
-//                         //           //   ref
-//                         //           //       .read(rideConfirmedProvider.notifier)
-//                         //           //       .state = true;
-//                         //           //   Navigator.pop(context);
-//                         //           //   setState(() {});
-//                         //           // },
-//                         //         ),
-//                         //   ),
-//                         // );
-//                       },
-
-//                       // Show success and navigate
-//                       style: ElevatedButton.styleFrom(
-//                         backgroundColor: Colors.grey[700],
-//                         foregroundColor: Colors.white,
-//                         padding: const EdgeInsets.symmetric(vertical: 12.0),
-//                         textStyle: const TextStyle(fontSize: 16),
-//                         shape: RoundedRectangleBorder(
-//                           borderRadius: BorderRadius.circular(8),
-//                         ),
-//                       ),
-//                       child: Text(
-//                         widget.isScheduled == true
-//                             ? "Confirm Booking"
-//                             : "Confirm Ride",
-//                       ),
-//                       // child: const Text("Confirm Ride"),
-//                     ),
-//                   ),
-//                 ],
-//               ),
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
+  //   // No driver
+  //   _driverLinkedController.add(false);
+  //   ScaffoldMessenger.of(context).showSnackBar(
+  //     const SnackBar(
+  //       content: Text("No driver accepted your ride. Try again later."),
+  //     ),
+  //   );
+  //  }

@@ -7,23 +7,24 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:niceapp/Container/utils/keys.dart';
+import 'package:niceapp/View/Screens/Other_Screens/transport_screen.dart';
 
 const String googleMapsKey = mapKey;
 
 class RideInProgressLiveScreen extends StatefulWidget {
-  final int rideId;
-  final String driverId;
-  final LatLng pickup;
-  final LatLng destination;
+  final String rideId;
+  final String? driverId;
+  final LatLng? pickup;
+  final LatLng? destination;
   final double? baseFare; // e.g., 100
   final double? perKmFare; // e.g., 50
 
   const RideInProgressLiveScreen({
     super.key,
     required this.rideId,
-    required this.driverId,
-    required this.pickup,
-    required this.destination,
+    this.driverId,
+    this.pickup,
+    this.destination,
     this.baseFare,
     this.perKmFare,
   });
@@ -63,65 +64,143 @@ class _RideInProgressLiveScreenState extends State<RideInProgressLiveScreen> {
     super.initState();
     _rideRef = _db.ref('rides/${widget.rideId}');
     _driverLocRef = _db.ref('drivers/${widget.driverId}/location');
-
+    // if (widget.rideId!=null) {
+    //   _rideRef = FirebaseDatabase.instance.ref("rides/${widget.rideId}");
+    //   _subscribeRideStatus();
+    // }
     _initMarkers();
     _subscribeDriverLocation();
-    _subscribeRideStatus(); // <-- new subscription
+    _subscribeRideStatus();
+    _checkRideStatus();
+    // <-- new subscription
   }
 
   @override
   void dispose() {
     _driverSub?.cancel();
-    _rideSub?.cancel(); // cancel ride listener
+    //_rideSub?.cancel();
+    _rideStatusTimer?.cancel();
+    // cancel ride listener
     super.dispose();
   }
 
+  // void _checkRideStatus() async {
+  //   if (_ended) return;
+
+  //   final snapshot = await _rideRef!.get();
+  //   if (!snapshot.exists) return;
+
+  //   final data = snapshot.value as Map<dynamic, dynamic>?;
+  //   if (data == null) return;
+
+  //   final status = data['status']?.toString().toLowerCase();
+
+  //   if (status == 'cancelled') {
+  //     if (mounted) {
+  //       ScaffoldMessenger.of(
+  //         context,
+  //       ).showSnackBar(const SnackBar(content: Text('Ride was cancelled')));
+  //       Navigator.pop(context);
+  //     }
+  //     _rideStatusTimer?.cancel();
+  //   } else if (status == 'completed') {
+  //     if (!_ended && mounted) {
+  //       setState(() {
+  //         _ended = true;
+  //         _finalFare = (data['fare'] as num?)?.toDouble();
+  //         _distanceTraveledKm = (data['distanceKm'] as num?)?.toDouble() ?? 0;
+  //       });
+  //     }
+  //     _rideStatusTimer?.cancel();
+  //   }
+  // }
   void _checkRideStatus() async {
     if (_ended) return;
 
-    final snapshot = await _rideRef!.get();
-    if (!snapshot.exists) return;
+    // 🛑 Guard against null
+    if (_rideRef == null) {
+      debugPrint("⚠️ _rideRef is null, skipping ride status check");
+      return;
+    }
 
-    final data = snapshot.value as Map<dynamic, dynamic>?;
-    if (data == null) return;
+    try {
+      final snapshot = await _rideRef!.get();
+      if (!snapshot.exists) return;
 
-    final status = data['status']?.toString().toLowerCase();
+      final data = snapshot.value as Map<dynamic, dynamic>?;
+      if (data == null) return;
 
-    if (status == 'cancelled') {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Ride was cancelled')));
-        Navigator.pop(context);
+      final status = data['status']?.toString().toLowerCase();
+
+      if (status == 'cancelled') {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Ride was cancelled')));
+          Navigator.pop(context);
+        }
+        _rideStatusTimer?.cancel();
+      } else if (status == 'completed') {
+        if (!_ended && mounted) {
+          setState(() {
+            _ended = true;
+            _finalFare = (data['fare'] as num?)?.toDouble();
+            _distanceTraveledKm = (data['distanceKm'] as num?)?.toDouble() ?? 0;
+          });
+        }
+        _rideStatusTimer?.cancel();
       }
-      _rideStatusTimer?.cancel();
-    } else if (status == 'completed') {
-      if (!_ended && mounted) {
-        setState(() {
-          _ended = true;
-          _finalFare = (data['fare'] as num?)?.toDouble();
-          _distanceTraveledKm = (data['distanceKm'] as num?)?.toDouble() ?? 0;
-        });
-      }
-      _rideStatusTimer?.cancel();
+    } catch (e, st) {
+      debugPrint("❌ Error checking ride status: $e\n$st");
     }
   }
 
+  // void _initMarkers() {
+  //   _markers = {
+  //     Marker(
+  //       markerId: const MarkerId('pickup'),
+  //       position: widget.pickup!,
+  //       icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+  //       infoWindow: const InfoWindow(title: 'Pickup'),
+  //     ),
+  //     Marker(
+  //       markerId: const MarkerId('destination'),
+  //       position: widget.destination!,
+  //       icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+  //       infoWindow: const InfoWindow(title: 'Destination'),
+  //     ),
+  //   };
+  // }
   void _initMarkers() {
-    _markers = {
-      Marker(
-        markerId: const MarkerId('pickup'),
-        position: widget.pickup,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-        infoWindow: const InfoWindow(title: 'Pickup'),
-      ),
-      Marker(
-        markerId: const MarkerId('destination'),
-        position: widget.destination,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        infoWindow: const InfoWindow(title: 'Destination'),
-      ),
-    };
+    final markers = <Marker>{};
+
+    if (widget.pickup != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('pickup'),
+          position: widget.pickup!,
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueGreen,
+          ),
+          infoWindow: const InfoWindow(title: 'Pickup'),
+        ),
+      );
+    }
+
+    if (widget.destination != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('destination'),
+          position: widget.destination!,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          infoWindow: const InfoWindow(title: 'Destination'),
+        ),
+      );
+    }
+
+    setState(() {
+      _markers = markers;
+    });
   }
 
   void _subscribeDriverLocation() {
@@ -149,7 +228,7 @@ class _RideInProgressLiveScreenState extends State<RideInProgressLiveScreen> {
       _updateDriverMarkerAnimated(_lastDriverLocation ?? newPos, newPos);
 
       // fetch route & ETA
-      _fetchRouteAndEta(newPos, widget.destination);
+      _fetchRouteAndEta(newPos, widget.destination!);
 
       // adjust map
       if (_mapController != null) {
@@ -159,7 +238,40 @@ class _RideInProgressLiveScreenState extends State<RideInProgressLiveScreen> {
   }
 
   // --- New: listen to ride status ---
+  // void _subscribeRideStatus() {
+  //   _rideSub = _rideRef!.onValue.listen((event) {
+  //     final data = event.snapshot.value as Map?;
+  //     if (data == null) return;
+
+  //     final status = data['status']?.toString().toLowerCase();
+  //     if (status == 'cancelled') {
+  //       if (mounted) {
+  //         ScaffoldMessenger.of(
+  //           context,
+  //         ).showSnackBar(const SnackBar(content: Text('Ride was cancelled')));
+  //         Navigator.pop(context);
+  //       }
+  //     } else if (status == 'completed') {
+  //       if (!_ended) {
+  //         // Trip ended externally (maybe admin completed it)
+  //         if (mounted) {
+  //           setState(() {
+  //             _ended = true;
+  //             _finalFare = (data['fare'] as num?)?.toDouble();
+  //             _distanceTraveledKm =
+  //                 (data['distanceKm'] as num?)?.toDouble() ?? 0;
+  //           });
+  //         }
+  //       }
+  //     }
+  //   });
+  // }
   void _subscribeRideStatus() {
+    if (_rideRef == null) {
+      debugPrint("⚠️ _rideRef is null, cannot subscribe to ride status");
+      return;
+    }
+
     _rideSub = _rideRef!.onValue.listen((event) {
       final data = event.snapshot.value as Map?;
       if (data == null) return;
@@ -300,7 +412,10 @@ class _RideInProgressLiveScreenState extends State<RideInProgressLiveScreen> {
     _ending = true;
 
     if (_driverLocation != null) {
-      _distanceTraveledKm += _haversineKm(_driverLocation!, widget.destination);
+      _distanceTraveledKm += _haversineKm(
+        _driverLocation!,
+        widget.destination!,
+      );
     }
 
     final fare = _computeFare(
@@ -335,12 +450,12 @@ class _RideInProgressLiveScreenState extends State<RideInProgressLiveScreen> {
   void _fitBoundsToDriverAndDestination() {
     if (_driverLocation == null) return;
     final sw = LatLng(
-      math.min(_driverLocation!.latitude, widget.destination.latitude),
-      math.min(_driverLocation!.longitude, widget.destination.longitude),
+      math.min(_driverLocation!.latitude, widget.destination!.latitude),
+      math.min(_driverLocation!.longitude, widget.destination!.longitude),
     );
     final ne = LatLng(
-      math.max(_driverLocation!.latitude, widget.destination.latitude),
-      math.max(_driverLocation!.longitude, widget.destination.longitude),
+      math.max(_driverLocation!.latitude, widget.destination!.latitude),
+      math.max(_driverLocation!.longitude, widget.destination!.longitude),
     );
     _mapController!.animateCamera(
       CameraUpdate.newLatLngBounds(
@@ -414,9 +529,23 @@ class _RideInProgressLiveScreenState extends State<RideInProgressLiveScreen> {
       ),
       body: Stack(
         children: [
+          // GoogleMap(
+          //   initialCameraPosition: CameraPosition(
+          //     target: widget.pickup!,
+          //     zoom: 14,
+          //   ),
+          //   onMapCreated: (c) => _mapController = c,
+          //   markers: _markers,
+          //   polylines: _polylines,
+          //   myLocationButtonEnabled: false,
+          //   myLocationEnabled: false,
+          //   compassEnabled: true,
+          // ),
           GoogleMap(
             initialCameraPosition: CameraPosition(
-              target: widget.pickup,
+              target:
+                  widget.pickup ??
+                  const LatLng(1.2921, 36.8219), // safe fallback
               zoom: 14,
             ),
             onMapCreated: (c) => _mapController = c,
@@ -526,8 +655,23 @@ class _RideInProgressLiveScreenState extends State<RideInProgressLiveScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
+
                     ElevatedButton.icon(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => TransportServicesScreen(),
+                          ),
+                        );
+                        // Navigator.pushAndRemoveUntil(
+                        //   context,
+                        //   MaterialPageRoute(
+                        //     builder: (context) => (TransportServicesScreen),
+                        //   ),
+                        //   (route) => false, // removes all previous routes
+                        // );
+                      },
                       icon: const Icon(Icons.arrow_back),
                       label: const Text('Back'),
                       style: ElevatedButton.styleFrom(
@@ -537,6 +681,18 @@ class _RideInProgressLiveScreenState extends State<RideInProgressLiveScreen> {
                         ),
                       ),
                     ),
+
+                    // ElevatedButton.icon(
+                    //   onPressed: () => Navigator.pop(context),
+                    //   icon: const Icon(Icons.arrow_back),
+                    //   label: const Text('Back'),
+                    //   style: ElevatedButton.styleFrom(
+                    //     padding: const EdgeInsets.symmetric(
+                    //       vertical: 12,
+                    //       horizontal: 24,
+                    //     ),
+                    //   ),
+                    // ),
                   ],
                 ),
               ),

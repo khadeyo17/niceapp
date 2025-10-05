@@ -11,8 +11,11 @@ class Routes {
   final String register = "register";
   final String otp = "otp";
   final String profilesetupscreen = "profilesetupscreen";
+  final String rideInProgress = "RideInProgressLiveScreen";
+  final String assignedRide = "DriverConfirmationScreen";
+
   //final String transportservicescreen = "transportservicescreen";
-  // Main Sub Routes
+  // Main Sub Routes rideInProgress
   final String whereTo = "whereTo";
 
   //final String home = "home";

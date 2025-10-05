@@ -8,7 +8,6 @@ import 'package:http/http.dart' as http;
 import 'package:geocoding/geocoding.dart';
 import 'package:niceapp/Container/utils/keys.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/vehicle_category.dart';
-import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/where_to_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/honey_sucker_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/waterexhauster_driver_pending.dart';
 
@@ -55,43 +54,7 @@ class _CarHireScreenScreenState extends State<CarHireScreen> {
   void initState() {
     super.initState();
     fetchSubcategories();
-    // if (pickupLatLng == null && widget.pickup == null) {
-    //   _getPickupLocationFromFirebase();
-    // } else {
-    //   pickupLatLng = widget.pickup ?? pickupLatLng;
-    //   _getAddressFromLatLng(pickupLatLng!, isPickup: true);
-    // }
-
-    // if (widget.destination != null && selectedLatLng == null) {
-    //   selectedLatLng = widget.destination;
-    //   _getAddressFromLatLng(widget.destination!, isPickup: false);
-    // }
   }
-
-  // Future<void> _pickDate(
-  //   TextEditingController controller,
-  //   bool isFromDate,
-  // ) async {
-  //   DateTime now = DateTime.now();
-  //   final picked = await showDatePicker(
-  //     context: context,
-  //     initialDate: now,
-  //     firstDate: now,
-  //     lastDate: DateTime(now.year + 1),
-  //   );
-
-  //   if (picked != null) {
-  //     setState(() {
-  //       controller.text =
-  //           "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
-  //       if (isFromDate) {
-  //         fromDate = picked;
-  //       } else {
-  //         toDate = picked;
-  //       }
-  //     });
-  //   }
-  // }
 
   Future<void> _pickFromDate() async {
     DateTime now = DateTime.now();
@@ -149,15 +112,6 @@ class _CarHireScreenScreenState extends State<CarHireScreen> {
     if (selectedSubcategory != null && fromDate != null && toDate != null) {
       final days = toDate!.difference(fromDate!).inDays;
 
-      // if (selectedSubcategory!.pricePerKilometer == 0) {
-      //   // Multiply base fare by number of days
-      //   selectedPrice = (selectedSubcategory!.baseFare ?? 0) * days;
-      // } else {
-      //   // Multiply price per kilometer by kilometers covered
-      //   selectedPrice =
-      //       (selectedSubcategory!.pricePerKilometer ?? 0) *
-      //       (kilometersCovered ?? 0);
-      // }
       selectedPrice = (selectedSubcategory!.baseFare ?? 0) * days;
       priceController.text = 'KES ${selectedPrice!.toStringAsFixed(2)}';
     }
@@ -257,35 +211,6 @@ class _CarHireScreenScreenState extends State<CarHireScreen> {
     );
   }
 
-  // void _openDestinationPicker() async {
-  //   final result = await Navigator.push(
-  //     context,
-  //     MaterialPageRoute(
-  //       builder: (_) => WhereToScreen(category: VehicleCategory.movers),
-  //     ),
-  //   );
-
-  //   // if (result != null && result is LatLng) {
-  //   //   setState(() {
-  //   //     selectedLatLng = result;
-  //   //   });
-
-  //   if (result != null && result is Map<String, LatLng>) {
-  //     setState(() {
-  //       pickupLatLng = result['pickup'];
-  //       selectedLatLng = result['destination'];
-  //     });
-
-  //     // Update both pickup and destination addresses
-  //     if (pickupLatLng != null) {
-  //       _getAddressFromLatLng(pickupLatLng!, isPickup: true);
-  //     }
-  //     if (selectedLatLng != null) {
-  //       _getAddressFromLatLng(selectedLatLng!, isPickup: false);
-  //     }
-  //   }
-  // }
-
   Future<void> _getPickupLocationFromFirebase() async {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -313,30 +238,6 @@ class _CarHireScreenScreenState extends State<CarHireScreen> {
     }
   }
 
-  // Future<void> _getAddressFromLatLng(LatLng latLng) async {
-  //   try {
-  //     final placemarks = await placemarkFromCoordinates(
-  //       latLng.latitude,
-  //       latLng.longitude,
-  //     );
-  //     if (placemarks.isNotEmpty) {
-  //       final place = placemarks.first;
-  //       setState(() {
-  //         displayAddress =
-  //             "${place.name}, ${place.street}, ${place.locality}, ${place.administrativeArea}";
-  //       });
-  //     } else {
-  //       setState(() {
-  //         displayAddress = 'Lat: ${latLng.latitude}, Lng: ${latLng.longitude}';
-  //       });
-  //     }
-  //   } catch (e) {
-  //     setState(() {
-  //       displayAddress = 'Lat: ${latLng.latitude}, Lng: ${latLng.longitude}';
-  //     });
-  //     debugPrint("Reverse geocoding failed: $e");
-  //   }
-  // }
   Future<void> _getAddressFromLatLng(
     LatLng latLng, {
     bool isPickup = false,
@@ -504,216 +405,6 @@ class _CarHireScreenScreenState extends State<CarHireScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // const SizedBox(height: 20),
-                  // TextFormField(
-                  //   readOnly: true,
-                  //   controller: TextEditingController(
-                  //     text: pickupAddress ?? 'Fetching pickup location...',
-                  //   ),
-                  //   decoration: const InputDecoration(
-                  //     labelText: 'Pickup Location',
-                  //     border: OutlineInputBorder(),
-                  //     prefixIcon: Icon(Icons.my_location, color: Colors.blue),
-                  //   ),
-                  // ),
-                  // const SizedBox(height: 20),
-
-                  // // Destination Field (Clickable)
-                  // GestureDetector(
-                  //   onTap: _openDestinationPicker,
-                  //   child: AbsorbPointer(
-                  //     child: TextFormField(
-                  //       readOnly: true,
-                  //       controller: TextEditingController(
-                  //         text: displayAddress ?? 'Tap to select destination',
-                  //       ),
-                  //       decoration: const InputDecoration(
-                  //         labelText: 'Destination Location',
-                  //         border: OutlineInputBorder(),
-                  //         prefixIcon: Icon(
-                  //           Icons.location_on,
-                  //           color: Colors.red,
-                  //         ),
-                  //       ),
-                  //     ),
-                  //   ),
-                  // ),
-                  //const SizedBox(height: 20),
-
-                  // GestureDetector(
-                  //   onTap: () async {
-                  //     DateTime now = DateTime.now();
-
-                  //     // Step 1: Pick Date
-                  //     final pickedDate = await showDatePicker(
-                  //       context: context,
-                  //       initialDate: now,
-                  //       firstDate: now,
-                  //       lastDate: DateTime(now.year + 1),
-                  //     );
-
-                  //     if (pickedDate != null) {
-                  //       // Step 2: Pick Time
-                  //       final pickedTime = await showTimePicker(
-                  //         context: context,
-                  //         initialTime: TimeOfDay.now(),
-                  //       );
-
-                  //       if (pickedTime != null) {
-                  //         // Step 3: Combine date + time into one DateTime
-                  //         final combinedDateTime = DateTime(
-                  //           pickedDate.year,
-                  //           pickedDate.month,
-                  //           pickedDate.day,
-                  //           pickedTime.hour,
-                  //           pickedTime.minute,
-                  //         );
-
-                  //         setState(() {
-                  //           movingDate = combinedDateTime;
-                  //           movingDateController.text =
-                  //               "${pickedDate.year}-${pickedDate.month.toString().padLeft(2, '0')}-${pickedDate.day.toString().padLeft(2, '0')} "
-                  //               "${pickedTime.hour.toString().padLeft(2, '0')}:${pickedTime.minute.toString().padLeft(2, '0')}";
-                  //         });
-                  //       }
-                  //     }
-                  //   },
-                  //   child: AbsorbPointer(
-                  //     child: TextFormField(
-                  //       controller: movingDateController,
-                  //       decoration: const InputDecoration(
-                  //         labelText: 'Moving Date & Time',
-                  //         border: OutlineInputBorder(),
-                  //         prefixIcon: Icon(
-                  //           Icons.calendar_today,
-                  //           color: Colors.orange,
-                  //         ),
-                  //       ),
-                  //       readOnly: true,
-                  //     ),
-                  //   ),
-                  // ),
-                  // const SizedBox(height: 20),
-                  // DropdownButtonFormField<Subcategory>(
-                  //   value: selectedSubcategory,
-                  //   isExpanded: true,
-                  //   hint: const Text('Select No Of Rooms'),
-                  //   items:
-                  //       subcategories.map((subcategory) {
-                  //         return DropdownMenuItem<Subcategory>(
-                  //           value: subcategory,
-                  //           child: Text(subcategory.name),
-                  //         );
-                  //       }).toList(),
-                  //   onChanged: (value) {
-                  //     setState(() {
-                  //       selectedSubcategory = value;
-                  //       selectedPrice = value?.baseFare;
-                  //       priceController.text =
-                  //           selectedPrice != null
-                  //               ? 'KES ${selectedPrice!.toStringAsFixed(2)}'
-                  //               : '';
-                  //     });
-                  //   },
-                  //   decoration: const InputDecoration(
-                  //     labelText: "Rooms",
-                  //     border: OutlineInputBorder(),
-                  //     prefixIcon: Icon(Icons.house),
-                  //   ),
-                  // ),
-                  // const SizedBox(height: 20),
-                  // DropdownButtonFormField<Subcategory>(
-                  //   value: selectedSubcategory,
-                  //   isExpanded: true,
-                  //   hint: const Text('Select No Of Rooms'),
-                  //   items:
-                  //       subcategories.map((subcategory) {
-                  //         return DropdownMenuItem<Subcategory>(
-                  //           value: subcategory,
-                  //           child: Text(subcategory.name),
-                  //         );
-                  //       }).toList(),
-                  //   onChanged: (value) {
-                  //     setState(() {
-                  //       selectedSubcategory = value;
-                  //       selectedPrice = value?.baseFare;
-                  //       priceController.text =
-                  //           selectedPrice != null
-                  //               ? 'KES ${selectedPrice!.toStringAsFixed(2)}'
-                  //               : '';
-                  //     });
-                  //   },
-                  //   decoration: InputDecoration(
-                  //     labelText: "Rooms",
-                  //     border: OutlineInputBorder(
-                  //       // ✅ Outer border for the field
-                  //       borderRadius: BorderRadius.circular(8),
-                  //     ),
-                  //     enabledBorder: OutlineInputBorder(
-                  //       // ✅ Default border
-                  //       borderRadius: BorderRadius.circular(8),
-                  //       borderSide: BorderSide(
-                  //         color: Colors.grey.shade400,
-                  //         width: 1.5,
-                  //       ),
-                  //     ),
-                  //     focusedBorder: OutlineInputBorder(
-                  //       // ✅ Border when focused
-                  //       borderRadius: BorderRadius.circular(8),
-                  //       borderSide: BorderSide(color: Colors.blue, width: 2),
-                  //     ),
-                  //     prefixIcon: const Icon(Icons.house),
-                  //     contentPadding: const EdgeInsets.symmetric(
-                  //       horizontal: 12,
-                  //       vertical: 14,
-                  //     ),
-                  //   ),
-                  // ),
-                  // DropdownButtonFormField<Subcategory>(
-                  //   value: selectedSubcategory,
-                  //   isExpanded: true,
-                  //   hint: const Text('Select Car Categories'),
-                  //   items:
-                  //       subcategories.map((subcategory) {
-                  //         return DropdownMenuItem<Subcategory>(
-                  //           value: subcategory,
-
-                  //           child: Card(
-                  //             shape: RoundedRectangleBorder(
-                  //               borderRadius: BorderRadius.circular(8),
-                  //               side: BorderSide(color: Colors.grey.shade300),
-                  //             ),
-                  //             elevation: 2,
-                  //             margin: const EdgeInsets.symmetric(vertical: 4),
-                  //             child: Padding(
-                  //               padding: const EdgeInsets.all(8.0),
-                  //               child: Text(
-                  //                 subcategory.name,
-                  //                 style: const TextStyle(fontSize: 16),
-                  //               ),
-                  //             ),
-                  //           ),
-                  //         );
-                  //       }).toList(),
-
-                  //   onChanged: (value) {
-                  //     setState(() {
-                  //       selectedSubcategory = value;
-                  //       selectedPrice = value?.baseFare;
-                  //       priceController.text =
-                  //           selectedPrice != null
-                  //               ? 'KES ${selectedPrice!.toStringAsFixed(2)}'
-                  //               : '';
-                  //     });
-                  //   },
-                  //   decoration: InputDecoration(
-                  //     labelText: "Car categories",
-                  //     border: OutlineInputBorder(
-                  //       borderRadius: BorderRadius.circular(8),
-                  //     ),
-                  //     prefixIcon: const Icon(Icons.house),
-                  //   ),
-                  // ),
                   const SizedBox(height: 20),
                   TextFormField(
                     controller: detailsController,

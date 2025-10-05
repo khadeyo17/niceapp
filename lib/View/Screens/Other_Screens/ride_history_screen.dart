@@ -266,7 +266,7 @@ class UberStyleRideTile extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "${ride.pickupLocation} → ${ride.destination}",
+                      "${ride.destination}", //
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -275,18 +275,12 @@ class UberStyleRideTile extends ConsumerWidget {
                     const SizedBox(height: 6),
                     Text(
                       "Driver/Company: ${ride.contactName}",
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.black54,
-                      ),
+                      style: const TextStyle(fontSize: 14, color: Colors.black),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       "Fare: KES ${ride.fare.toStringAsFixed(0)}",
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.black54,
-                      ),
+                      style: const TextStyle(fontSize: 14, color: Colors.black),
                     ),
                   ],
                 ),

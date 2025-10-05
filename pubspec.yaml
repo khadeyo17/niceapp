@@ -126,7 +126,6 @@ flutter:
     - assets/imgs/van2.png
     - assets/imgs/bike.png
     - assets/imgs/motorbike.png
-
     - assets/imgs/Ambulance2.png
     - assets/imgs/Bus.jpeg
     - assets/imgs/CargoBus2.jpeg
@@ -137,11 +136,15 @@ flutter:
     - assets/imgs/Exhauster.png
     - assets/imgs/MoversBus.jpeg
     - assets/imgs/Wallet.png
-
     - assets/imgs/Carhirere.jpeg
     - assets/imgs/Breakdown.jpeg
     - assets/imgs/aminicar.jpeg
-
+    - assets/imgs/Machinery2.png
+    - assets/imgs/ad1.png
+    - assets/imgs/ad2.png
+    - assets/imgs/ad3.png
+    - assets/imgs/ad4.png
+    - assets/imgs/ad5.png
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

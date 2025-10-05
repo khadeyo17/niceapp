@@ -1,14 +1,18 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:geocoding/geocoding.dart';
 import 'package:niceapp/Container/utils/keys.dart';
+import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/driver_confirmation_screen.dart';
+import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/finding_driver_screen.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/vehicle_category.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/where_to_screen.dart';
-import 'package:niceapp/View/Screens/Other_Screens/waterexhauster_driver_pending.dart';
+import 'package:niceapp/View/Screens/Other_Screens/ride_history_screen.dart';
 
 class HoneySuckerScreen extends StatefulWidget {
   final VehicleCategory category;
@@ -32,7 +36,13 @@ class _HoneySuckerScreenState extends State<HoneySuckerScreen> {
   bool _isLoading = false;
   LatLng? selectedLatLng;
   String? displayAddress;
+  BuildContext? _dialogContext;
+  int? rideId2;
   //Map<String, double> priceMap = {};
+
+  final StreamController<bool> _driverLinkedController =
+      StreamController<bool>.broadcast();
+
   double? selectedPrice;
   @override
   void dispose() {
@@ -49,6 +59,114 @@ class _HoneySuckerScreenState extends State<HoneySuckerScreen> {
     if (widget.destination != null) {
       selectedLatLng = widget.destination;
       _getAddressFromLatLng(widget.destination!);
+    }
+  }
+
+  Future<void> bookRide() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      _closeFindingDriverDialog();
+      print("User is not authenticated");
+      return;
+    }
+
+    final idToken = await user.getIdToken();
+    // final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+    // if (token == null) {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     const SnackBar(
+    //       content: Text('Authentication error'),
+    //       backgroundColor: Colors.red,
+    //     ),
+    //   );
+    //   return;
+    // }
+    final scheduledTime = null;
+    final requestBody = {
+      "firebaseIdToken": user.uid,
+      "destLat": selectedLatLng!.latitude,
+      "destLng": selectedLatLng!.longitude,
+      "destination": displayAddress ?? '',
+      "notes": detailsController.text,
+      "subCategoryId": selectedSubcategory?.id,
+      "scheduledTime": null,
+    };
+
+    try {
+      setState(() => _isLoading = true);
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/rides/exhauster/request'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(requestBody),
+      );
+
+      setState(() => _isLoading = false);
+
+      // if (response.statusCode == 200) {
+      //   final responseData = jsonDecode(response.body);
+      //   final rideId = responseData['rideId'];
+      //   //rideId2 = responseData['rideId'];
+
+      //   //await pollForDriverAssignment(rideId);
+
+      //   if (scheduledTime == null) {
+      //     await pollForDriverAssignment(rideId);
+      //   } else {
+      //     _closeFindingDriverDialog();
+      //     Navigator.pushReplacement(
+      //       context,
+      //       MaterialPageRoute(builder: (_) => RideHistoryScreen()),
+      //     );
+      //   }
+      // }
+      // else {
+      //   _closeFindingDriverDialog();
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     SnackBar(
+      //       content: Text('Failed to book ride: ${response.statusCode}'),
+      //     ),
+      //   );
+      //   print('Failed to book ride: ${response.statusCode}');
+      //   print(response.body);
+      // }
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        final rideId = responseData['rideId'];
+        rideId2 = responseData['rideId'];
+
+        if (scheduledTime == null) {
+          await pollForDriverAssignment(rideId);
+        } else {
+          _closeFindingDriverDialog();
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => RideHistoryScreen()),
+          );
+        }
+      } else {
+        _closeFindingDriverDialog();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to book ride: ${response.statusCode}'),
+          ),
+        );
+        print('Failed to book ride: ${response.statusCode}');
+        print(response.body);
+      }
+    } catch (e) {
+      _closeFindingDriverDialog();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error booking ride: $e')));
+      print('Error booking ride: $e');
+    }
+  }
+
+  void _closeFindingDriverDialog() {
+    if (_dialogContext != null && Navigator.canPop(_dialogContext!)) {
+      Navigator.pop(_dialogContext!);
     }
   }
 
@@ -83,68 +201,142 @@ class _HoneySuckerScreenState extends State<HoneySuckerScreen> {
     }
   }
 
-  Future<void> _pollDriverAssignment(
-    BuildContext context,
-    String firebaseId,
-  ) async {
-    const pollingInterval = Duration(seconds: 5);
-    const maxAttempts = 12; // 1 minute (12 x 5s)
-    int attempts = 0;
+  Future<void> pollForDriverAssignment(int requestId) async {
+    const maxAttempts = 20;
+    const interval = Duration(seconds: 5);
 
-    while (attempts < maxAttempts) {
-      await Future.delayed(pollingInterval);
+    for (int i = 0; i < maxAttempts; i++) {
+      if (!mounted) return;
 
-      final response = await http.get(
-        Uri.parse('$baseUrl/rides/passenger/current/$firebaseId'),
-      );
+      try {
+        // 1. Check Firebase first
+        //final dbRef = FirebaseDatabase.instance.ref("rideRequests/$requestId");
+        final dbRef = FirebaseDatabase.instance.ref(
+          "rideRequests/${requestId.toString()}",
+        );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final dbSnapshot = await dbRef.get();
 
-        // Check if driver has been assigned
-        if (data['driver'] != null &&
-            data['driver']['driverName'] != null &&
-            data['driver']['driverName'] != 'N/A') {
-          if (Navigator.canPop(context)) {
-            Navigator.pop(context); // ✅ Dismiss "Searching..." dialog
+        if (dbSnapshot.exists) {
+          final requestData = dbSnapshot.value as Map;
+
+          // ✅ Real rideId should now exist when driver accepts
+          if (requestData['rideId'] != null) {
+            final realRideId = requestData['rideId'];
+
+            // 2. Now check backend ride
+            final url = '$baseUrl/rides/myrides/$realRideId';
+            final response = await http.get(Uri.parse(url));
+
+            if (response.statusCode == 200) {
+              final rideData = jsonDecode(response.body);
+
+              if (rideData['driver'] != null) {
+                final driverData = rideData['driver'];
+
+                _driverLinkedController.add(true);
+
+                await Future.delayed(const Duration(milliseconds: 200));
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (_) => DriverConfirmationScreen(
+                          rideId: realRideId,
+                          //pickup: widget.pickup,
+                          driverId: driverData['firebaseId'],
+                          Phone: driverData['phoneNumber'],
+                          regnumber: driverData['registrationNumber'],
+                          vehicleMake: driverData['vehicleMake'],
+                          vehicleModel: driverData['vehicleModel'],
+                          colour: driverData['vehicleColour'],
+                          drivername: driverData['firstName'],
+                        ),
+                  ),
+                );
+                return;
+              }
+            }
           }
-
-          // Push to driver assignment screen with info
-          Navigator.pushReplacementNamed(
-            context,
-            '/driverAssignment',
-            arguments: {
-              'driverName': data['driver']['driverName'],
-              'driverContact': data['driver']['driverPhone'],
-              'vehicle': {
-                'make': data['driver']['vehicleMake'],
-                'model': data['driver']['vehicleModel'],
-                'color': data['driver']['vehicleColour'],
-                'registration': data['driver']['registrationNumber'],
-              },
-              'eta':
-                  data['eta'] ??
-                  5, // You can replace this with backend ETA when ready
-            },
-          );
-          return;
         }
+      } catch (e) {
+        debugPrint("Error checking driver assignment: $e");
       }
 
-      attempts++;
+      await Future.delayed(interval);
     }
 
-    if (Navigator.canPop(context)) {
-      Navigator.pop(context); // Dismiss "Searching..." if polling ends
-    }
-
+    _driverLinkedController.add(false);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('No driver found yet. Please try again later.'),
-        backgroundColor: Colors.red,
+        content: Text("No driver accepted your ride. Try again later."),
       ),
     );
   }
+
+  // Future<void> _pollDriverAssignment(
+  //   BuildContext context,
+  //   String firebaseId,
+  // ) async {
+  //   const pollingInterval = Duration(seconds: 5);
+  //   const maxAttempts = 12; // 1 minute (12 x 5s)
+  //   int attempts = 0;
+
+  //   while (attempts < maxAttempts) {
+  //     await Future.delayed(pollingInterval);
+
+  //     final response = await http.get(
+  //       Uri.parse('$baseUrl/rides/passenger/current/$firebaseId'),
+  //     );
+
+  //     if (response.statusCode == 200) {
+  //       final data = jsonDecode(response.body);
+
+  //       // Check if driver has been assigned
+  //       if (data['driver'] != null &&
+  //           data['driver']['driverName'] != null &&
+  //           data['driver']['driverName'] != 'N/A') {
+  //         if (Navigator.canPop(context)) {
+  //           Navigator.pop(context); // ✅ Dismiss "Searching..." dialog
+  //         }
+
+  //         // Push to driver assignment screen with info
+  //         Navigator.pushReplacementNamed(
+  //           context,
+  //           '/driverAssignment',
+  //           arguments: {
+  //             'driverName': data['driver']['driverName'],
+  //             'driverContact': data['driver']['driverPhone'],
+  //             'vehicle': {
+  //               'make': data['driver']['vehicleMake'],
+  //               'model': data['driver']['vehicleModel'],
+  //               'color': data['driver']['vehicleColour'],
+  //               'registration': data['driver']['registrationNumber'],
+  //             },
+  //             'eta':
+  //                 data['eta'] ??
+  //                 5, // You can replace this with backend ETA when ready
+  //           },
+  //         );
+  //         return;
+  //       }
+  //     }
+
+  //     attempts++;
+  //   }
+
+  //   if (Navigator.canPop(context)) {
+  //     Navigator.pop(context); // Dismiss "Searching..." if polling ends
+  //   }
+
+  //   ScaffoldMessenger.of(context).showSnackBar(
+  //     const SnackBar(
+  //       content: Text('No driver found yet. Please try again later.'),
+  //       backgroundColor: Colors.red,
+  //     ),
+  //   );
+  // }
 
   void _openDestinationPicker() async {
     final result = await Navigator.push(
@@ -295,88 +487,42 @@ class _HoneySuckerScreenState extends State<HoneySuckerScreen> {
                   const SizedBox(height: 24),
                   ElevatedButton.icon(
                     onPressed: () async {
-                      if (selectedSubcategory == null ||
-                          selectedLatLng == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Please complete all required fields',
-                            ),
-                            backgroundColor: Colors.red,
+                      // if (mounted) {
+                      //   showFindingDriverDialog(context);
+                      //   await bookRide();
+                      // }
+                      if (mounted) {
+                        // Instead of dialog, push full screen
+                        // Navigator.push(
+                        //   context,
+                        //   MaterialPageRoute(
+                        //     builder:
+                        //         (_) => FindingDriverScreen(
+                        //           onCancel: () async {
+                        //             // TODO: cancel ride request via API
+                        //             print("Ride canceled by passenger");
+                        //           },
+                        //         ),
+                        //   ),
+                        // );
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            fullscreenDialog: true,
+                            builder:
+                                (_) => FindingDriverScreen(
+                                  onCancel: () async {
+                                    // Call cancel API
+                                    print("Ride canceled by passenger");
+                                  },
+                                  driverLinkedStream:
+                                      _driverLinkedController.stream,
+                                ),
                           ),
                         );
-                        return;
-                      }
 
-                      final token =
-                          await FirebaseAuth.instance.currentUser?.getIdToken();
-                      if (token == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Authentication error'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                        return;
-                      }
-
-                      final requestBody = {
-                        "firebaseIdToken": token,
-                        "destLat": selectedLatLng!.latitude,
-                        "destLng": selectedLatLng!.longitude,
-                        "destination": displayAddress ?? '',
-                        "notes": detailsController.text,
-                        "subCategoryId": selectedSubcategory?.id,
-                        "scheduledTime": null,
-                      };
-
-                      try {
-                        setState(() => _isLoading = true);
-
-                        final response = await http.post(
-                          Uri.parse('$baseUrl/rides/exhauster/book'),
-                          headers: {'Content-Type': 'application/json'},
-                          body: jsonEncode(requestBody),
-                        );
-
-                        setState(() => _isLoading = false);
-
-                        if (response.statusCode == 200) {
-                          final data = jsonDecode(response.body);
-                          final rideId = data['rideId'];
-
-                          if (rideId != null && mounted) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder:
-                                    (_) => DriverAssignmentsScreen(
-                                      destination: selectedLatLng!,
-                                      rideId: rideId,
-                                      category: selectedSubcategory!,
-                                      fare: selectedPrice ?? 0,
-                                    ),
-                              ),
-                            );
-                          }
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Booking failed: ${response.body}'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        setState(() => _isLoading = false);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Unexpected error. Please try again.',
-                            ),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
+                        await bookRide();
                       }
                     },
                     icon: const Icon(Icons.send),
@@ -434,6 +580,93 @@ class Subcategory {
   }
 }
 
+
+
+                    // onPressed: () async {
+                    //   if (selectedSubcategory == null ||
+                    //       selectedLatLng == null) {
+                    //     ScaffoldMessenger.of(context).showSnackBar(
+                    //       const SnackBar(
+                    //         content: Text(
+                    //           'Please complete all required fields',
+                    //         ),
+                    //         backgroundColor: Colors.red,
+                    //       ),
+                    //     );
+                    //     return;
+                    //   }
+
+                    //   final token =
+                    //       await FirebaseAuth.instance.currentUser?.getIdToken();
+                    //   if (token == null) {
+                    //     ScaffoldMessenger.of(context).showSnackBar(
+                    //       const SnackBar(
+                    //         content: Text('Authentication error'),
+                    //         backgroundColor: Colors.red,
+                    //       ),
+                    //     );
+                    //     return;
+                    //   }
+
+                    //   final requestBody = {
+                    //     "firebaseIdToken": token,
+                    //     "destLat": selectedLatLng!.latitude,
+                    //     "destLng": selectedLatLng!.longitude,
+                    //     "destination": displayAddress ?? '',
+                    //     "notes": detailsController.text,
+                    //     "subCategoryId": selectedSubcategory?.id,
+                    //     "scheduledTime": null,
+                    //   };
+
+                    //   try {
+                    //     setState(() => _isLoading = true);
+
+                    //     final response = await http.post(
+                    //       Uri.parse('$baseUrl/rides/exhauster/book'),
+                    //       headers: {'Content-Type': 'application/json'},
+                    //       body: jsonEncode(requestBody),
+                    //     );
+
+                    //     setState(() => _isLoading = false);
+
+                    //     if (response.statusCode == 200) {
+                    //       final data = jsonDecode(response.body);
+                    //       final rideId = data['rideId'];
+
+                    //       if (rideId != null && mounted) {
+                    //         Navigator.push(
+                    //           context,
+                    //           MaterialPageRoute(
+                    //             builder:
+                    //                 (_) => DriverAssignmentsScreen(
+                    //                   destination: selectedLatLng!,
+                    //                   rideId: rideId,
+                    //                   category: selectedSubcategory!,
+                    //                   fare: selectedPrice ?? 0,
+                    //                 ),
+                    //           ),
+                    //         );
+                    //       }
+                    //     } else {
+                    //       ScaffoldMessenger.of(context).showSnackBar(
+                    //         SnackBar(
+                    //           content: Text('Booking failed: ${response.body}'),
+                    //           backgroundColor: Colors.red,
+                    //         ),
+                    //       );
+                    //     }
+                    //   } catch (e) {
+                    //     setState(() => _isLoading = false);
+                    //     ScaffoldMessenger.of(context).showSnackBar(
+                    //       const SnackBar(
+                    //         content: Text(
+                    //           'Unexpected error. Please try again.',
+                    //         ),
+                    //         backgroundColor: Colors.red,
+                    //       ),
+                    //     );
+                    //   }
+                    // },
 // import 'dart:convert';
 
 // import 'package:flutter/material.dart';

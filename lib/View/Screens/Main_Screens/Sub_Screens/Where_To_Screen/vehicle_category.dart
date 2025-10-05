@@ -9,6 +9,7 @@ enum VehicleCategory {
   exhauster,
   carhire,
   mechanical,
+  machinery,
 }
 
 extension VehicleCategoryExtension on VehicleCategory {
@@ -34,6 +35,8 @@ extension VehicleCategoryExtension on VehicleCategory {
         return 'Car Hire';
       case VehicleCategory.mechanical:
         return 'Mechanical Services';
+      case VehicleCategory.machinery:
+        return 'Machinery';
     }
   }
 
