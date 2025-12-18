@@ -81,6 +81,7 @@ dependencies:
   url_launcher: ^6.3.1
   sms_autofill: ^2.3.0
   shared_preferences: ^2.2.2
+  firebase_app_check: ^0.2.2+7
   pdf: ^3.10.7
   #printing: ^5.11.0
   #month_year_picker: ^0.2.0
@@ -145,6 +146,12 @@ flutter:
     - assets/imgs/ad3.png
     - assets/imgs/ad4.png
     - assets/imgs/ad5.png
+    - assets/imgs/WaterTruck.jpg
+    - assets/imgs/exhaustertrack.jpg
+    - assets/imgs/carhirerent.webp
+    - assets/imgs/bus_banner.jpg
+    - assets/imgs/CargoTruck.jpg
+    - assets/imgs/crane.png
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

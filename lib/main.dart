@@ -1,3 +1,4 @@
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -85,6 +86,17 @@ Future<void> setupPushNotifications() async {
   });
 }
 
+// Future<void> setupAppCheck() async {
+//   await FirebaseAppCheck.instance.activate(
+//     androidProvider:
+//         kDebugMode
+//             ? AndroidProvider
+//                 .debug // for local / manual testing
+//             : AndroidProvider
+//                 .playIntegrity, // for internal or production builds
+//   );
+// }
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -96,6 +108,10 @@ void main() async {
 
   // Init local notifications
   await initLocalNotifications();
+
+  await FirebaseAppCheck.instance.activate(
+    androidProvider: AndroidProvider.playIntegrity,
+  );
 
   // ✅ Only use ProviderScope (Riverpod)
   runApp(const ProviderScope(child: MyApp()));

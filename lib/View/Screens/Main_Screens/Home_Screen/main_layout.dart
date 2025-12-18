@@ -76,13 +76,18 @@ class MainLayout extends StatelessWidget {
             case 0:
               GoRouter.of(context).go('/home');
               break;
-            // case 1:
-            //   GoRouter.of(context).go('/services');
-            //   break;
             case 1:
+              GoRouter.of(context).go('/otherservices');
+              break;
+            // case 2:
+            //   GoRouter.of(
+            //     context,
+            //   ).go('/paymentservices'); // Updated from 'rideHistory'
+            //   break;
+            case 2:
               GoRouter.of(context).go('/events'); // Updated from 'rideHistory'
               break;
-            case 2:
+            case 3:
               GoRouter.of(context).go('/profile');
               break;
           }
@@ -93,9 +98,15 @@ class MainLayout extends StatelessWidget {
 
             label: 'Home',
           ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard, size: 30, color: Colors.grey),
+            label: 'Services',
+          ),
+
           // BottomNavigationBarItem(
-          //   icon: Icon(Icons.dashboard, size: 30),
-          //   label: 'Services',
+          //   icon: Icon(Icons.payments, size: 30, color: Colors.grey),
+          //   // activeIcon: Icon(Icons.payments, size: 30),
+          //   label: 'Payments',
           // ),
           BottomNavigationBarItem(
             icon: Icon(Icons.event, size: 30, color: Colors.grey),
@@ -113,9 +124,10 @@ class MainLayout extends StatelessWidget {
   int _getSelectedIndex(BuildContext context) {
     final String location = GoRouterState.of(context).location;
     if (location.startsWith('/home')) return 0;
-    // if (location.startsWith('/services')) return 1;
-    if (location.startsWith('/events')) return 1; // Fixed navigation mapping
-    if (location.startsWith('/profile')) return 2;
+    if (location.startsWith('/otherservices')) return 1;
+    //if (location.startsWith('/paymentservices')) return 1;
+    if (location.startsWith('/events')) return 2; // Fixed navigation mapping
+    if (location.startsWith('/profile')) return 3;
     return 0;
   }
 }

@@ -25,6 +25,29 @@ Future<List<VehicleSubCategory>> fetchVehicleSubCategoriesByType(
   }
 }
 
+class Subcategory {
+  final int id;
+  final String name;
+  final double baseFare;
+  final double? pricePerKilometer;
+
+  Subcategory({
+    required this.id,
+    required this.name,
+    required this.baseFare,
+    this.pricePerKilometer,
+  });
+
+  factory Subcategory.fromJson(Map<String, dynamic> json) {
+    return Subcategory(
+      id: json['id'],
+      name: json['name'],
+      baseFare: (json['baseFare'] as num).toDouble(),
+      pricePerKilometer: (json['baseFare'] as num).toDouble(),
+    );
+  }
+}
+
 // import 'dart:convert';
 // import 'package:http/http.dart' as http;
 // import 'package:niceapp/Container/utils/keys.dart';

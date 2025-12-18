@@ -29,6 +29,8 @@ import 'package:niceapp/View/Screens/Other_Screens/machinery.dart';
 import 'package:niceapp/View/Screens/Other_Screens/mechanical_screen.dart';
 //import 'package:niceapp/View/Screens/Other_Screens/map_screen';
 import 'package:niceapp/View/Screens/Other_Screens/movers_screen.dart';
+import 'package:niceapp/View/Screens/Other_Screens/other_services.dart';
+import 'package:niceapp/View/Screens/Other_Screens/payment_option_screen.dart';
 //import 'package:niceapp/View/Screens/Other_Screens/passenger_ride_booking_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/profile_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/ride_history_screen.dart';
@@ -145,6 +147,23 @@ final GoRouter router = GoRouter(
                   const TransportServicesScreen(), //const HomeScreen(),
           routes: [],
         ),
+        GoRoute(
+          path: '/otherservices',
+          name: 'otherservices',
+          builder:
+              (context, state) =>
+                  const OtherServicesScreen(), //const HomeScreen(),
+          routes: [],
+        ),
+        GoRoute(
+          path: '/paymentservices',
+          name: 'paymentservices',
+          builder:
+              (context, state) =>
+                  const PaymentServicesScreen(), //const HomeScreen(),
+          routes: [],
+        ),
+
         GoRoute(
           path: '/services/transport',
           name: 'transportServices',

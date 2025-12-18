@@ -24,6 +24,8 @@ android {
     implementation("com.google.android.gms:play-services-location:21.0.1")
    // implementation("com.mapbox.mapboxsdk:mapbox-android-sdk:9.6.2")
     }
+
+
     kotlinOptions {
         jvmTarget ="17" //JavaVersion.VERSION_17.toString()
     }
@@ -35,6 +37,15 @@ android {
       //  buildConfig = true // ✅ Enables custom BuildConfig fields
    // }
    }
+
+  signingConfigs {
+        create("release") {
+            storeFile = file("C:\\Users\\Ibra\\release-key.jks")
+            storePassword = "ba4nyibA,"
+            keyAlias = "vicsacs"
+            keyPassword = "ba4nyibA,"
+        }
+    }
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
@@ -53,12 +64,17 @@ android {
     }
 
     buildTypes {
-        release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
-        }
+    getByName("release") {
+        isMinifyEnabled = false
+        isShrinkResources = false // ✅ Add this line
+        signingConfig = signingConfigs.getByName("release")
     }
+    getByName("debug") {
+        isMinifyEnabled = false
+        isShrinkResources = false // ✅ Add this line too
+        signingConfig = signingConfigs.getByName("release")
+    }
+}
 }
 
 flutter {

@@ -10,6 +10,44 @@ import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/ve
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/where_to_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/honey_sucker_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/waterexhauster_driver_pending.dart';
+import 'package:niceapp/View/Screens/Vehicles/vehicle_service.dart';
+
+Widget machineryHeader() {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      boxShadow: [
+        BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 3)),
+      ],
+    ),
+    child: Column(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Image.asset(
+            "assets/imgs/crane.png", // <-- put crane image here
+            height: 160,
+            width: double.infinity,
+            fit: BoxFit.cover,
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          "Machinery Service",
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          "Book heavy machinery with ease",
+          style: TextStyle(fontSize: 14, color: Colors.grey),
+        ),
+      ],
+    ),
+  );
+}
 
 class MachineryScreen extends StatefulWidget {
   final VehicleCategory category;
@@ -192,6 +230,7 @@ class _MachineryScreenState extends State<MachineryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text('Machinery Service'),
         centerTitle: true,
@@ -199,6 +238,7 @@ class _MachineryScreenState extends State<MachineryScreen> {
         elevation: 1,
         foregroundColor: Colors.black87,
       ),
+
       body: Stack(
         children: [
           SafeArea(
@@ -207,178 +247,224 @@ class _MachineryScreenState extends State<MachineryScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Request Machinery',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
+                  /// TOP CRANE BANNER
+                  machineryHeader(),
                   const SizedBox(height: 24),
-                  DropdownButtonFormField<Subcategory>(
-                    value: selectedSubcategory,
-                    isExpanded: true,
-                    hint: const Text('Select Machinery'),
-                    items:
-                        subcategories.map((subcategory) {
-                          return DropdownMenuItem<Subcategory>(
-                            value: subcategory,
-                            child: Text(subcategory.name),
-                          );
-                        }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        selectedSubcategory = value;
-                        selectedPrice = value?.baseFare;
-                        priceController.text =
-                            selectedPrice != null
-                                ? 'KES ${selectedPrice!.toStringAsFixed(2)}'
-                                : '';
-                      });
-                    },
-                    decoration: const InputDecoration(
-                      labelText: "Machinery Type",
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.car_crash_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
 
-                  TextFormField(
-                    controller: hoursController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Number of Hours',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.timer_outlined),
+                  /// Main Card
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 10,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
                     ),
-                    onChanged: (value) {
-                      final hours = double.tryParse(value) ?? 0;
-                      if (selectedPrice != null) {
-                        setState(() {
-                          totalFare = hours * selectedPrice!;
-                          priceController.text =
-                              "KES ${totalFare!.toStringAsFixed(2)}";
-                        });
-                      }
-                    },
-                  ),
-
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    controller: priceController,
-                    readOnly: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Estimated Price',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.attach_money),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    controller: detailsController,
-                    decoration: const InputDecoration(
-                      labelText: 'Additional Details (Optional)',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.description_outlined),
-                    ),
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 20),
-
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      if (selectedSubcategory == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Please complete all required fields',
+                    child: Column(
+                      children: [
+                        DropdownButtonFormField<Subcategory>(
+                          value: selectedSubcategory,
+                          isExpanded: true,
+                          hint: const Text('Select Machinery'),
+                          items:
+                              subcategories.map((subcategory) {
+                                return DropdownMenuItem<Subcategory>(
+                                  value: subcategory,
+                                  child: Text(subcategory.name),
+                                );
+                              }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              selectedSubcategory = value;
+                              selectedPrice = value?.baseFare;
+                              priceController.text =
+                                  selectedPrice != null
+                                      ? 'KES ${selectedPrice!.toStringAsFixed(2)}'
+                                      : '';
+                            });
+                          },
+                          decoration: InputDecoration(
+                            labelText: "Machinery Type",
+                            prefixIcon: const Icon(
+                              Icons.precision_manufacturing,
                             ),
-                            backgroundColor: Colors.red,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                           ),
-                        );
-                        return;
-                      }
+                        ),
 
-                      final token =
-                          await FirebaseAuth.instance.currentUser?.getIdToken();
-                      if (token == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Authentication error'),
-                            backgroundColor: Colors.red,
+                        const SizedBox(height: 20),
+
+                        TextFormField(
+                          controller: hoursController,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: 'Number of Hours',
+                            prefixIcon: const Icon(Icons.timer_outlined),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                           ),
-                        );
-                        return;
-                      }
+                          onChanged: (value) {
+                            final hours = double.tryParse(value) ?? 0;
+                            if (selectedPrice != null) {
+                              setState(() {
+                                totalFare = hours * selectedPrice!;
+                                priceController.text =
+                                    "KES ${totalFare!.toStringAsFixed(2)}";
+                              });
+                            }
+                          },
+                        ),
 
-                      final requestBody = {
-                        "firebaseIdToken": token,
-                        "destLat": selectedLatLng!.latitude,
-                        "destLng": selectedLatLng!.longitude,
-                        "destination": displayAddress ?? '',
-                        "notes": detailsController.text,
-                        "subCategoryId": selectedSubcategory?.id,
-                        "scheduledTime": null,
-                      };
+                        const SizedBox(height: 20),
 
-                      try {
-                        setState(() => _isLoading = true);
+                        TextFormField(
+                          controller: priceController,
+                          readOnly: true,
+                          decoration: InputDecoration(
+                            labelText: 'Estimated Price',
+                            prefixIcon: const Icon(Icons.attach_money),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
 
-                        final response = await http.post(
-                          Uri.parse('$baseUrl/rides/exhauster/book'),
-                          headers: {'Content-Type': 'application/json'},
-                          body: jsonEncode(requestBody),
-                        );
+                        const SizedBox(height: 20),
 
-                        setState(() => _isLoading = false);
+                        TextFormField(
+                          controller: detailsController,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            labelText: 'Additional Details (Optional)',
+                            prefixIcon: const Icon(Icons.description_outlined),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
 
-                        if (response.statusCode == 200) {
-                          final data = jsonDecode(response.body);
-                          final rideId = data['rideId'];
+                        const SizedBox(height: 30),
 
-                          if (rideId != null && mounted) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder:
-                                    (_) => DriverAssignmentsScreen(
-                                      destination: selectedLatLng!,
-                                      rideId: rideId,
-                                      category: selectedSubcategory!,
-                                      fare: selectedPrice ?? 0,
+                        /// Modern Button
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              /// 👇 YOUR EXISTING LOGIC (unchanged)
+                              if (selectedSubcategory == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Please complete all required fields',
                                     ),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
+
+                              final token =
+                                  await FirebaseAuth.instance.currentUser
+                                      ?.getIdToken();
+
+                              if (token == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Authentication error'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
+
+                              final requestBody = {
+                                "firebaseIdToken": token,
+                                "destLat": selectedLatLng!.latitude,
+                                "destLng": selectedLatLng!.longitude,
+                                "destination": displayAddress ?? '',
+                                "notes": detailsController.text,
+                                "subCategoryId": selectedSubcategory?.id,
+                                "scheduledTime": null,
+                              };
+
+                              try {
+                                setState(() => _isLoading = true);
+
+                                final response = await http.post(
+                                  Uri.parse('$baseUrl/rides/exhauster/book'),
+                                  headers: {'Content-Type': 'application/json'},
+                                  body: jsonEncode(requestBody),
+                                );
+
+                                setState(() => _isLoading = false);
+
+                                if (response.statusCode == 200) {
+                                  final data = jsonDecode(response.body);
+                                  final rideId = data['rideId'];
+
+                                  if (rideId != null && mounted) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder:
+                                            (_) => DriverAssignmentsScreen(
+                                              destination: selectedLatLng!,
+                                              rideId: rideId,
+                                              category: selectedSubcategory!,
+                                              fare: selectedPrice ?? 0,
+                                            ),
+                                      ),
+                                    );
+                                  }
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Booking failed: ${response.body}',
+                                      ),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                setState(() => _isLoading = false);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Unexpected error. Please try again.',
+                                    ),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black87,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
                               ),
-                            );
-                          }
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Booking failed: ${response.body}'),
-                              backgroundColor: Colors.red,
+                              elevation: 2,
                             ),
-                          );
-                        }
-                      } catch (e) {
-                        setState(() => _isLoading = false);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Unexpected error. Please try again.',
+                            child: const Text(
+                              "Confirm and Submit Request",
+                              style: TextStyle(
+                                fontSize: 16,
+                                letterSpacing: 0.5,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                            backgroundColor: Colors.red,
                           ),
-                        );
-                      }
-                    },
-                    icon: const Icon(Icons.send),
-                    label: const Text("Confirm and Submit Request"),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: Colors.grey[700],
-                      foregroundColor: Colors.white,
-                      textStyle: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      minimumSize: const Size.fromHeight(48),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -386,7 +472,6 @@ class _MachineryScreenState extends State<MachineryScreen> {
             ),
           ),
 
-          /// ✅ Loading overlay
           if (_isLoading)
             Container(
               color: Colors.black.withOpacity(0.5),
@@ -398,4 +483,214 @@ class _MachineryScreenState extends State<MachineryScreen> {
       ),
     );
   }
+
+  // @override
+  // Widget build(BuildContext context) {
+  //   return Scaffold(
+  //     appBar: AppBar(
+  //       title: const Text('Machinery Service'),
+  //       centerTitle: true,
+  //       backgroundColor: Colors.white,
+  //       elevation: 1,
+  //       foregroundColor: Colors.black87,
+  //     ),
+  //     body: Stack(
+  //       children: [
+  //         SafeArea(
+  //           child: SingleChildScrollView(
+  //             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+  //             child: Column(
+  //               crossAxisAlignment: CrossAxisAlignment.start,
+  //               children: [
+  //                 const Text(
+  //                   'Request Machinery',
+  //                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+  //                 ),
+  //                 const SizedBox(height: 24),
+  //                 DropdownButtonFormField<Subcategory>(
+  //                   value: selectedSubcategory,
+  //                   isExpanded: true,
+  //                   hint: const Text('Select Machinery'),
+  //                   items:
+  //                       subcategories.map((subcategory) {
+  //                         return DropdownMenuItem<Subcategory>(
+  //                           value: subcategory,
+  //                           child: Text(subcategory.name),
+  //                         );
+  //                       }).toList(),
+  //                   onChanged: (value) {
+  //                     setState(() {
+  //                       selectedSubcategory = value;
+  //                       selectedPrice = value?.baseFare;
+  //                       priceController.text =
+  //                           selectedPrice != null
+  //                               ? 'KES ${selectedPrice!.toStringAsFixed(2)}'
+  //                               : '';
+  //                     });
+  //                   },
+  //                   decoration: const InputDecoration(
+  //                     labelText: "Machinery Type",
+  //                     border: OutlineInputBorder(),
+  //                     prefixIcon: Icon(Icons.car_crash_outlined),
+  //                   ),
+  //                 ),
+  //                 const SizedBox(height: 20),
+
+  //                 TextFormField(
+  //                   controller: hoursController,
+  //                   keyboardType: TextInputType.number,
+  //                   decoration: const InputDecoration(
+  //                     labelText: 'Number of Hours',
+  //                     border: OutlineInputBorder(),
+  //                     prefixIcon: Icon(Icons.timer_outlined),
+  //                   ),
+  //                   onChanged: (value) {
+  //                     final hours = double.tryParse(value) ?? 0;
+  //                     if (selectedPrice != null) {
+  //                       setState(() {
+  //                         totalFare = hours * selectedPrice!;
+  //                         priceController.text =
+  //                             "KES ${totalFare!.toStringAsFixed(2)}";
+  //                       });
+  //                     }
+  //                   },
+  //                 ),
+
+  //                 const SizedBox(height: 20),
+  //                 TextFormField(
+  //                   controller: priceController,
+  //                   readOnly: true,
+  //                   decoration: const InputDecoration(
+  //                     labelText: 'Estimated Price',
+  //                     border: OutlineInputBorder(),
+  //                     prefixIcon: Icon(Icons.attach_money),
+  //                   ),
+  //                 ),
+  //                 const SizedBox(height: 20),
+  //                 TextFormField(
+  //                   controller: detailsController,
+  //                   decoration: const InputDecoration(
+  //                     labelText: 'Additional Details (Optional)',
+  //                     border: OutlineInputBorder(),
+  //                     prefixIcon: Icon(Icons.description_outlined),
+  //                   ),
+  //                   maxLines: 3,
+  //                 ),
+  //                 const SizedBox(height: 20),
+
+  //                 ElevatedButton.icon(
+  //                   onPressed: () async {
+  //                     if (selectedSubcategory == null) {
+  //                       ScaffoldMessenger.of(context).showSnackBar(
+  //                         const SnackBar(
+  //                           content: Text(
+  //                             'Please complete all required fields',
+  //                           ),
+  //                           backgroundColor: Colors.red,
+  //                         ),
+  //                       );
+  //                       return;
+  //                     }
+
+  //                     final token =
+  //                         await FirebaseAuth.instance.currentUser?.getIdToken();
+  //                     if (token == null) {
+  //                       ScaffoldMessenger.of(context).showSnackBar(
+  //                         const SnackBar(
+  //                           content: Text('Authentication error'),
+  //                           backgroundColor: Colors.red,
+  //                         ),
+  //                       );
+  //                       return;
+  //                     }
+
+  //                     final requestBody = {
+  //                       "firebaseIdToken": token,
+  //                       "destLat": selectedLatLng!.latitude,
+  //                       "destLng": selectedLatLng!.longitude,
+  //                       "destination": displayAddress ?? '',
+  //                       "notes": detailsController.text,
+  //                       "subCategoryId": selectedSubcategory?.id,
+  //                       "scheduledTime": null,
+  //                     };
+
+  //                     try {
+  //                       setState(() => _isLoading = true);
+
+  //                       final response = await http.post(
+  //                         Uri.parse('$baseUrl/rides/exhauster/book'),
+  //                         headers: {'Content-Type': 'application/json'},
+  //                         body: jsonEncode(requestBody),
+  //                       );
+
+  //                       setState(() => _isLoading = false);
+
+  //                       if (response.statusCode == 200) {
+  //                         final data = jsonDecode(response.body);
+  //                         final rideId = data['rideId'];
+
+  //                         if (rideId != null && mounted) {
+  //                           Navigator.push(
+  //                             context,
+  //                             MaterialPageRoute(
+  //                               builder:
+  //                                   (_) => DriverAssignmentsScreen(
+  //                                     destination: selectedLatLng!,
+  //                                     rideId: rideId,
+  //                                     category: selectedSubcategory!,
+  //                                     fare: selectedPrice ?? 0,
+  //                                   ),
+  //                             ),
+  //                           );
+  //                         }
+  //                       } else {
+  //                         ScaffoldMessenger.of(context).showSnackBar(
+  //                           SnackBar(
+  //                             content: Text('Booking failed: ${response.body}'),
+  //                             backgroundColor: Colors.red,
+  //                           ),
+  //                         );
+  //                       }
+  //                     } catch (e) {
+  //                       setState(() => _isLoading = false);
+  //                       ScaffoldMessenger.of(context).showSnackBar(
+  //                         const SnackBar(
+  //                           content: Text(
+  //                             'Unexpected error. Please try again.',
+  //                           ),
+  //                           backgroundColor: Colors.red,
+  //                         ),
+  //                       );
+  //                     }
+  //                   },
+  //                   icon: const Icon(Icons.send),
+  //                   label: const Text("Confirm and Submit Request"),
+  //                   style: ElevatedButton.styleFrom(
+  //                     padding: const EdgeInsets.symmetric(vertical: 16),
+  //                     backgroundColor: Colors.grey[700],
+  //                     foregroundColor: Colors.white,
+  //                     textStyle: const TextStyle(
+  //                       fontSize: 16,
+  //                       fontWeight: FontWeight.bold,
+  //                     ),
+  //                     minimumSize: const Size.fromHeight(48),
+  //                   ),
+  //                 ),
+  //               ],
+  //             ),
+  //           ),
+  //         ),
+
+  //         /// ✅ Loading overlay
+  //         if (_isLoading)
+  //           Container(
+  //             color: Colors.black.withOpacity(0.5),
+  //             child: const Center(
+  //               child: CircularProgressIndicator(color: Colors.white),
+  //             ),
+  //           ),
+  //       ],
+  //     ),
+  //   );
+  // }
 }

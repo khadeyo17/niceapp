@@ -10,6 +10,7 @@ import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/ve
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/where_to_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/honey_sucker_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/waterexhauster_driver_pending.dart';
+import 'package:niceapp/View/Screens/Vehicles/vehicle_service.dart';
 
 class Garage {
   final int id;

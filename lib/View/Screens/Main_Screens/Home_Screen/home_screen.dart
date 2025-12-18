@@ -1,19 +1,14 @@
 import 'dart:convert';
 import 'dart:math';
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
-//import 'package:flutter_map/flutter_map.dart';
-///import 'package:flutter_map/flutter_map.dart' as gmap;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
-//import 'package:google_maps_flutter/google_maps_flutter.dart' as gmap;
 import 'package:http/http.dart' as http;
 import 'package:niceapp/Container/utils/keys.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/confirm_ride_screen.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/driver_provider.dart';
-import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/ride_in_progress_screen.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/vehicle_category.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/where_to_screen.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/location_providers.dart';
@@ -68,6 +63,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   double _mapOffsetY = 0;
   final double maxUpOffset = -150; // adjust as needed
   late ScrollController _scrollController = ScrollController();
+  List<bool> driverAvailability = [];
 
   @override
   void initState() {
@@ -83,48 +79,76 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         }
       });
     }
+    ////working
+    // if (widget.destination != null) {
+    //   fetchVehicleSubCategoriesByType(widget.category.index).then((
+    //     categories,
+    //   ) async {
+    //     setState(() {
+    //       vehicleCategories = categories;
+    //       fareEstimates = List<FareEstimate?>.filled(categories.length, null);
+    //       isLoadingCategories = false;
+
+    //       if (categories.isNotEmpty) {
+    //         selectedIndex = 0;
+    //         ref.read(selectedCategoryProvider.notifier).state = categories[0];
+    //       }
+    //     });
+    //     if (widget.pickup != null && widget.destination != null) {
+    //       await _fetchRoute();
+    //       //for (int i = 0; i < categories.length; i++) {
+    //       // final category = categories[i];
+    //       // try {
+    //       //   final estimate = await FareService.getFareEstimate(
+    //       //     categoryId: category.id,
+    //       //     pickupLat: widget.pickup!.latitude,
+    //       //     pickupLng: widget.pickup!.longitude,
+    //       //     destLat: widget.destination!.latitude,
+    //       //     destLng: widget.destination!.longitude,
+    //       //     distanceKm: ,
+    //       //     countryCode: "KE",
+    //       //   );
+    //       //   print('Received estimate for ${category.name}: $estimate');
+    //       //   setState(() {
+    //       //     fareEstimates[i] = estimate;
+    //       //   });
+    //       // } catch (e) {
+    //       //   print('Failed to load fare for category ${category.name}: $e');
+    //       // }
+    //       // }
+    //     }
+    //   });
+    //   _setupMarkers();
+    //   // _fetchRoute();
 
     if (widget.destination != null) {
       fetchVehicleSubCategoriesByType(widget.category.index).then((
         categories,
       ) async {
+        // Extract availability info directly from backend
+        List<bool> availabilityList =
+            categories.map((category) => category.isAvailable).toList();
+
         setState(() {
           vehicleCategories = categories;
           fareEstimates = List<FareEstimate?>.filled(categories.length, null);
           isLoadingCategories = false;
+          driverAvailability = availabilityList;
 
           if (categories.isNotEmpty) {
             selectedIndex = 0;
             ref.read(selectedCategoryProvider.notifier).state = categories[0];
           }
         });
+
         if (widget.pickup != null && widget.destination != null) {
           await _fetchRoute();
-          //for (int i = 0; i < categories.length; i++) {
-          // final category = categories[i];
-          // try {
-          //   final estimate = await FareService.getFareEstimate(
-          //     categoryId: category.id,
-          //     pickupLat: widget.pickup!.latitude,
-          //     pickupLng: widget.pickup!.longitude,
-          //     destLat: widget.destination!.latitude,
-          //     destLng: widget.destination!.longitude,
-          //     distanceKm: ,
-          //     countryCode: "KE",
-          //   );
-          //   print('Received estimate for ${category.name}: $estimate');
-          //   setState(() {
-          //     fareEstimates[i] = estimate;
-          //   });
-          // } catch (e) {
-          //   print('Failed to load fare for category ${category.name}: $e');
-          // }
-          // }
         }
       });
+
       _setupMarkers();
-      // _fetchRoute();
     }
+
     // _scrollController = ScrollController();
 
     // Add scroll listener to update map camera when the sheet scrolls
@@ -152,6 +176,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // WidgetsBinding.instance.addPostFrameCallback((_) {
     //   // Optional post-frame logic
     // });
+  }
+
+  Future<bool> checkDriverAvailability(int categoryId) async {
+    final uri = Uri.parse(
+      '$baseUrl/drivers/availability?categoryId=$categoryId',
+    );
+    final response = await http.get(uri);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['available'] ?? false;
+    } else {
+      return false;
+    }
   }
 
   bool _isRideScreenOpen = false;
@@ -926,111 +964,231 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                       ? "${estimate.timeEstimate} mins"
                                       : "Estimating...";
 
+                              /// working
+
+                              // return GestureDetector(
+                              //   onTap: () {
+                              //     setState(() {
+                              //       selectedIndex = index;
+                              //     });
+                              //     ref
+                              //         .read(selectedCategoryProvider.notifier)
+                              //         .state = category;
+                              //   },
+                              //   child: Container(
+                              //     margin: const EdgeInsets.only(bottom: 12),
+                              //     padding: const EdgeInsets.all(8),
+                              //     decoration: BoxDecoration(
+                              //       color: Colors.white,
+                              //       border: Border.all(
+                              //         color:
+                              //             isSelected
+                              //                 ? Colors.grey
+                              //                 : Colors.transparent,
+                              //         width: 2,
+                              //       ),
+                              //       borderRadius: BorderRadius.circular(12),
+                              //     ),
+                              //     child: Row(
+                              //       children: [
+                              //         category.iconUrl != null &&
+                              //                 category.iconUrl!.isNotEmpty
+                              //             ? Image.network(
+                              //               "$ImageUrl${category.iconUrl}",
+                              //               //category.iconUrl!,
+                              //               width: 60,
+                              //               height: 60,
+                              //               errorBuilder: (
+                              //                 context,
+                              //                 error,
+                              //                 stackTrace,
+                              //               ) {
+                              //                 return Image.asset(
+                              //                   'assets/imgs/Sedan2.png', // your fallback image
+                              //                   width: 60,
+                              //                   height: 60,
+                              //                 );
+                              //               },
+                              //             )
+                              //             : Image.asset(
+                              //               'assets/imgs/Sedan2.png',
+                              //               width: 60,
+                              //               height: 60,
+                              //             ),
+
+                              //         const SizedBox(width: 12),
+                              //         Expanded(
+                              //           child: Column(
+                              //             crossAxisAlignment:
+                              //                 CrossAxisAlignment.start,
+                              //             children: [
+                              //               Row(
+                              //                 mainAxisAlignment:
+                              //                     MainAxisAlignment
+                              //                         .spaceBetween,
+                              //                 children: [
+                              //                   Text(
+                              //                     name,
+                              //                     style: const TextStyle(
+                              //                       fontWeight: FontWeight.bold,
+                              //                       fontSize: 16,
+                              //                     ),
+                              //                   ),
+                              //                   Text(
+                              //                     fareDisplay,
+                              //                     style: const TextStyle(
+                              //                       fontWeight: FontWeight.bold,
+                              //                       fontSize: 16,
+                              //                     ),
+                              //                   ),
+                              //                 ],
+                              //               ),
+                              //               const SizedBox(height: 4),
+                              //               // Text(
+                              //               //   "$timeAway",
+                              //               //   style: const TextStyle(
+                              //               //     color: Colors.grey,
+                              //               //     fontSize: 13,
+                              //               //   ),
+                              //               // ),
+
+                              //               // Text(
+                              //               //   timeAway,
+                              //               //   style: const TextStyle(
+                              //               //     color: Colors.grey,
+                              //               //     fontSize: 13,
+                              //               //   ),
+                              //               // ),
+                              //               const SizedBox(height: 4),
+                              //               Text(
+                              //                 "$passengers Passengers",
+                              //                 style: const TextStyle(
+                              //                   color: Colors.grey,
+                              //                   fontSize: 13,
+                              //                 ),
+                              //               ),
+                              //             ],
+                              //           ),
+                              //         ),
+                              //       ],
+                              //     ),
+                              //   ),
+                              // );
+
+                              final isAvailable =
+                                  driverAvailability.isNotEmpty &&
+                                  driverAvailability[index];
+
                               return GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    selectedIndex = index;
-                                  });
-                                  ref
-                                      .read(selectedCategoryProvider.notifier)
-                                      .state = category;
-                                },
-                                child: Container(
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    border: Border.all(
-                                      color:
-                                          isSelected
-                                              ? Colors.grey
-                                              : Colors.transparent,
-                                      width: 2,
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      category.iconUrl != null &&
-                                              category.iconUrl!.isNotEmpty
-                                          ? Image.network(
-                                            "$ImageUrl${category.iconUrl}",
-                                            //category.iconUrl!,
-                                            width: 60,
-                                            height: 60,
-                                            errorBuilder: (
-                                              context,
-                                              error,
-                                              stackTrace,
-                                            ) {
-                                              return Image.asset(
-                                                'assets/imgs/Sedan2.png', // your fallback image
-                                                width: 60,
-                                                height: 60,
-                                              );
-                                            },
-                                          )
-                                          : Image.asset(
-                                            'assets/imgs/Sedan2.png',
-                                            width: 60,
-                                            height: 60,
-                                          ),
-
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
-                                              children: [
-                                                Text(
-                                                  name,
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 16,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  fareDisplay,
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 16,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 4),
-                                            // Text(
-                                            //   "$timeAway",
-                                            //   style: const TextStyle(
-                                            //     color: Colors.grey,
-                                            //     fontSize: 13,
-                                            //   ),
-                                            // ),
-
-                                            // Text(
-                                            //   timeAway,
-                                            //   style: const TextStyle(
-                                            //     color: Colors.grey,
-                                            //     fontSize: 13,
-                                            //   ),
-                                            // ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              "$passengers Passengers",
-                                              style: const TextStyle(
-                                                color: Colors.grey,
-                                                fontSize: 13,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
+                                onTap:
+                                    isAvailable
+                                        ? () {
+                                          setState(() {
+                                            selectedIndex = index;
+                                          });
+                                          ref
+                                              .read(
+                                                selectedCategoryProvider
+                                                    .notifier,
+                                              )
+                                              .state = category;
+                                        }
+                                        : null,
+                                child: Opacity(
+                                  opacity:
+                                      isAvailable
+                                          ? 1.0
+                                          : 0.4, // dim unavailable categories
+                                  child: Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      border: Border.all(
+                                        color:
+                                            isSelected
+                                                ? Colors.grey
+                                                : Colors.transparent,
+                                        width: 2,
                                       ),
-                                    ],
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        category.iconUrl != null &&
+                                                category.iconUrl!.isNotEmpty
+                                            ? Image.network(
+                                              "$ImageUrl${category.iconUrl}",
+                                              width: 60,
+                                              height: 60,
+                                              errorBuilder: (
+                                                context,
+                                                error,
+                                                stackTrace,
+                                              ) {
+                                                return Image.asset(
+                                                  'assets/imgs/Sedan2.png',
+                                                  width: 60,
+                                                  height: 60,
+                                                );
+                                              },
+                                            )
+                                            : Image.asset(
+                                              'assets/imgs/Sedan2.png',
+                                              width: 60,
+                                              height: 60,
+                                            ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
+                                                children: [
+                                                  Text(
+                                                    name,
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 16,
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    fareDisplay,
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 16,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                "$passengers Passengers",
+                                                style: const TextStyle(
+                                                  color: Colors.grey,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              if (!isAvailable)
+                                                const Text(
+                                                  "No drivers available",
+                                                  style: TextStyle(
+                                                    color: Colors.red,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               );

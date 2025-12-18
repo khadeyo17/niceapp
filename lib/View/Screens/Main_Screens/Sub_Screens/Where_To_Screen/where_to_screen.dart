@@ -4,6 +4,8 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:niceapp/Container/utils/keys.dart';
@@ -42,51 +44,55 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
   bool _selectingPickup = false;
   Map<String, dynamic>? _selectedPlace;
 
+  LatLng? CurrentLocation;
+
   @override
   void initState() {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final existingPickup = ref.read(pickupLocationProvider);
-      if (existingPickup == null) {
-        // Try to load from Firebase Realtime Database
-        // final LatLng? firebasePickup = await _fetchPickupFromFirebase();
-        // if (firebasePickup != null) {
-        //   ref.read(pickupLocationProvider.notifier).state = firebasePickup;
+      _fetchCurrentLocation();
+      // final existingPickup = ref.read(pickupLocationProvider);
+      //   if (existingPickup == null) {
+      //   // Try to load from Firebase Realtime Database
+      //   final LatLng? firebasePickup = await _fetchPickupFromFirebase();
+      //   if (firebasePickup != null) {
+      //     ref.read(pickupLocationProvider.notifier).state = firebasePickup;
 
-        //   final address = await ReverseGeocodingService.getAddressFromLatLng(
-        //     firebasePickup,
-        //   );
-        //   if (mounted) {
-        //     setState(() {
-        //       pickupController.text = address ?? "Current Location";
-        //     });
-        //   }
-        // }
-        if (widget.initialPickupLocation != null) {
-          // fallback to initialPickupLocation if firebase null
-          ref.read(pickupLocationProvider.notifier).state =
-              widget.initialPickupLocation!;
-          final address = await ReverseGeocodingService.getAddressFromLatLng(
-            widget.initialPickupLocation!,
-          );
-          if (mounted) {
-            setState(() {
-              pickupController.text = address ?? "Current Location";
-            });
-          }
-        }
-      } else {
-        // If state already has pickup, just update the text
-        final address = await ReverseGeocodingService.getAddressFromLatLng(
-          existingPickup,
-        );
-        if (mounted) {
-          setState(() {
-            pickupController.text = address ?? "Current Location";
-          });
-        }
-      }
+      //     final address = await ReverseGeocodingService.getAddressFromLatLng(
+      //       firebasePickup,
+      //     );
+      //     if (mounted) {
+      //       setState(() {
+      //         pickupController.text = address ?? "Current Location";
+      //       });
+      //     }
+      //   }
+      //   if (widget.initialPickupLocation != null) {
+      //     // fallback to initialPickupLocation if firebase null
+      //     ref.read(pickupLocationProvider.notifier).state =
+      //         widget.initialPickupLocation!;
+      //     final address = await ReverseGeocodingService.getAddressFromLatLng(
+      //       widget.initialPickupLocation!,
+      //     );
+      //     if (mounted) {
+      //       setState(() {
+      //         pickupController.text = address ?? "Current Location";
+      //       });
+      //     }
+      //   }
+      // }
+      // else {
+      //   // If state already has pickup, just update the text
+      //   final address = await ReverseGeocodingService.getAddressFromLatLng(
+      //     existingPickup,
+      //   );
+      //   if (mounted) {
+      //     setState(() {
+      //       pickupController.text = address ?? "Current Location";
+      //     });
+      //   }
+      // }
     });
 
     pickupController.addListener(_onSearchChanged);
@@ -143,6 +149,101 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
     }
   }
 
+  Future<void> _fetchCurrentLocation() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        setState(() => pickupController.text = "Location services disabled");
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() => pickupController.text = "Permission denied");
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        setState(() => pickupController.text = "Permission permanently denied");
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      CurrentLocation = LatLng(position.latitude, position.longitude);
+      _getAddressFromLatLng(CurrentLocation!);
+    } catch (e) {
+      debugPrint("Error fetching location: $e");
+      setState(() => pickupController.text = "Unable to fetch location");
+    }
+  }
+
+  // Future<void> _getAddressFromLatLng(LatLng latLng) async {
+  //   try {
+  //     final placemarks = await placemarkFromCoordinates(
+  //       latLng.latitude,
+  //       latLng.longitude,
+  //     );
+  //     String address;
+  //     if (placemarks.isNotEmpty) {
+  //       final place = placemarks.first;
+  //       address =
+  //           "${place.name}, ${place.street}, ${place.locality}, ${place.administrativeArea}";
+  //     } else {
+  //       address = 'Lat: ${latLng.latitude}, Lng: ${latLng.longitude}';
+  //     }
+
+  //     setState(() {
+  //       if (widget.initialPickupLocation != null) {
+  //         pickupController.text = address;
+  //       } else {
+  //         pickupController.text = address;
+  //       }
+  //     });
+  //   } catch (e) {
+  //     debugPrint("Reverse geocoding failed: $e");
+  //   }
+  // }
+  Future<void> _getAddressFromLatLng(LatLng latLng) async {
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        latLng.latitude,
+        latLng.longitude,
+      );
+
+      String address;
+
+      if (placemarks.isNotEmpty) {
+        final p = placemarks.first;
+
+        // Uber-style dynamic formatting
+        final parts = [
+          if (p.name != null && p.name!.isNotEmpty) p.name,
+          if (p.street != null && p.street!.isNotEmpty) p.street,
+          if (p.subLocality != null && p.subLocality!.isNotEmpty) p.subLocality,
+          if (p.locality != null && p.locality!.isNotEmpty) p.locality,
+          if (p.administrativeArea != null && p.administrativeArea!.isNotEmpty)
+            p.administrativeArea,
+        ];
+
+        address = parts.join(", ");
+      } else {
+        address = "Lat: ${latLng.latitude}, Lng: ${latLng.longitude}";
+      }
+
+      setState(() {
+        pickupController.text = address;
+      });
+    } catch (e) {
+      debugPrint("Reverse geocoding failed: $e");
+    }
+  }
+
   Future<void> _onSuggestionTap(Map<String, dynamic> place) async {
     final placeId = place['place_id'];
 
@@ -181,7 +282,8 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
 
     if (_selectingPickup) {
       // Save pickup location
-      ref.read(pickupLocationProvider.notifier).state = latLng;
+      //ref.read(pickupLocationProvider.notifier).state
+      CurrentLocation = latLng;
       pickupController.text = name;
       return;
       // if (widget.category == VehicleCategory.ambulance) {
@@ -206,7 +308,7 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
       // Save destination location
       ref.read(destinationLocationProvider.notifier).state = latLng;
       destinationController.text = name;
-      final pickup = ref.read(pickupLocationProvider);
+      final pickup = CurrentLocation; //ref.read(pickupLocationProvider);
       // If pickup is set, navigate
       //final pickup = ref.read(pickupLocationProvider);
       if (pickup != null ||
@@ -232,38 +334,51 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
               category: widget.category,
             );
             Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-          } else if (widget.category == VehicleCategory.cargo) {
-            screen = CargoTransportScreen(
-              category: widget.category,
-              pickup: pickup,
-              destination: latLng,
-            );
-            Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-          } else if (widget.category == VehicleCategory.waterBowser) {
-            screen = WaterBowerScreen(
-              category: widget.category,
-              destination: latLng,
-            );
+          }
+          // else if (widget.category == VehicleCategory.cargo) {
+          //   screen = CargoTransportScreen(
+          //     category: widget.category,
+          //     pickup: pickup,
+          //     destination: latLng,
+          //   );
+          //   Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+          // }
+          // else if (widget.category == VehicleCategory.waterBowser) {
+          //   screen = WaterBowerScreen(
+          //     category: widget.category,
+          //     destination: latLng,
+          //   );
+          //   Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+          // }
+          // else if (widget.category == VehicleCategory.movers) {
+          //   screen = MoversScreen(
+          //     category: widget.category,
+          //     destination: latLng,
+          //     pickup: pickup,
+          //   );
+          //   Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+          // }
+          else if (widget.category == VehicleCategory.movers) {
+            Navigator.pop(context, {'destination': latLng, 'pickup': pickup});
 
-            Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-          } else if (widget.category == VehicleCategory.movers) {
-            screen = MoversScreen(
-              category: widget.category,
-              destination: latLng,
-              pickup: pickup,
-            );
-            Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+            // Navigator.pop(context, latLng,pickup);
+          } else if (widget.category == VehicleCategory.cargo) {
+            Navigator.pop(context, {'destination': latLng, 'pickup': pickup});
           } else if (widget.category == VehicleCategory.exhauster) {
+            Navigator.pop(context, latLng);
+          } else if (widget.category == VehicleCategory.waterBowser) {
             Navigator.pop(context, latLng);
           } else if (widget.category == VehicleCategory.breakdown) {
             Navigator.pop(context, latLng);
           } else if (widget.category == VehicleCategory.ambulance) {
-            screen = AmbulanceScreen(
-              category: widget.category,
-              pickup: pickup,
-              destination: latLng,
-            );
-            Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+            Navigator.pop(context, {'destination': latLng, 'pickup': pickup});
+
+            // screen = AmbulanceScreen(
+            //   category: widget.category,
+            //   pickup: pickup,
+            //   destination: latLng,
+            // );
+            // Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
           }
         } else {
           screen = ScheduleRideScreen(
@@ -389,7 +504,13 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
                       controller: destinationController,
                       icon: Icons.location_on,
                       iconColor: Colors.red,
-                      hint: "Enter Destination",
+
+                      // hint: "Enter Destination",
+                      hint:
+                          widget.category == VehicleCategory.exhauster
+                              ? "Collection Location"
+                              : "Enter Destination",
+
                       onTap: () {
                         setState(() {
                           _selectingPickup = false;
@@ -411,6 +532,7 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
                       },
                     ),
                     const Divider(height: 1, color: Colors.grey),
+
                     //const Divider(),
                     // Padding(
                     //   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -424,11 +546,26 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
                     //     ],
                     //   ),
                     // ),
+                    // _buildLocationField(
+                    //   controller: destinationController,
+                    //   icon: Icons.location_on,
+                    //   iconColor: Colors.red,
+                    //   hint: "Enter Destination",
+                    //   onTap: () {
+                    //     setState(() {
+                    //       _selectingPickup = false;
+                    //       _suggestions.clear();
+                    //     });
+                    //   },
+                    // ),
                     _buildLocationField(
                       controller: destinationController,
                       icon: Icons.location_on,
                       iconColor: Colors.red,
-                      hint: "Enter Destination",
+                      hint:
+                          widget.category == VehicleCategory.exhauster
+                              ? "Collection Location"
+                              : "Enter Destination",
                       onTap: () {
                         setState(() {
                           _selectingPickup = false;

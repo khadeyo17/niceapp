@@ -2,9 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:niceapp/TaskManager/task_manager.dart';
-import 'package:niceapp/View/Screens/Other_Screens/payments_screen.dart';
-import 'package:niceapp/View/Screens/Other_Screens/wallet_screen.dart';
+import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/vehicle_category.dart';
+import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/where_to_screen.dart';
 
 class TransportServicesScreen extends StatefulWidget {
   const TransportServicesScreen({super.key});
@@ -20,11 +19,37 @@ class _TransportServicesScreenState extends State<TransportServicesScreen> {
   final PageController _pageController = PageController(viewportFraction: 1);
   int _currentPage = 0;
   Timer? _timer;
+  bool _hasActiveRide = false;
 
   @override
   void initState() {
     super.initState();
     _startAutoScroll();
+  }
+
+  void _navigateToWhereTo() {
+    if (_hasActiveRide) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "You already have an active ride. Complete or cancel it before booking a new one.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return; // ❌ Prevent booking
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (_) => WhereToScreen(
+              category: VehicleCategory.passenger,
+              //initialPickupLocation: currentLocation,
+            ),
+      ),
+    );
   }
 
   void _startAutoScroll() {
@@ -54,18 +79,18 @@ class _TransportServicesScreenState extends State<TransportServicesScreen> {
   Widget build(BuildContext context) {
     final iconAssets = {
       "Ride Booking": "assets/imgs/Sedan2.png",
-      "Bus Booking": "assets/imgs/Bus.jpeg",
+      // "Bus Booking": "assets/imgs/Bus.jpeg",
       "Honey Sucker": "assets/imgs/Exhauster.png",
-      "Movers": "assets/imgs/MoversBus.jpeg",
-      "Cargo Transport": "assets/imgs/CargoBus2.jpeg",
-      "Car Hire": "assets/imgs/Carhirere.jpeg",
-      "Ambulance": "assets/imgs/Ambulance2.png",
+      // "Movers": "assets/imgs/MoversBus.jpeg",
+      // "Cargo Transport": "assets/imgs/CargoBus2.jpeg",
+      // "Car Hire": "assets/imgs/Carhirere.jpeg",
+      // "Ambulance": "assets/imgs/Ambulance2.png",
       "Water Bowser": "assets/imgs/waterlorry1.png",
-      "Breakdown Services": "assets/imgs/Breakdown.jpeg",
-      "Mechanical Services": "assets/imgs/Garage.png",
+      //"Breakdown Services": "assets/imgs/Breakdown.jpeg",
+      // "Mechanical Services": "assets/imgs/Garage.png",
       "Machinery": "assets/imgs/Machinery2.png",
-      "Payments": "assets/imgs/Payment.jpg",
-      "Wallet": "assets/imgs/Wallet.png",
+      // "Payments": "assets/imgs/Payment.jpg",
+      // "Wallet": "assets/imgs/Wallet.png",
     };
     // final List<Map<String, dynamic>> transport = [
     //   {
@@ -142,60 +167,60 @@ class _TransportServicesScreenState extends State<TransportServicesScreen> {
         'color': Colors.orange,
         'route': '/services/transport/ride-booking',
       },
-      {
-        'name': 'Bus/Matatu Booking',
-        'image': iconAssets['Bus Booking'],
-        'color': Colors.blue,
-        'route': '/services/transport/bus-booking',
-      },
+      // {
+      //   'name': 'Bus/Matatu Booking',
+      //   'image': iconAssets['Bus Booking'],
+      //   'color': Colors.blue,
+      //   'route': '/services/transport/bus-booking',
+      // },
       {
         'name': 'Exhauster',
         'image': iconAssets['Honey Sucker'],
         'color': Colors.teal,
         'route': '/services/transport/honey-sucker',
       },
+      // {
+      //   'name': 'Movers',
+      //   'image': iconAssets['Movers'],
+      //   'color': Colors.deepPurple,
+      //   'route': '/services/transport/movers',
+      // },
+      // {
+      //   'name': 'Cargo Transport',
+      //   'image': iconAssets['Cargo Transport'],
+      //   'color': Colors.green,
+      //   'route': '/services/transport/cargo',
+      // },
+      // {
+      //   'name': 'Car Hire',
+      //   'image': iconAssets['Car Hire'],
+      //   'color': Colors.amber,
+      //   'route': '/services/transport/car-hire',
+      // },
+      // {
+      //   'name': 'Ambulance',
+      //   'image': iconAssets['Ambulance'],
+      //   'color': Colors.red,
+      //   'route': '/services/transport/ambulance',
+      // },
       {
-        'name': 'Movers',
-        'image': iconAssets['Movers'],
-        'color': Colors.deepPurple,
-        'route': '/services/transport/movers',
-      },
-      {
-        'name': 'Cargo Transport',
-        'image': iconAssets['Cargo Transport'],
-        'color': Colors.green,
-        'route': '/services/transport/cargo',
-      },
-      {
-        'name': 'Car Hire',
-        'image': iconAssets['Car Hire'],
-        'color': Colors.amber,
-        'route': '/services/transport/car-hire',
-      },
-      {
-        'name': 'Ambulance',
-        'image': iconAssets['Ambulance'],
-        'color': Colors.red,
-        'route': '/services/transport/ambulance',
-      },
-      {
-        'name': 'Water Bowser',
+        'name': 'Amini Clear Water',
         'image': iconAssets['Water Bowser'],
         'color': Colors.lightBlueAccent,
         'route': '/services/transport/water-bower',
       },
-      {
-        'name': 'Breakdown Services',
-        'image': iconAssets['Breakdown Services'],
-        'color': Colors.brown,
-        'route': '/services/transport/breakdown',
-      },
-      {
-        'name': 'Mechanical Services',
-        'image': iconAssets['Mechanical Services'],
-        'color': Colors.indigo,
-        'route': '/services/transport/mechanical',
-      },
+      // {
+      //   'name': 'Breakdown Services',
+      //   'image': iconAssets['Breakdown Services'],
+      //   'color': Colors.brown,
+      //   'route': '/services/transport/breakdown',
+      // },
+      // {
+      //   'name': 'Mechanical Services',
+      //   'image': iconAssets['Mechanical Services'],
+      //   'color': Colors.indigo,
+      //   'route': '/services/transport/mechanical',
+      // },
       {
         'name': 'Machinery',
         'image': iconAssets['Machinery'],
@@ -204,20 +229,20 @@ class _TransportServicesScreenState extends State<TransportServicesScreen> {
       },
     ];
 
-    final List<Map<String, dynamic>> payments = [
-      {
-        'title': 'Payments',
-        'image': iconAssets['Payments'],
-        'color': Colors.blue.withOpacity(0.8),
-        'screen': const PaymentHistoryScreen(),
-      },
-      {
-        'title': 'Wallet',
-        'image': iconAssets['Wallet'],
-        'color': Colors.green.withOpacity(0.8),
-        'screen': const WalletScreen(),
-      },
-    ];
+    // final List<Map<String, dynamic>> payments = [
+    //   {
+    //     'title': 'Payments',
+    //     'image': iconAssets['Payments'],
+    //     'color': Colors.blue.withOpacity(0.8),
+    //     'screen': const PaymentHistoryScreen(),
+    //   },
+    //   {
+    //     'title': 'Wallet',
+    //     'image': iconAssets['Wallet'],
+    //     'color': Colors.green.withOpacity(0.8),
+    //     'screen': const WalletScreen(),
+    //   },
+    // ];
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -366,32 +391,6 @@ class _TransportServicesScreenState extends State<TransportServicesScreen> {
             // ),
 
             // Auto-moving Adverts Section
-            SizedBox(
-              height: 160,
-              child: PageView.builder(
-                controller: _pageController,
-                itemCount: 5,
-                itemBuilder: (context, index) {
-                  return Container(
-                    margin: const EdgeInsets.only(right: 0),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 6,
-                          offset: Offset(0, 3),
-                        ),
-                      ],
-                      image: DecorationImage(
-                        image: AssetImage("assets/imgs/ad${index + 1}.png"),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
 
             // SizedBox(
             //   height: 160, // height for advert cards
@@ -425,9 +424,82 @@ class _TransportServicesScreenState extends State<TransportServicesScreen> {
             // ),
             const SizedBox(height: 24),
 
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
+              child: GestureDetector(
+                onTap: _navigateToWhereTo,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey, width: 1.5),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black26, blurRadius: 4),
+                    ],
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.search, color: Colors.grey),
+                      SizedBox(width: 10),
+                      Text(
+                        'Where to?',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // Positioned(
+            //   bottom: 20,
+            //   left: 10,
+            //   right: 10,
+            //   child: GestureDetector(
+            //     onTap: _navigateToWhereTo,
+            //     child: Container(
+            //       padding: const EdgeInsets.symmetric(
+            //         horizontal: 16,
+            //         vertical: 14,
+            //       ),
+            //       decoration: BoxDecoration(
+            //         color: Colors.white,
+            //         borderRadius: BorderRadius.circular(12),
+            //         border: Border.all(color: Colors.grey, width: 1.5),
+            //         boxShadow: const [
+            //           BoxShadow(color: Colors.black26, blurRadius: 4),
+            //         ],
+            //       ),
+            //       child: const Row(
+            //         children: [
+            //           Icon(Icons.search, color: Colors.grey),
+            //           SizedBox(width: 10),
+            //           Text(
+            //             'Where to?',
+            //             style: TextStyle(
+            //               fontSize: 24,
+            //               fontWeight: FontWeight.bold,
+            //               color: Colors.redAccent,
+            //             ),
+            //           ),
+            //         ],
+            //       ),
+            //     ),
+            //   ),
+            // ),
+            const SizedBox(height: 24),
+
             // 👇 Transport Section Header
             const Text(
-              'Transport Services',
+              'Services',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -443,6 +515,7 @@ class _TransportServicesScreenState extends State<TransportServicesScreen> {
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
               childAspectRatio: 0.95,
+
               children:
                   transport.map((service) {
                     return _buildServiceCard(
@@ -455,37 +528,64 @@ class _TransportServicesScreenState extends State<TransportServicesScreen> {
                   }).toList(),
             ),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 50),
 
-            // 👇 Payments Section Header
-            const Text(
-              'Payment Services',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
+            SizedBox(
+              height: 140,
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: 5,
+                itemBuilder: (context, index) {
+                  return Container(
+                    margin: const EdgeInsets.only(right: 0),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 6,
+                          offset: Offset(0, 3),
+                        ),
+                      ],
+                      image: DecorationImage(
+                        image: AssetImage("assets/imgs/ad${index + 1}.png"),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
-            const SizedBox(height: 12),
 
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 3,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 0.95,
-              children:
-                  payments.map((service) {
-                    return _buildPaymentCard(
-                      context,
-                      title: service['title'],
-                      image: service['image'],
-                      color: service['color'],
-                      screen: service['screen'],
-                    );
-                  }).toList(),
-            ),
+            // 👇 Payments Section Header
+            // const Text(
+            //   'Payment Services',
+            //   style: TextStyle(
+            //     fontSize: 16,
+            //     fontWeight: FontWeight.bold,
+            //     color: Colors.black,
+            //   ),
+            // ),
+            // const SizedBox(height: 12),
+
+            // GridView.count(
+            //   shrinkWrap: true,
+            //   physics: const NeverScrollableScrollPhysics(),
+            //   crossAxisCount: 3,
+            //   crossAxisSpacing: 16,
+            //   mainAxisSpacing: 16,
+            //   childAspectRatio: 0.95,
+            //   children:
+            //       payments.map((service) {
+            //         return _buildPaymentCard(
+            //           context,
+            //           title: service['title'],
+            //           image: service['image'],
+            //           color: service['color'],
+            //           screen: service['screen'],
+            //         );
+            //       }).toList(),
+            // ),
 
             // Positioned(
             //   right: 16,
@@ -533,10 +633,15 @@ class _TransportServicesScreenState extends State<TransportServicesScreen> {
       borderRadius: BorderRadius.circular(12),
       onTap: () => GoRouter.of(context).go(route),
       child: Container(
+        constraints: const BoxConstraints(
+          minWidth: 100,
+          maxWidth: 140,
+        ), // limits card width
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [
+          border: Border.all(color: Colors.grey, width: 1.5),
+          boxShadow: const [
             BoxShadow(
               color: Colors.black12,
               blurRadius: 4,
@@ -544,7 +649,7 @@ class _TransportServicesScreenState extends State<TransportServicesScreen> {
             ),
           ],
         ),
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -558,17 +663,22 @@ class _TransportServicesScreenState extends State<TransportServicesScreen> {
               padding: const EdgeInsets.all(8),
               child: Image.asset(image, fit: BoxFit.contain),
             ),
-            const SizedBox(height: 6),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 12, // reduced font size
-                fontWeight: FontWeight.w500,
-                color: Colors.black87,
+            const SizedBox(height: 8),
+            Flexible(
+              // ✅ allows text to wrap safely inside layout
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow:
+                    TextOverflow.ellipsis, // ✅ handles long text gracefully
+                softWrap: true, // ✅ wraps if needed
               ),
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis, // prevents overflow
-              maxLines: 2, // wrap into 2 lines if needed
             ),
           ],
         ),
@@ -576,63 +686,119 @@ class _TransportServicesScreenState extends State<TransportServicesScreen> {
     );
   }
 
-  Widget _buildPaymentCard(
-    BuildContext context, {
-    required String title,
-    required String image,
-    required Color color,
-    required Widget screen,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap:
-          () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => screen),
-          ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 4,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 55,
-              height: 55,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: color.withOpacity(0.2),
-              ),
-              padding: const EdgeInsets.all(8),
-              child: Image.asset(image, fit: BoxFit.contain),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 12, // smaller font
-                fontWeight: FontWeight.w500,
-                color: Colors.black87,
-              ),
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 2,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Widget _buildServiceCardx(
+  //   BuildContext context, {
+  //   required String title,
+  //   required String image,
+  //   required Color color,
+  //   required String route,
+  // }) {
+  //   return InkWell(
+  //     borderRadius: BorderRadius.circular(12),
+  //     onTap: () => GoRouter.of(context).go(route),
+  //     child: Container(
+  //       decoration: BoxDecoration(
+  //         color: Colors.white,
+  //         borderRadius: BorderRadius.circular(12),
+  //         border: Border.all(color: Colors.grey, width: 1.5),
+
+  //         boxShadow: [
+  //           BoxShadow(
+  //             color: Colors.black12,
+  //             blurRadius: 4,
+  //             offset: Offset(0, 2),
+  //           ),
+  //         ],
+  //       ),
+  //       padding: const EdgeInsets.all(12),
+  //       child: Column(
+  //         mainAxisAlignment: MainAxisAlignment.center,
+  //         children: [
+  //           Container(
+  //             width: 55,
+  //             height: 55,
+  //             decoration: BoxDecoration(
+  //               shape: BoxShape.circle,
+  //               color: color.withOpacity(0.2),
+  //             ),
+  //             padding: const EdgeInsets.all(8),
+  //             child: Image.asset(image, fit: BoxFit.contain),
+  //           ),
+  //           const SizedBox(height: 6),
+  //           Text(
+  //             title,
+  //             style: const TextStyle(
+  //               fontSize: 12, // reduced font size
+  //               fontWeight: FontWeight.w500,
+  //               color: Colors.black87,
+  //             ),
+  //             textAlign: TextAlign.center,
+  //             overflow: TextOverflow.ellipsis, // prevents overflow
+  //             maxLines: 2, // wrap into 2 lines if needed
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
+
+  // Widget _buildPaymentCard(
+  //   BuildContext context, {
+  //   required String title,
+  //   required String image,
+  //   required Color color,
+  //   required Widget screen,
+  // }) {
+  //   return InkWell(
+  //     borderRadius: BorderRadius.circular(12),
+  //     onTap:
+  //         () => Navigator.push(
+  //           context,
+  //           MaterialPageRoute(builder: (_) => screen),
+  //         ),
+  //     child: Container(
+  //       decoration: BoxDecoration(
+  //         color: Colors.white,
+  //         borderRadius: BorderRadius.circular(12),
+  //         boxShadow: [
+  //           BoxShadow(
+  //             color: Colors.black12,
+  //             blurRadius: 4,
+  //             offset: Offset(0, 2),
+  //           ),
+  //         ],
+  //       ),
+  //       padding: const EdgeInsets.all(12),
+  //       child: Column(
+  //         mainAxisAlignment: MainAxisAlignment.center,
+  //         children: [
+  //           Container(
+  //             width: 55,
+  //             height: 55,
+  //             decoration: BoxDecoration(
+  //               shape: BoxShape.circle,
+  //               color: color.withOpacity(0.2),
+  //             ),
+  //             padding: const EdgeInsets.all(8),
+  //             child: Image.asset(image, fit: BoxFit.contain),
+  //           ),
+  //           const SizedBox(height: 6),
+  //           Text(
+  //             title,
+  //             style: const TextStyle(
+  //               fontSize: 12, // smaller font
+  //               fontWeight: FontWeight.w500,
+  //               color: Colors.black87,
+  //             ),
+  //             textAlign: TextAlign.center,
+  //             overflow: TextOverflow.ellipsis,
+  //             maxLines: 2,
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 
   // Widget _buildPaymentCard(
   //   BuildContext context, {

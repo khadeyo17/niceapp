@@ -6,19 +6,19 @@ import 'package:niceapp/Container/utils/keys.dart';
 import 'package:niceapp/View/Screens/Vehicles/bus_success_screen.dart';
 
 class PaymentScreen extends StatefulWidget {
-  final String busId;
-  final String seatNumber;
-  final int rideId;
-  final DateTime travelDate;
+  final String? busId;
+  final String? seatNumber;
+  final int? rideId;
+  final DateTime? travelDate;
   final double amount;
 
   const PaymentScreen({
     super.key,
-    required this.busId,
-    required this.seatNumber,
-    required this.travelDate,
+    this.busId,
+    this.seatNumber,
+    this.travelDate,
     required this.amount,
-    required this.rideId,
+    this.rideId,
   });
 
   @override
@@ -61,7 +61,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         body: jsonEncode({
           "busId": widget.busId,
           "seatNumber": widget.seatNumber,
-          "travelDate": widget.travelDate.toIso8601String(),
+          "travelDate": widget.travelDate!.toIso8601String(),
           "amount": widget.amount,
           "phoneNumber": phoneController.text.trim().replaceFirst('+', ''),
           "firebaseId": user.uid,
@@ -132,31 +132,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   MaterialPageRoute(
                     builder:
                         (_) => BookingSuccessScreen(
-                          seatNumber: widget.seatNumber,
-                          travelDate: widget.travelDate,
+                          seatNumber: widget.seatNumber!,
+                          travelDate: widget.travelDate!,
                           amount: widget.amount,
                         ),
                   ),
                 );
               }
             }
-
-            // if (status == 'Success') {
-            //   confirmed = true;
-            //   if (confirmed) {
-            //     Navigator.pushReplacement(
-            //       context,
-            //       MaterialPageRoute(
-            //         builder:
-            //             (_) => BookingSuccessScreen(
-            //               seatNumber: widget.seatNumber,
-            //               travelDate: widget.travelDate,
-            //               amount: widget.amount,
-            //             ),
-            //       ),
-            //     );
-            //   }
-            // }
           }
         }
 
@@ -185,7 +168,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       body: json.encode({
         "busId": widget.busId,
         "seatNumber": widget.seatNumber,
-        "travelDate": widget.travelDate.toIso8601String(),
+        "travelDate": widget.travelDate!.toIso8601String(),
         "firebaseIdToken": token,
       }),
     );
@@ -209,8 +192,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
         MaterialPageRoute(
           builder:
               (_) => BookingSuccessScreen(
-                seatNumber: widget.seatNumber,
-                travelDate: widget.travelDate,
+                seatNumber: widget.seatNumber!,
+                travelDate: widget.travelDate!,
                 amount: widget.amount,
               ),
         ),
@@ -229,141 +212,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
     setState(() => isProcessing = false);
   }
 
-  // Future<void> initiateMpesaPayment() async {
-  //   setState(() => isProcessing = true);
-
-  //   final token = await FirebaseAuth.instance.currentUser?.getIdToken();
-
-  //   final mpesaResponse = await http.post(
-  //     Uri.parse('$baseUrl/payments/mpesa/initiate'),
-  //     headers: {'Content-Type': 'application/json'},
-  //     body: jsonEncode({
-  //       "busId": widget.busId,
-  //       "seatNumber": widget.seatNumber,
-  //       "travelDate": widget.travelDate.toIso8601String(),
-  //       "amount": widget.amount,
-  //       "phoneNumber": phoneController.text.trim(),
-  //       "firebaseIdToken": token,
-  //     }),
-  //   );
-
-  //   if (mpesaResponse.statusCode == 200) {
-  //     // Payment success, now call the booking API
-  //     final bookingResponse = await http.post(
-  //       Uri.parse('$baseUrl/rides/bookings'),
-  //       headers: {'Content-Type': 'application/json'},
-  //       body: jsonEncode({
-  //         "busId": widget.busId,
-  //         "seatNumber": widget.seatNumber,
-  //         "travelDate": widget.travelDate.toIso8601String(),
-  //         "firebaseIdToken": token,
-  //       }),
-  //     );
-
-  //     setState(() => isProcessing = false);
-
-  //     if (bookingResponse.statusCode == 200) {
-  //       ScaffoldMessenger.of(
-  //         context,
-  //       ).showSnackBar(const SnackBar(content: Text("Booking successful")));
-  //       Navigator.pop(context); // Exit screen on success
-  //     } else {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(
-  //           content: Text(
-  //             "Payment was successful but booking failed: ${bookingResponse.body}",
-  //           ),
-  //         ),
-  //       );
-  //     }
-  //   } else {
-  //     setState(() => isProcessing = false);
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(content: Text("Payment failed: ${mpesaResponse.body}")),
-  //     );
-  //   }
-  // }
-
-  // Future<void> initiateMpesaPayment() async {
-  //   setState(() => isProcessing = true);
-
-  //   final token = await FirebaseAuth.instance.currentUser?.getIdToken();
-
-  //   final response = await http.post(
-  //     Uri.parse('$baseUrl/payments/mpesa/initiate'),
-  //     headers: {'Content-Type': 'application/json'},
-  //     body: jsonEncode({
-  //       "busId": widget.busId,
-  //       "seatNumber": widget.seatNumber,
-  //       "travelDate": widget.travelDate.toIso8601String(),
-  //       "amount": widget.amount,
-  //       "phoneNumber": phoneController.text.trim(),
-  //       "firebaseIdToken": token,
-  //     }),
-  //   );
-
-  //   setState(() => isProcessing = false);
-
-  //   if (response.statusCode == 200) {
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(content: Text("STK Push sent to your phone")),
-  //     );
-  //     Navigator.pop(context); // Go back after success
-  //   } else {
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(content: Text("Payment failed: ${response.body}")),
-  //     );
-  //   }
-  // }
-
-  //   @override
-  //   Widget build(BuildContext context) {
-  //     return Scaffold(
-  //       appBar: AppBar(title: const Text("Confirm Payment")),
-  //       body: Padding(
-  //         padding: const EdgeInsets.all(16),
-  //         child: Column(
-  //           crossAxisAlignment: CrossAxisAlignment.start,
-  //           children: [
-  //             Text(
-  //               "Seat: ${widget.seatNumber}",
-  //               style: const TextStyle(fontSize: 16),
-  //             ),
-  //             Text(
-  //               "Amount: KES ${widget.amount}",
-  //               style: const TextStyle(fontSize: 16),
-  //             ),
-  //             const SizedBox(height: 20),
-  //             TextFormField(
-  //               controller: phoneController,
-  //               decoration: const InputDecoration(
-  //                 labelText: "Phone Number",
-  //                 border: OutlineInputBorder(),
-  //               ),
-  //               keyboardType: TextInputType.phone,
-  //             ),
-  //             const SizedBox(height: 30),
-  //             SizedBox(
-  //               width: double.infinity,
-  //               child: ElevatedButton.icon(
-  //                 icon: const Icon(Icons.payment),
-  //                 label:
-  //                     isProcessing
-  //                         ? const CircularProgressIndicator(color: Colors.white)
-  //                         : const Text("Pay with M-Pesa"),
-  //                 onPressed: isProcessing ? null : initiateMpesaPayment,
-  //                 style: ElevatedButton.styleFrom(
-  //                   backgroundColor: Colors.green,
-  //                   padding: const EdgeInsets.symmetric(vertical: 16),
-  //                 ),
-  //               ),
-  //             ),
-  //           ],
-  //         ),
-  //       ),
-  //     );
-  //   }
-  // }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -423,7 +271,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         const Icon(Icons.calendar_today, color: Colors.green),
                         const SizedBox(width: 8),
                         Text(
-                          "Travel Date: ${widget.travelDate.toLocal().toString().split(' ')[0]}",
+                          "Travel Date: ${widget.travelDate!.toLocal().toString().split(' ')[0]}",
                           style: const TextStyle(fontSize: 16),
                         ),
                       ],

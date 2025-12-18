@@ -16,28 +16,31 @@ class PendingDriverAssignmentScreen extends StatefulWidget {
   final LatLng pickup;
   final LatLng destination;
   final VehicleSubCategory category;
-  final double fare;
+
+  final double? fare;
   final String? receiverName;
   final String? cargoType;
-  final double weight;
-  final String details;
-  final double volume;
+  final double? weight;
+  final String? details;
+  final double? volume;
   final double? distance;
   final DateTime transportDate;
+  final String? phone;
 
   const PendingDriverAssignmentScreen({
     super.key,
     required this.pickup,
     required this.destination,
     required this.category,
-    required this.fare,
+    this.fare,
     this.cargoType,
-    required this.details,
+    this.details,
     this.receiverName,
     required this.transportDate,
-    required this.volume,
-    required this.weight,
+    this.volume,
+    this.weight,
     this.distance,
+    this.phone,
   });
 
   @override
@@ -210,21 +213,21 @@ class _PendingDriverAssignmentScreenState
         final String rideId = data['rideId'];
         final String status = data['status'];
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder:
-                (_) => DriverAssignmentScreen(
-                  //rideId: rideId,
-                  status: "Pending Vehicle Assignment", //status,
-                  pickup: widget.pickup,
-                  destination: widget.destination,
-                  category: widget.category,
-                  fare: widget.fare,
-                  // vehicleInfo: null,
-                ),
-          ),
-        );
+        // Navigator.pushReplacement(
+        //   context,
+        //   MaterialPageRoute(
+        //     builder:
+        //         // (_) => DriverAssignmentScreen(
+        //   //rideId: rideId,
+        //   status: "Pending Vehicle Assignment", //status,
+        //   pickup: widget.pickup,
+        //   destination: widget.destination,
+        //   category: widget.category,
+        //   //fare: widget.fare,
+        //   // vehicleInfo: null,
+        // ),
+        // ),
+        // );
       } else {
         setState(() {
           _errorMessage = "Failed to create ride. Please try again.";
@@ -328,7 +331,7 @@ class _PendingDriverAssignmentScreenState
                 child: ListTile(
                   leading: const Icon(Icons.attach_money, color: Colors.black),
                   title: const Text("Estimated Fare"),
-                  subtitle: Text("KES ${fare.toStringAsFixed(2)}"),
+                  //subtitle: Text("KES ${fare.toStringAsFixed(2)}"),
                 ),
               ),
 

@@ -10,6 +10,7 @@ class VehicleSubCategory {
   final bool isMotorbike;
   final bool isForLadiesOnly;
   final String? iconUrl;
+  final bool isAvailable;
 
   VehicleSubCategory({
     required this.id,
@@ -23,6 +24,7 @@ class VehicleSubCategory {
     required this.isMotorbike,
     required this.isForLadiesOnly,
     this.iconUrl,
+    required this.isAvailable,
   });
 
   factory VehicleSubCategory.fromJson(Map<String, dynamic> json) {
@@ -38,6 +40,7 @@ class VehicleSubCategory {
       isMotorbike: json['isMotorbike'],
       isForLadiesOnly: json['isForLadiesOnly'],
       iconUrl: json['iconUrl'],
+      isAvailable: json['isAvailable'],
     );
   }
 }
