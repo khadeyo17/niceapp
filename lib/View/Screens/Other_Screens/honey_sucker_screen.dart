@@ -11,6 +11,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:intl/intl.dart';
 import 'package:niceapp/Container/utils/keys.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/driver_confirmation_screen.dart';
+import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/finding_driver_screen.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/vehicle_category.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/where_to_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/honey_sucker_screen.dart';
@@ -79,7 +80,7 @@ class _HoneySuckerScreenState extends State<HoneySuckerScreen> {
 
     selectedDate = DateTime.now();
     deliveryTime = TimeOfDay.fromDateTime(
-      DateTime.now().add(const Duration(minutes: 10)),
+      DateTime.now(), //.add(const Duration(minutes: 10)),
     );
 
     // Wait until build context is ready
@@ -175,12 +176,117 @@ class _HoneySuckerScreenState extends State<HoneySuckerScreen> {
     );
   }
 
-  Future<void> bookRide() async {
+  // Future<void> bookRide() async {
+  //   final user = FirebaseAuth.instance.currentUser;
+
+  //   if (user == null) {
+  //     print("User is not authenticated");
+  //     return;
+  //   }
+  //   DateTime? scheduledDateTime;
+
+  //   if (selectedDate != null && deliveryTime != null) {
+  //     scheduledDateTime = DateTime(
+  //       selectedDate!.year,
+  //       selectedDate!.month,
+  //       selectedDate!.day,
+  //       deliveryTime!.hour,
+  //       deliveryTime!.minute,
+  //     ); //.toUtc(); // 👈 VERY IMPORTANT
+  //   }
+
+  //   final requestBody = {
+  //     "firebaseId": user.uid,
+  //     "destLat": selectedLatLng!.latitude,
+  //     "destLng": selectedLatLng!.longitude,
+  //     "destination": displayAddress ?? '',
+  //     "subCategoryId": selectedSubcategory?.id,
+  //     "scheduledTime": scheduledDateTime?.toIso8601String(),
+  //     "fare": totalPrice.toStringAsFixed(2),
+  //   };
+
+  //   try {
+  //     setState(() => _isLoading = true);
+
+  //     final response = await http.post(
+  //       Uri.parse('$baseUrl/rides/exhauster/request'),
+  //       headers: {'Content-Type': 'application/json'},
+  //       body: jsonEncode(requestBody),
+  //     );
+
+  //     setState(() => _isLoading = false);
+  //     if (response.statusCode == 200) {
+  //       final responseData = jsonDecode(response.body);
+  //       final rideId = responseData['rideId'];
+  //       rideId2 = responseData['rideId'];
+
+  //       final int orderId =
+  //           responseData['orderId'] != null
+  //               ? int.tryParse(responseData['orderId'].toString()) ?? 0
+  //               : 0;
+
+  //       // Navigator.push(
+  //       //   context,
+  //       //   MaterialPageRoute(
+  //       //     builder:
+  //       //         (_) => OrderDetailsScreen(
+  //       //           serviceType: widget.category,
+  //       //           rideId: rideId,
+  //       //           destination: selectedLatLng,
+  //       //         ),
+  //       //   ),
+  //       // );
+  //     } else {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(
+  //           content: Text('Failed to book ride: ${response.statusCode}'),
+  //         ),
+  //       );
+  //       debugPrint('Failed to book ride: ${response.statusCode}');
+  //       debugPrint(response.body);
+  //     }
+  //   } catch (e) {
+  //     ScaffoldMessenger.of(
+  //       context,
+  //     ).showSnackBar(SnackBar(content: Text('Error booking ride: $e')));
+  //     debugPrint('Error booking ride: $e');
+  //   }
+  // }
+
+  Future<int?> bookRide({required bool isScheduled}) async {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       print("User is not authenticated");
-      return;
+      return null;
+    }
+
+    DateTime? scheduledDateTime;
+
+    if (isScheduled && selectedDate != null && deliveryTime != null) {
+      scheduledDateTime = DateTime(
+        selectedDate!.year,
+        selectedDate!.month,
+        selectedDate!.day,
+        deliveryTime!.hour,
+        deliveryTime!.minute,
+      );
+
+      final now = DateTime.now();
+      final minutesDiff = scheduledDateTime.difference(now).inMinutes;
+
+      // ✅ If too soon, push it forward (avoid backend rejection)
+      if (minutesDiff <= 29) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Please select a time at least 30 minutes from now"),
+          ),
+        );
+        return null;
+      }
+      // if (minutesDiff <= 5) {
+      //   scheduledDateTime = scheduledDateTime.add(const Duration(minutes: 30));
+      // }
     }
 
     final requestBody = {
@@ -189,8 +295,12 @@ class _HoneySuckerScreenState extends State<HoneySuckerScreen> {
       "destLng": selectedLatLng!.longitude,
       "destination": displayAddress ?? '',
       "subCategoryId": selectedSubcategory?.id,
-      "scheduledTime": selectedDate?.toIso8601String(),
+      "scheduledTime":
+          isScheduled
+              ? scheduledDateTime?.toIso8601String()
+              : null, // ✅ important
       "fare": totalPrice.toStringAsFixed(2),
+      "isScheduled": isScheduled, // ✅ NEW
     };
 
     try {
@@ -203,41 +313,30 @@ class _HoneySuckerScreenState extends State<HoneySuckerScreen> {
       );
 
       setState(() => _isLoading = false);
+
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
-        final rideId = responseData['rideId'];
-        rideId2 = responseData['rideId'];
 
-        final int orderId =
-            responseData['orderId'] != null
-                ? int.tryParse(responseData['orderId'].toString()) ?? 0
-                : 0;
+        final int rideId = int.tryParse(responseData['rideId'].toString()) ?? 0;
 
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder:
-                (_) => OrderDetailsScreen(
-                  serviceType: widget.category,
-                  rideId: rideId,
-                  destination: selectedLatLng,
-                ),
-          ),
-        );
+        rideId2 = rideId;
+
+        return rideId; // ✅ return for navigation
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to book ride: ${response.statusCode}'),
-          ),
+          SnackBar(content: Text('Failed: ${response.statusCode}')),
         );
-        debugPrint('Failed to book ride: ${response.statusCode}');
+
         debugPrint(response.body);
+        return null;
       }
     } catch (e) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error booking ride: $e')));
+
       debugPrint('Error booking ride: $e');
+      return null;
     }
   }
 
@@ -502,7 +601,7 @@ class _HoneySuckerScreenState extends State<HoneySuckerScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 15),
 
                     // Destination picker card
                     Card(
@@ -560,7 +659,7 @@ class _HoneySuckerScreenState extends State<HoneySuckerScreen> {
                       ),
                     ),
 
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 15),
 
                     // Quantity selector
                     const Padding(
@@ -612,13 +711,13 @@ class _HoneySuckerScreenState extends State<HoneySuckerScreen> {
                                 decoration: BoxDecoration(
                                   color:
                                       isSelected
-                                          ? Colors.orangeAccent
+                                          ? Colors.blue
                                           : Colors.grey.shade100,
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
                                     color:
                                         isSelected
-                                            ? Colors.orangeAccent.shade700
+                                            ? Colors.blue
                                             : Colors.grey.shade300,
                                     width: isSelected ? 2 : 1,
                                   ),
@@ -670,7 +769,7 @@ class _HoneySuckerScreenState extends State<HoneySuckerScreen> {
                       ),
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 15),
 
                     // Price & details card
                     Card(
@@ -739,7 +838,7 @@ class _HoneySuckerScreenState extends State<HoneySuckerScreen> {
                       ),
                     ),
 
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 15),
 
                     // Date & time card
                     Card(
@@ -802,52 +901,177 @@ class _HoneySuckerScreenState extends State<HoneySuckerScreen> {
                       ),
                     ),
 
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 15),
 
                     // Checkout button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          if (selectedLatLng == null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  "Please select destination first.",
-                                ),
+                    // SizedBox(
+                    //   width: double.infinity,
+                    //   child: ElevatedButton.icon(
+                    //     onPressed: () async {
+                    //       if (selectedLatLng == null) {
+                    //         ScaffoldMessenger.of(context).showSnackBar(
+                    //           const SnackBar(
+                    //             content: Text(
+                    //               "Please select destination first.",
+                    //             ),
+                    //           ),
+                    //         );
+                    //         return;
+                    //       }
+                    //       if (selectedSubcategory == null) {
+                    //         ScaffoldMessenger.of(context).showSnackBar(
+                    //           const SnackBar(
+                    //             content: Text("Please select quantity."),
+                    //           ),
+                    //         );
+                    //         return;
+                    //       }
+                    //      bookRide();
+                    //     },
+                    //     icon: const Icon(Icons.shopping_cart_checkout),
+                    //     label: const Padding(
+                    //       padding: EdgeInsets.symmetric(vertical: 14.0),
+                    //       child: Text(
+                    //         "Order now",
+                    //         style: TextStyle(
+                    //           fontSize: 16,
+                    //           fontWeight: FontWeight.bold,
+                    //         ),
+                    //       ),
+                    //     ),
+                    //     style: ElevatedButton.styleFrom(
+                    //       backgroundColor: Colors.black,
+                    //       foregroundColor: Colors.white,
+                    //       shape: RoundedRectangleBorder(
+                    //         borderRadius: BorderRadius.circular(12),
+                    //       ),
+                    //     ),
+                    //   ),
+                    // ),
+                    Row(
+                      children: [
+                        /// 🚀 ORDER NOW
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              if (selectedLatLng == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      "Please select destination first.",
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              if (selectedSubcategory == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Please select quantity."),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              // 👉 Create ride first
+                              await bookRide(isScheduled: false);
+
+                              // 👉 Then open Finding Driver screen
+                              if (mounted) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    fullscreenDialog: true,
+                                    builder:
+                                        (_) => FindingDriverScreen(
+                                          onCancel:
+                                              () async => print(
+                                                "Ride canceled by passenger",
+                                              ),
+                                          driverLinkedStream:
+                                              _driverLinkedController.stream,
+                                        ),
+                                  ),
+                                );
+                              }
+
+                              // 👉 Start polling for driver
+                              if (rideId2 != null) {
+                                pollForDriverAssignment(rideId2!);
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(50),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                            );
-                            return;
-                          }
-                          if (selectedSubcategory == null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Please select quantity."),
-                              ),
-                            );
-                            return;
-                          }
-                          bookRide();
-                        },
-                        icon: const Icon(Icons.shopping_cart_checkout),
-                        label: const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 14.0),
-                          child: Text(
-                            "Order now",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
                             ),
+                            child: const Text("Order Now"),
                           ),
                         ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+
+                        const SizedBox(width: 12),
+
+                        /// 📅 SCHEDULE
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              if (selectedLatLng == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      "Please select destination first.",
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              if (selectedSubcategory == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Please select quantity."),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              // 👉 Just create ride (scheduled)
+                              await bookRide(isScheduled: true);
+
+                              // 👉 Go directly to Order Details (no driver search)
+                              if (rideId2 != null && mounted) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (_) => OrderDetailsScreen(
+                                          rideId: rideId2!,
+                                          serviceType: widget.category,
+                                          destination: selectedLatLng,
+                                          isScheduled: true,
+                                          //   orde
+                                        ),
+                                  ),
+                                );
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(50),
+                              //side: const BorderSide(color: Colors.blue),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text("Schedule"),
                           ),
                         ),
-                      ),
+                      ],
                     ),
 
                     const SizedBox(height: 24),

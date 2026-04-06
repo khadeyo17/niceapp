@@ -33,7 +33,7 @@ final pickupAddressProvider = FutureProvider<String?>((ref) async {
   final pickup = ref.watch(pickupLocationProvider);
   if (pickup == null) return null;
 
-  final address = await ReverseGeocodingService.getAddressFromLatLng(pickup);
+  final address = await ReverseGeocodingService.getNameFromLatLng(pickup);
   return address ?? "Current Location";
 });
 
@@ -42,9 +42,7 @@ final dropAddressProvider = FutureProvider<String?>((ref) async {
   final destination = ref.watch(destinationLocationProvider);
   if (destination == null) return null;
 
-  final address = await ReverseGeocodingService.getAddressFromLatLng(
-    destination,
-  );
+  final address = await ReverseGeocodingService.getNameFromLatLng(destination);
   return address ?? "Current Location";
 });
 

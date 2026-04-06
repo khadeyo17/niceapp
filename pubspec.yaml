@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.1.0+3
+version: 1.1.0+4
 
 environment:
   sdk: ^3.7.0
@@ -66,7 +66,7 @@ dependencies:
   latlong2: ^0.8.0
   cloud_firestore_platform_interface: ^6.2.5 #(6.6.6 available)
   firebase_auth_platform_interface: ^7.0.4
-  
+  flutter_background_service: ^5.0.0
   #mapbox_gl: ^0.16.0
   #mapbox_gl_platform_interface: ^0.15.0
   mapbox_maps_flutter: ^2.7.0
@@ -86,6 +86,11 @@ dependencies:
   #printing: ^5.11.0
   #month_year_picker: ^0.2.0
   month_picker_dialog: ^2.0.1
+  shimmer: ^3.0.0
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  #printing: ^5.13.1
+  signalr_core: ^1.1.1
   #flutter_month_picker_dialog: ^1.0.2
   #flutter_map_tile_caching: ^8.0.1
 
@@ -98,6 +103,9 @@ flutter_native_splash:
 dependency_overrides:
   firebase_auth_platform_interface: ^7.0.4
   firebase_messaging_web: ^3.6.0
+
+  #printing: ^4.0.0
+  #pdf_widget_wrapper: ^0.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -152,6 +160,8 @@ flutter:
     - assets/imgs/bus_banner.jpg
     - assets/imgs/CargoTruck.jpg
     - assets/imgs/crane.png
+    - assets/imgs/carwhite.png
+    
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

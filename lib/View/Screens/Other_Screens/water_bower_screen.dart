@@ -4,15 +4,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:geocoding/geocoding.dart';
 import 'package:intl/intl.dart';
 import 'package:niceapp/Container/utils/keys.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/driver_confirmation_screen.dart';
+import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/finding_driver_screen.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/vehicle_category.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/where_to_screen.dart';
-import 'package:niceapp/View/Screens/Other_Screens/honey_sucker_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/order_details_screen.dart';
 import 'package:niceapp/View/Screens/Vehicles/vehicle_service.dart';
 
@@ -49,6 +50,7 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
   DateTime? selectedDate;
   TimeOfDay? deliveryTime;
   // TimeOfDay? timeTo;
+  String? orderNumber = "";
 
   int numberOfTrucks = 0; // add this at the top of your state
   double totalPrice = 0.0;
@@ -68,6 +70,7 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
     //_checkPendingOrders();
 
     fetchSubcategories();
+    _fetchCurrentLocation();
 
     if (widget.destination != null) {
       selectedLatLng = widget.destination;
@@ -77,12 +80,46 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
 
     selectedDate = DateTime.now();
     deliveryTime = TimeOfDay.fromDateTime(
-      DateTime.now().add(const Duration(minutes: 10)),
+      DateTime.now(), //.add(const Duration(minutes: 10)
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkPendingOrders();
     });
+  }
+
+  Future<void> _fetchCurrentLocation() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        setState(() => displayAddress = "Location services disabled");
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() => displayAddress = "Permission denied");
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        setState(() => displayAddress = "Permission permanently denied");
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      selectedLatLng = LatLng(position.latitude, position.longitude);
+      _getAddressFromLatLng(selectedLatLng!);
+    } catch (e) {
+      debugPrint("Error fetching location: $e");
+      setState(() => displayAddress = "Unable to fetch location");
+    }
   }
 
   Future<void> fetchSubcategories() async {
@@ -180,84 +217,96 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
     );
   }
 
-  ///working
   // Future<void> bookRide() async {
   //   final user = FirebaseAuth.instance.currentUser;
 
   //   if (user == null) {
-  //     _closeFindingDriverDialog();
+  //     //_closeFindingDriverDialog();
   //     print("User is not authenticated");
   //     return;
   //   }
 
-  //   final idToken = await user.getIdToken();
+  //   //final idToken = await user.getIdToken();
 
-  //   final scheduledTime = null;
+  //   //final scheduledTime = null;
+
+  //   DateTime? scheduledDateTime;
+
+  //   if (selectedDate != null && deliveryTime != null) {
+  //     scheduledDateTime = DateTime(
+  //       selectedDate!.year,
+  //       selectedDate!.month,
+  //       selectedDate!.day,
+  //       deliveryTime!.hour,
+  //       deliveryTime!.minute,
+  //     ); //.toUtc(); // 👈 VERY IMPORTANT
+  //   }
   //   final requestBody = {
-  //     "firebaseIdToken": user.uid,
+  //     "firebaseId": user.uid,
   //     "destLat": selectedLatLng!.latitude,
   //     "destLng": selectedLatLng!.longitude,
   //     "destination": displayAddress ?? '',
-  //     "notes": detailsController.text,
+  //     // "notes": detailsController.text,
   //     "subCategoryId": selectedSubcategory?.id,
-  //     "scheduledTime": null,
+  //     "scheduledTime":
+  //         scheduledDateTime
+  //             ?.toIso8601String(), //selectedDate?.toIso8601String(),
+  //     "fare": totalPrice.toStringAsFixed(2),
+  //     // "noOfTrucks": numberOfTrucks, // int.parse(truckCountController.text),
   //   };
 
   //   try {
   //     setState(() => _isLoading = true);
 
   //     final response = await http.post(
-  //       Uri.parse('$baseUrl/rides/exhauster/request'),
+  //       Uri.parse('$baseUrl/rides/waterbowser/request'),
   //       headers: {'Content-Type': 'application/json'},
   //       body: jsonEncode(requestBody),
   //     );
 
   //     setState(() => _isLoading = false);
-
-  //     // if (response.statusCode == 200) {
-  //     //   final responseData = jsonDecode(response.body);
-  //     //   final rideId = responseData['rideId'];
-  //     //   //rideId2 = responseData['rideId'];
-
-  //     //   //await pollForDriverAssignment(rideId);
-
-  //     //   if (scheduledTime == null) {
-  //     //     await pollForDriverAssignment(rideId);
-  //     //   } else {
-  //     //     _closeFindingDriverDialog();
-  //     //     Navigator.pushReplacement(
-  //     //       context,
-  //     //       MaterialPageRoute(builder: (_) => RideHistoryScreen()),
-  //     //     );
-  //     //   }
-  //     // }
-  //     // else {
-  //     //   _closeFindingDriverDialog();
-  //     //   ScaffoldMessenger.of(context).showSnackBar(
-  //     //     SnackBar(
-  //     //       content: Text('Failed to book ride: ${response.statusCode}'),
-  //     //     ),
-  //     //   );
-  //     //   print('Failed to book ride: ${response.statusCode}');
-  //     //   print(response.body);
-  //     // }
   //     if (response.statusCode == 200) {
   //       final responseData = jsonDecode(response.body);
   //       final rideId = responseData['rideId'];
   //       rideId2 = responseData['rideId'];
 
-  //       if (scheduledTime == null) {
-  //         await pollForDriverAssignment(rideId);
-  //       } else {
-  //         _closeFindingDriverDialog();
-  //         Navigator.pushReplacement(
-  //           context,
-  //           MaterialPageRoute(builder: (_) => RideHistoryScreen()),
-  //         );
-  //       }
-  //     }
-  //     else {
-  //       _closeFindingDriverDialog();
+  //       final String orderNumber = responseData['orderNumber'] ?? "WB-Unknown";
+  //       // final int orderId = responseData['orderId']; // ?? "WB-Unknown";
+
+  //       final int orderId =
+  //           responseData['orderId'] != null
+  //               ? int.tryParse(responseData['orderId'].toString()) ?? 0
+  //               : 0;
+
+  //       // Navigate to OrderDetailsScreen with API order number
+  //       Navigator.push(
+  //         context,
+  //         MaterialPageRoute(
+  //           builder:
+  //               (_) => OrderDetailsScreen(
+  //                 // orderNo: orderNumber,
+  //                 // deliveryAddress: displayAddress ?? "Unknown",
+  //                 //  // scheduledFor: DateFormat('d MMM yyyy, h:mm a').format(
+  //                 //     DateTime(
+  //                 //       selectedDate!.year,
+  //                 //       selectedDate!.month,
+  //                 //       selectedDate!.day,
+  //                 //       deliveryTime!.hour,
+  //                 //       deliveryTime!.minute,
+  //                 //     ),
+  //                 //   ),
+  //                 //totalAmount: totalPrice,
+  //                 serviceType: widget.category,
+  //                 rideId: rideId,
+  //                 destination: selectedLatLng,
+  //                 // paymentStatus:
+  //                 //     "Pending", // update to "Paid" if you integrate payment
+  //                 // trucks: [], // empty initially, update when payment is done
+  //               ),
+  //         ),
+  //       );
+  //     } else {
+  //       // _closeFindingDriverDialog();
   //       ScaffoldMessenger.of(context).showSnackBar(
   //         SnackBar(
   //           content: Text('Failed to book ride: ${response.statusCode}'),
@@ -267,35 +316,60 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
   //       print(response.body);
   //     }
   //   } catch (e) {
-  //     _closeFindingDriverDialog();
+  //     //  _closeFindingDriverDialog();
   //     ScaffoldMessenger.of(
   //       context,
   //     ).showSnackBar(SnackBar(content: Text('Error booking ride: $e')));
   //     print('Error booking ride: $e');
   //   }
   // }
-  Future<void> bookRide() async {
+
+  Future<int?> bookRide({required bool isScheduled}) async {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      //_closeFindingDriverDialog();
       print("User is not authenticated");
-      return;
+      return null;
     }
 
-    //final idToken = await user.getIdToken();
+    DateTime? scheduledDateTime;
+    if (isScheduled && selectedDate != null && deliveryTime != null) {
+      scheduledDateTime = DateTime(
+        selectedDate!.year,
+        selectedDate!.month,
+        selectedDate!.day,
+        deliveryTime!.hour,
+        deliveryTime!.minute,
+      );
 
-    //final scheduledTime = null;
+      final now = DateTime.now();
+      final minutesDiff = scheduledDateTime.difference(now).inMinutes;
+
+      // ✅ If too soon, push it forward (avoid backend rejection)
+      if (minutesDiff <= 29) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Please select a time at least 30 minutes from now"),
+          ),
+        );
+        return null;
+      }
+
+      // if (minutesDiff <= 5) {
+      //   scheduledDateTime = scheduledDateTime.add(const Duration(minutes: 30));
+      // }
+    }
     final requestBody = {
       "firebaseId": user.uid,
       "destLat": selectedLatLng!.latitude,
       "destLng": selectedLatLng!.longitude,
       "destination": displayAddress ?? '',
-      // "notes": detailsController.text,
       "subCategoryId": selectedSubcategory?.id,
-      "scheduledTime": selectedDate?.toIso8601String(),
+      // "scheduledTime": scheduledDateTime?.toIso8601String(),
+      "scheduledTime":
+          isScheduled ? scheduledDateTime?.toIso8601String() : null,
       "fare": totalPrice.toStringAsFixed(2),
-      // "noOfTrucks": numberOfTrucks, // int.parse(truckCountController.text),
+      "isScheduled": isScheduled, // ✅ dynamic
     };
 
     try {
@@ -308,74 +382,25 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
       );
 
       setState(() => _isLoading = false);
+
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
-        final rideId = responseData['rideId'];
-        rideId2 = responseData['rideId'];
 
-        final String orderNumber = responseData['orderNumber'] ?? "WB-Unknown";
-        // final int orderId = responseData['orderId']; // ?? "WB-Unknown";
+        final int rideId = int.tryParse(responseData['rideId'].toString()) ?? 0;
 
-        final int orderId =
-            responseData['orderId'] != null
-                ? int.tryParse(responseData['orderId'].toString()) ?? 0
-                : 0;
-
-        // Navigate to OrderDetailsScreen with API order number
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder:
-                (_) => OrderDetailsScreen(
-                  // orderNo: orderNumber,
-                  // deliveryAddress: displayAddress ?? "Unknown",
-                  //  // scheduledFor: DateFormat('d MMM yyyy, h:mm a').format(
-                  //     DateTime(
-                  //       selectedDate!.year,
-                  //       selectedDate!.month,
-                  //       selectedDate!.day,
-                  //       deliveryTime!.hour,
-                  //       deliveryTime!.minute,
-                  //     ),
-                  //   ),
-                  //totalAmount: totalPrice,
-                  serviceType: widget.category,
-                  rideId: rideId,
-                  destination: selectedLatLng,
-                  // paymentStatus:
-                  //     "Pending", // update to "Paid" if you integrate payment
-                  // trucks: [], // empty initially, update when payment is done
-                ),
-          ),
-        );
-
-        // if (scheduledTime == null) {
-        //   await pollForDriverAssignment(rideId);
-        // }
-        //  else
-        //  {
-        //   _closeFindingDriverDialog();
-        //   Navigator.pushReplacement(
-        //     context,
-        //     MaterialPageRoute(builder: (_) => RideHistoryScreen()),
-        //   );
-        // }
+        rideId2 = rideId;
+        return rideId;
       } else {
-        // _closeFindingDriverDialog();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to book ride: ${response.statusCode}'),
-          ),
+          SnackBar(content: Text('Failed: ${response.statusCode}')),
         );
-        print('Failed to book ride: ${response.statusCode}');
-        print(response.body);
+        return null;
       }
     } catch (e) {
-      //  _closeFindingDriverDialog();
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error booking ride: $e')));
-      print('Error booking ride: $e');
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      return null;
     }
   }
 
@@ -384,30 +409,7 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
       Navigator.pop(_dialogContext!);
     }
   }
-  // Future<void> _pickDate(BuildContext context) async {
-  //   final now = DateTime.now();
-  //   final picked = await showDatePicker(
-  //     context: context,
-  //     initialDate: _selectedDate ?? now,
-  //     firstDate: now,
-  //     lastDate: now.add(const Duration(days: 60)), // 60-day max
-  //   );
 
-  //   if (picked != null) {
-  //     setState(() => _selectedDate = picked);
-  //   }
-  // }
-
-  // Future<void> _pickTime(BuildContext context) async {
-  //   final picked = await showTimePicker(
-  //     context: context,
-  //     initialTime: _selectedTime ?? TimeOfDay.now(),
-  //   );
-
-  //   if (picked != null) {
-  //     setState(() => _selectedTime = picked);
-  //   }
-  // }
   Future<void> pollForDriverAssignment(int requestId) async {
     const maxAttempts = 20;
     const interval = Duration(seconds: 5);
@@ -654,7 +656,7 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
                       ),
                     ),
 
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 15),
                     Card(
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -710,49 +712,7 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
                       ),
                     ),
 
-                    /// 📍 Destination Picker
-                    // const Text(
-                    //   "Select Delivery Location",
-                    //   style: TextStyle(
-                    //     fontSize: 18,
-                    //     fontWeight: FontWeight.bold,
-                    //   ),
-                    // ),
-                    // const SizedBox(height: 10),
-                    // InkWell(
-                    //   onTap: _openDestinationPicker,
-                    //   child: Container(
-                    //     padding: const EdgeInsets.all(16),
-                    //     decoration: BoxDecoration(
-                    //       border: Border.all(color: Colors.grey.shade400),
-                    //       borderRadius: BorderRadius.circular(12),
-                    //       color: Colors.grey.shade100,
-                    //     ),
-                    //     child: Row(
-                    //       children: [
-                    //         const Icon(
-                    //           Icons.location_on_outlined,
-                    //           color: Colors.black,
-                    //         ),
-                    //         const SizedBox(width: 12),
-                    //         Expanded(
-                    //           child: Text(
-                    //             displayAddress ??
-                    //                 'Tap to select destination on map',
-                    //             style: TextStyle(
-                    //               fontSize: 16,
-                    //               color:
-                    //                   displayAddress == null
-                    //                       ? Colors.grey[700]
-                    //                       : Colors.black87,
-                    //             ),
-                    //           ),
-                    //         ),
-                    //       ],
-                    //     ),
-                    //   ),
-                    // ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 15),
 
                     /// 🚰 Quantity Selector
                     const Text(
@@ -806,14 +766,12 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
                               ),
                               decoration: BoxDecoration(
                                 color:
-                                    isSelected
-                                        ? Colors.blueAccent
-                                        : Colors.grey[200],
+                                    isSelected ? Colors.blue : Colors.grey[200],
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
                                   color:
                                       isSelected
-                                          ? Colors.blueAccent
+                                          ? Colors.blue
                                           : Colors.grey.shade300,
                                   width: 2,
                                 ),
@@ -836,7 +794,314 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
                       ),
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 15),
+
+                    Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Estimated Price',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  priceController.text.isNotEmpty
+                                      ? priceController.text
+                                      : 'KES 0.00',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            // if (numberOfTrucks > 0)
+                            //   Text(
+                            //     '${numberOfTrucks} truck(s) selected',
+                            //     style: const TextStyle(color: Colors.black87),
+                            //   ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+
+                    Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 1,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.calendar_today_outlined,
+                              size: 20,
+                              color: Colors.black54,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () async {
+                                  final now = DateTime.now();
+                                  final pickedDate = await showDatePicker(
+                                    context: context,
+                                    initialDate: selectedDate ?? now,
+                                    firstDate: now,
+                                    lastDate: now.add(const Duration(days: 30)),
+                                  );
+                                  if (pickedDate == null) return;
+                                  final pickedTime = await showTimePicker(
+                                    context: context,
+                                    initialTime:
+                                        deliveryTime ?? TimeOfDay.now(),
+                                  );
+                                  if (pickedTime == null) return;
+                                  setState(() {
+                                    selectedDate = pickedDate;
+                                    deliveryTime = pickedTime;
+                                  });
+                                },
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Delivery Date & Time',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      "${DateFormat('yyyy-MM-dd').format(selectedDate!)} ${deliveryTime!.format(context)}",
+                                      style: const TextStyle(fontSize: 15),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 15),
+
+                    Row(
+                      children: [
+                        /// 🚀 ORDER NOW
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              if (selectedLatLng == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      "Please select destination first.",
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              if (selectedSubcategory == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Please select quantity."),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              // 👉 Create ride first
+                              await bookRide(isScheduled: false);
+
+                              // 👉 Then open Finding Driver screen
+                              if (mounted) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    fullscreenDialog: true,
+                                    builder:
+                                        (_) => FindingDriverScreen(
+                                          onCancel:
+                                              () async => print(
+                                                "Ride canceled by passenger",
+                                              ),
+                                          driverLinkedStream:
+                                              _driverLinkedController.stream,
+                                        ),
+                                  ),
+                                );
+                              }
+
+                              // 👉 Start polling for driver
+                              if (rideId2 != null) {
+                                pollForDriverAssignment(rideId2!);
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(50),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text("Order Now"),
+                          ),
+                        ),
+
+                        const SizedBox(width: 12),
+
+                        /// 📅 SCHEDULE
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              if (selectedLatLng == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      "Please select destination first.",
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              if (selectedSubcategory == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Please select quantity."),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              // 👉 Just create ride (scheduled)
+                              await bookRide(isScheduled: true);
+
+                              // 👉 Go directly to Order Details (no driver search)
+                              if (rideId2 != null && mounted) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (_) => OrderDetailsScreen(
+                                          rideId: rideId2!,
+                                          serviceType: widget.category,
+                                          destination: selectedLatLng,
+                                          isScheduled: true,
+                                          //   orde
+                                        ),
+                                  ),
+                                );
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(50),
+                              //side: const BorderSide(color: Colors.blue),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text("Schedule"),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            if (_isLoading)
+              Container(
+                color: Colors.black.withOpacity(0.5),
+                child: const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                  //           ),
+                  //         ),
+                  //     ],
+                  //   ),
+                  // );
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+                    /// 🧾 Checkout Button
+                    // ElevatedButton.icon(
+                    //   onPressed: () async {
+                    //     if (selectedLatLng == null) {
+                    //       ScaffoldMessenger.of(context).showSnackBar(
+                    //         const SnackBar(
+                    //           content: Text("Please select destination first."),
+                    //         ),
+                    //       );
+                    //       return;
+                    //     }
+                    //     if (selectedSubcategory == null) {
+                    //       ScaffoldMessenger.of(context).showSnackBar(
+                    //         const SnackBar(
+                    //           content: Text("Please select quantity."),
+                    //         ),
+                    //       );
+                    //       return;
+                    //     }
+                    //     // if (numberOfTrucks <= 0) {
+                    //     //   ScaffoldMessenger.of(context).showSnackBar(
+                    //     //     const SnackBar(
+                    //     //       content: Text("Please enter number of trucks."),
+                    //     //     ),
+                    //     //   );
+                    //     //   return;
+                    //     // }
+                    //     bookRide();
+                    //     // Navigator.push(
+                    //     //   context,
+                    //     //   MaterialPageRoute(
+                    //     //     builder:
+                    //     //         (_) => OrderDetailsScreen(
+                    //     //           orderNo: "WB-2025-0106",
+                    //     //           deliveryAddress: displayAddress ?? "Unknown",
+                    //     //           scheduledFor: "6th Oct 2025, 3:00 PM",
+                    //     //           totalAmount: totalPrice,
+                    //     //           paymentStatus: "Pending",
+                    //     //         ),
+                    //     //   ),
+                    //     // );
+                    //   },
+                    //   icon: const Icon(Icons.shopping_cart_checkout),
+                    //   label: const Text("Order now"),
+                    //   style: ElevatedButton.styleFrom(
+                    //     backgroundColor: Colors.black,
+                    //     foregroundColor: Colors.white,
+                    //     minimumSize: const Size.fromHeight(50),
+                    //     shape: RoundedRectangleBorder(
+                    //       borderRadius: BorderRadius.circular(12),
+                    //     ),
+                    //   ),
+                    // ),
+
 
                     /// 🚛 Number of Trucks
                     // TextFormField(
@@ -907,33 +1172,9 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
                     //     fontSize: 16,
                     //   ),
                     // ),
-                    Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 2,
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Estimated Price',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  priceController.text.isNotEmpty
-                                      ? priceController.text
-                                      : 'KES 0.00',
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
+
+
+
                                 // ElevatedButton.icon(
                                 //   onPressed:
                                 //       selectedSubcategory == null
@@ -960,19 +1201,48 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
                                 //     ),
                                 //   ),
                                 // ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            // if (numberOfTrucks > 0)
-                            //   Text(
-                            //     '${numberOfTrucks} truck(s) selected',
-                            //     style: const TextStyle(color: Colors.black87),
-                            //   ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
+       /// 📍 Destination Picker
+                    // const Text(
+                    //   "Select Delivery Location",
+                    //   style: TextStyle(
+                    //     fontSize: 18,
+                    //     fontWeight: FontWeight.bold,
+                    //   ),
+                    // ),
+                    // const SizedBox(height: 10),
+                    // InkWell(
+                    //   onTap: _openDestinationPicker,
+                    //   child: Container(
+                    //     padding: const EdgeInsets.all(16),
+                    //     decoration: BoxDecoration(
+                    //       border: Border.all(color: Colors.grey.shade400),
+                    //       borderRadius: BorderRadius.circular(12),
+                    //       color: Colors.grey.shade100,
+                    //     ),
+                    //     child: Row(
+                    //       children: [
+                    //         const Icon(
+                    //           Icons.location_on_outlined,
+                    //           color: Colors.black,
+                    //         ),
+                    //         const SizedBox(width: 12),
+                    //         Expanded(
+                    //           child: Text(
+                    //             displayAddress ??
+                    //                 'Tap to select destination on map',
+                    //             style: TextStyle(
+                    //               fontSize: 16,
+                    //               color:
+                    //                   displayAddress == null
+                    //                       ? Colors.grey[700]
+                    //                       : Colors.black87,
+                    //             ),
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //   ),
+                    // ),
 
                     //const SizedBox(height: 25),
                     // Text(
@@ -1021,144 +1291,6 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
                     //     ),
                     //   ),
                     // ),
-                    Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 1,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.calendar_today_outlined,
-                              size: 20,
-                              color: Colors.black54,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () async {
-                                  final now = DateTime.now();
-                                  final pickedDate = await showDatePicker(
-                                    context: context,
-                                    initialDate: selectedDate ?? now,
-                                    firstDate: now,
-                                    lastDate: now.add(const Duration(days: 30)),
-                                  );
-                                  if (pickedDate == null) return;
-                                  final pickedTime = await showTimePicker(
-                                    context: context,
-                                    initialTime:
-                                        deliveryTime ?? TimeOfDay.now(),
-                                  );
-                                  if (pickedTime == null) return;
-                                  setState(() {
-                                    selectedDate = pickedDate;
-                                    deliveryTime = pickedTime;
-                                  });
-                                },
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Delivery Date & Time',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      "${DateFormat('yyyy-MM-dd').format(selectedDate!)} ${deliveryTime!.format(context)}",
-                                      style: const TextStyle(fontSize: 15),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 18),
-
-                    /// 🧾 Checkout Button
-                    ElevatedButton.icon(
-                      onPressed: () async {
-                        if (selectedLatLng == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Please select destination first."),
-                            ),
-                          );
-                          return;
-                        }
-                        if (selectedSubcategory == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Please select quantity."),
-                            ),
-                          );
-                          return;
-                        }
-                        // if (numberOfTrucks <= 0) {
-                        //   ScaffoldMessenger.of(context).showSnackBar(
-                        //     const SnackBar(
-                        //       content: Text("Please enter number of trucks."),
-                        //     ),
-                        //   );
-                        //   return;
-                        // }
-                        bookRide();
-                        // Navigator.push(
-                        //   context,
-                        //   MaterialPageRoute(
-                        //     builder:
-                        //         (_) => OrderDetailsScreen(
-                        //           orderNo: "WB-2025-0106",
-                        //           deliveryAddress: displayAddress ?? "Unknown",
-                        //           scheduledFor: "6th Oct 2025, 3:00 PM",
-                        //           totalAmount: totalPrice,
-                        //           paymentStatus: "Pending",
-                        //         ),
-                        //   ),
-                        // );
-                      },
-                      icon: const Icon(Icons.shopping_cart_checkout),
-                      label: const Text("Order now"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size.fromHeight(50),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            if (_isLoading)
-              Container(
-                color: Colors.black.withOpacity(0.5),
-                child: const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                  //           ),
-                  //         ),
-                  //     ],
-                  //   ),
-                  // );
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
                     // Row(
                     //   children: [
                     //     Expanded(

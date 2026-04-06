@@ -16,6 +16,7 @@ import 'package:niceapp/View/Screens/Other_Screens/order_details_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/pending_vehicle_assignment.dart';
 import 'package:niceapp/View/Screens/Vehicles/fare_estimate_model.dart';
 import 'package:niceapp/View/Screens/Vehicles/fare_service.dart';
+import 'package:niceapp/View/Screens/Vehicles/fare_service.dart' as FareService;
 import 'package:niceapp/View/Screens/Vehicles/vehicle_subcategory.dart';
 
 /// Modernized CargoTransportScreen

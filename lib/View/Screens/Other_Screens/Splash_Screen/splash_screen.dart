@@ -209,6 +209,8 @@ class SplashLogics {
   /// Non-blocking user initialization
   void _initializeUser(BuildContext context) async {
     final user = _auth.currentUser;
+    //final user = await _auth.authStateChanges().first;
+
     if (user == null) {
       _navigate(context, Routes().register);
       return;
@@ -228,58 +230,166 @@ class SplashLogics {
     final uid = user.uid;
     final email = user.email ?? '';
     final phone = user.phoneNumber ?? '';
+    final token = await user.getIdToken();
+    final fcmToken = await FirebaseMessaging.instance.getToken();
 
     try {
-      // Run backend check and Firestore check in parallel
-      final backendFuture = http.get(
-        Uri.parse('$baseUrl/auth/check-user/$uid'),
-        headers: {'Content-Type': 'application/json'},
+      final response = await http.get(
+        Uri.parse("$baseUrl/auth/check-user"),
+        headers: {
+          HttpHeaders.contentTypeHeader: 'application/json',
+          HttpHeaders.authorizationHeader: 'Bearer $token', // ✅ Use token here
+        },
       );
-      final firestoreFuture =
-          FirebaseFirestore.instance.collection('users').doc(uid).get();
 
-      final results = await Future.wait([backendFuture, firestoreFuture]);
-      final backendResponse = results[0] as http.Response;
-      final firestoreDoc = results[1] as DocumentSnapshot;
+      if (response.statusCode == 200) {
+        final backendData = jsonDecode(response.body);
+        //final phoneFromBackend = backendData['phone'];
 
-      bool hasBackendData = false;
-      if (backendResponse.statusCode == 200) {
-        final backendData = jsonDecode(backendResponse.body);
-        final phoneFromBackend = backendData['phone'];
-        hasBackendData =
-            phoneFromBackend != null && phoneFromBackend.trim().isNotEmpty;
+        // 🔥 Validate essential backend fields
+        final bool hasBackendData =
+            backendData.isNotEmpty &&
+            backendData['phone'] != null &&
+            backendData['phone'].toString().trim().isNotEmpty;
+
+        final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+        if (!(await userRef.get()).exists) {
+          await userRef.set({
+            'uid': uid,
+            'phone': phone,
+            'email': email,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
+
+        if (hasBackendData) {
+          await http.post(
+            Uri.parse('$baseUrl/auth/update-fcm-token'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({'token': token, 'fcmToken': fcmToken}),
+          );
+          context.goNamed(Routes().home);
+        } else {
+          context.goNamed(Routes().register);
+        }
+      } else {
+        context.goNamed(Routes().register);
       }
-
-      // Firestore creation if not exists
-      if (!firestoreDoc.exists) {
-        FirebaseFirestore.instance.collection('users').doc(uid).set({
-          'uid': uid,
-          'phone': phone,
-          'email': email,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
-
-      // Update FCM token in background
-      if (hasBackendData) {
-        final token = await user.getIdToken();
-        final fcmToken = await FirebaseMessaging.instance.getToken();
-        http.post(
-          Uri.parse('$baseUrl/auth/update-fcm-token'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-          body: jsonEncode({'token': token, 'fcmToken': fcmToken}),
-        );
-      }
-
-      // Navigate immediately when ready
-      _navigate(context, hasBackendData ? Routes().home : Routes().register);
     } catch (e) {
-      _showError(context, e.toString());
-      _navigate(context, Routes().register);
+      debugPrint("Backend or Firestore check failed: $e");
     }
+    //String baser = baseUrl;
+    //     try {
+    //       // Run backend check and Firestore check in parallel
+    //       final response = http.get(
+    //          Uri.parse("$baseUrl/auth/check-user"),
+    //         headers: {
+    //           HttpHeaders.contentTypeHeader: 'application/json',
+    //           HttpHeaders.authorizationHeader: 'Bearer $token', // ✅ Use token here
+    //         },
+    //       );
+    // if (response. == 200) {
+    //         final backendData = jsonDecode(response.body);
+    //         //final phoneFromBackend = backendData['phone'];
+
+    //         // 🔥 Validate essential backend fields
+    //         final bool hasBackendData =
+    //             backendData.isNotEmpty &&
+    //             backendData['phone'] != null &&
+    //             backendData['phone'].toString().trim().isNotEmpty;
+
+    //         // if (!hasBackendUser) {
+    //         //   if (context.mounted) context.goNamed(Routes().register);
+    //         //   return;
+    //         // }
+
+    //         //   final hasBackendData =
+    //         //       phoneFromBackend != null && phoneFromBackend.trim().isNotEmpty;
+
+    //           final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+    //           if (!(await userRef.get()).exists) {
+    //             await userRef.set({
+    //               'uid': uid,
+    //               'phone': phone,
+    //               'email': email,
+    //               'createdAt': FieldValue.serverTimestamp(),
+    //             });
+    //           }
+
+    //         if (hasBackendData) {
+    //           await http.post(
+    //             Uri.parse('$baseUrl/auth/update-fcm-token'),
+    //             headers: {
+    //               'Content-Type': 'application/json',
+    //               'Authorization': 'Bearer $token',
+    //             },
+    //             body: jsonEncode({'token': token, 'fcmToken': fcmToken}),
+    //           );
+    //           context.goNamed(Routes().home);
+    //         } else {
+    //           context.goNamed(Routes().profilesetupscreen);
+    //         }
+    //       } else {
+    //         context.goNamed(Routes().profilesetupscreen);
+    //       }
+
+    //       // final firestoreFuture =
+    //       //     FirebaseFirestore.instance.collection('users').doc(uid).get();
+
+    //       // final results = await Future.wait([backendFuture, firestoreFuture]);
+    //       // final backendResponse = results[0] as http.Response;
+    //       // final firestoreDoc = results[1] as DocumentSnapshot;
+
+    //          final backendData = jsonDecode(backendFuture.body);
+    //         //final phoneFromBackend = backendData['phone'];
+
+    //         // 🔥 Validate essential backend fields
+    //         final bool hasBackendData =
+    //             backendData.isNotEmpty &&
+    //             backendData['phone'] != null &&
+    //             backendData['phone'].toString().trim().isNotEmpty;
+
+    //       bool hasBackendData = false;
+    //       if (backendResponse.statusCode == 200) {
+    //         final backendData = jsonDecode(backendResponse.body);
+    //         final phoneFromBackend = backendData['phone'];
+    //         hasBackendData =
+    //             phoneFromBackend != null && phoneFromBackend.trim().isNotEmpty;
+    //       }
+
+    //       // Firestore creation if not exists
+    //       if (!firestoreDoc.exists) {
+    //         FirebaseFirestore.instance.collection('users').doc(uid).set({
+    //           'uid': uid,
+    //           'phone': phone,
+    //           'email': email,
+    //           'createdAt': FieldValue.serverTimestamp(),
+    //         });
+    //       }
+
+    //       // Update FCM token in background
+    //       if (hasBackendData) {
+    //         final token = await user.getIdToken();
+    //         final fcmToken = await FirebaseMessaging.instance.getToken();
+    //         http.post(
+    //           Uri.parse('$baseUrl/auth/update-fcm-token'),
+    //           headers: {
+    //             'Content-Type': 'application/json',
+    //             'Authorization': 'Bearer $token',
+    //           },
+    //           body: jsonEncode({'token': token, 'fcmToken': fcmToken}),
+    //         );
+    //       }
+
+    //       // Navigate immediately when ready
+    //       _navigate(context, hasBackendData ? Routes().home : Routes().register);
+    //     } catch (e) {
+    //       _showError(context, e.toString());
+    //       _navigate(context, Routes().register);
+    //     }
   }
 
   // Future<bool> _checkNetwork() async {

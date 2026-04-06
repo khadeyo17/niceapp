@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:niceapp/Container/utils/keys.dart';
+import 'package:niceapp/View/Screens/Other_Screens/complain_screen.dart';
 import 'package:niceapp/View/Screens/Vehicles/ride_history_model.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
+//import 'package:printing/printing.dart';
 
 class RideDetailsScreen extends StatefulWidget {
   final RideHistory ride;
@@ -23,6 +25,7 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
   List<LatLng> routePoints = [];
   double? routeDistance;
   Set<Polyline> polylines = {};
+  String? encodedPolyline;
 
   @override
   void initState() {
@@ -36,7 +39,29 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
       widget.ride.destinationLongitude,
     );
     updateRoute(pickup, destination);
+    //updateRoute(pickup, destination); // keep distance logic
+    loadPolyline(pickup, destination);
     //fetchRoute();
+  }
+
+  Future<void> loadPolyline(LatLng origin, LatLng destination) async {
+    final url =
+        'https://maps.googleapis.com/maps/api/directions/json?'
+        'origin=${origin.latitude},${origin.longitude}'
+        '&destination=${destination.latitude},${destination.longitude}'
+        '&key=$mapKey';
+
+    final response = await http.get(Uri.parse(url));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+
+      if (data['status'] == 'OK') {
+        setState(() {
+          encodedPolyline = data['routes'][0]['overview_polyline']['points'];
+        });
+      }
+    }
   }
 
   Future<void> generateAndPrintReceipt() async {
@@ -403,32 +428,67 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
       body: Column(
         children: [
           // Map Section
+          // Expanded(
+          //   flex: 2,
+          //   child: GoogleMap(
+          //     initialCameraPosition: CameraPosition(target: pickup, zoom: 13),
+          //     markers: {
+          //       Marker(
+          //         markerId: const MarkerId('pickup'),
+          //         position: pickup,
+          //         icon: BitmapDescriptor.defaultMarkerWithHue(
+          //           BitmapDescriptor.hueGreen,
+          //         ),
+          //       ),
+          //       Marker(
+          //         markerId: const MarkerId('destination'),
+          //         position: destination,
+          //         icon: BitmapDescriptor.defaultMarkerWithHue(
+          //           BitmapDescriptor.hueRed,
+          //         ),
+          //       ),
+          //     },
+          //     polylines: polylines,
+          //     onMapCreated: (GoogleMapController controller) {
+          //       _mapController = controller;
+          //     },
+          //     myLocationButtonEnabled: false,
+          //     zoomControlsEnabled: false,
+          //   ),
+          // ),
           Expanded(
-            flex: 2,
-            child: GoogleMap(
-              initialCameraPosition: CameraPosition(target: pickup, zoom: 13),
-              markers: {
-                Marker(
-                  markerId: const MarkerId('pickup'),
-                  position: pickup,
-                  icon: BitmapDescriptor.defaultMarkerWithHue(
-                    BitmapDescriptor.hueGreen,
-                  ),
-                ),
-                Marker(
-                  markerId: const MarkerId('destination'),
-                  position: destination,
-                  icon: BitmapDescriptor.defaultMarkerWithHue(
-                    BitmapDescriptor.hueRed,
-                  ),
-                ),
-              },
-              polylines: polylines,
-              onMapCreated: (GoogleMapController controller) {
-                _mapController = controller;
-              },
-              myLocationButtonEnabled: false,
-              zoomControlsEnabled: false,
+            flex: 1, // 🔥 reduced from 2 → makes it ~1/4 of screen
+            child: ClipRRect(
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
+              child: Image.network(
+                encodedPolyline == null
+                    ? "https://maps.googleapis.com/maps/api/staticmap"
+                        "?size=600x300"
+                        "&markers=color:green|${pickup.latitude},${pickup.longitude}"
+                        "&markers=color:red|${destination.latitude},${destination.longitude}"
+                        "&key=$mapKey"
+                    : "https://maps.googleapis.com/maps/api/staticmap"
+                        "?size=600x300"
+                        "&markers=color:green|${pickup.latitude},${pickup.longitude}"
+                        "&markers=color:red|${destination.latitude},${destination.longitude}"
+                        "&path=color:0x0000ff|weight:5|enc:$encodedPolyline"
+                        "&key=$mapKey",
+                fit: BoxFit.cover,
+                width: double.infinity,
+                loadingBuilder: (_, child, progress) {
+                  if (progress == null) return child;
+                  return const Center(child: CircularProgressIndicator());
+                },
+                errorBuilder: (_, __, ___) {
+                  return Container(
+                    color: Colors.grey[300],
+                    child: const Center(child: Icon(Icons.map, size: 50)),
+                  );
+                },
+              ),
             ),
           ),
 
@@ -557,7 +617,7 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
                         Expanded(
                           child: ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blueGrey[900],
+                              backgroundColor: Colors.blue,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
@@ -573,17 +633,27 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
                         Expanded(
                           child: ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.black,
+                              backgroundColor: Colors.blue,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
+
+                            // onPressed: () {
+                            //   ScaffoldMessenger.of(context).showSnackBar(
+                            //     const SnackBar(
+                            //       content: Text("Lost item reported!"),
+                            //     ),
+                            //   );
+                            // },
                             onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Lost item reported!"),
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (_) => ComplaintScreen(ride: widget.ride),
                                 ),
                               );
                             },

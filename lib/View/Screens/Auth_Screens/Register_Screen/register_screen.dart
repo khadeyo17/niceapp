@@ -234,135 +234,513 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   //   }
   // }
 
+  // @override
+  // Widget build(BuildContext context) {
+  //   final borderRadius = BorderRadius.circular(12);
+  //   final border = OutlineInputBorder(borderRadius: borderRadius);
+
+  //   return Scaffold(
+  //     appBar: AppBar(
+  //       title: const Text("Register"),
+  //       centerTitle: true,
+  //       backgroundColor: Colors.white,
+  //       //elevation: 1,
+  //       foregroundColor: Colors.black,
+  //     ),
+  //     backgroundColor: Colors.white,
+  //     body: SingleChildScrollView(
+  //       child: Container(
+  //         padding: const EdgeInsets.all(24),
+  //         color: Colors.white,
+  //         child: Form(
+  //           key: _formKey,
+  //           child: Column(
+  //             children: [
+  //               const SizedBox(height: 24),
+  //               const Icon(
+  //                 Icons.phone_android_outlined,
+  //                 size: 60,
+  //                 color: Colors.grey,
+  //               ),
+  //               const SizedBox(height: 16),
+  //               const Text(
+  //                 "Enter your phone number",
+  //                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+  //                 textAlign: TextAlign.center,
+  //               ),
+  //               const SizedBox(height: 24),
+  //               Row(
+  //                 children: [
+  //                   Expanded(
+  //                     flex: 2,
+  //                     child: DropdownButtonFormField<String>(
+  //                       value: selectedCode,
+  //                       decoration: InputDecoration(
+  //                         labelText: 'Code',
+  //                         border: border,
+  //                         contentPadding: const EdgeInsets.symmetric(
+  //                           horizontal: 12,
+  //                         ),
+  //                       ),
+  //                       items:
+  //                           countryCodes
+  //                               .map(
+  //                                 (code) => DropdownMenuItem(
+  //                                   value: code,
+  //                                   child: Text(code),
+  //                                 ),
+  //                               )
+  //                               .toList(),
+  //                       onChanged: (val) => setState(() => selectedCode = val!),
+  //                     ),
+  //                   ),
+  //                   const SizedBox(width: 12),
+  //                   Expanded(
+  //                     flex: 5,
+  //                     child: TextFormField(
+  //                       controller: phoneController,
+  //                       keyboardType: TextInputType.phone,
+  //                       decoration: InputDecoration(
+  //                         labelText: 'Phone Number',
+  //                         border: border,
+  //                         contentPadding: const EdgeInsets.symmetric(
+  //                           horizontal: 12,
+  //                         ),
+  //                       ),
+  //                       validator: validatePhone,
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //               const SizedBox(height: 20),
+  //               DropdownButtonFormField<String>(
+  //                 value: selectedMethod,
+  //                 decoration: InputDecoration(
+  //                   labelText: 'OTP Method',
+  //                   border: border,
+  //                   contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+  //                 ),
+  //                 items:
+  //                     otpMethods
+  //                         .map(
+  //                           (method) => DropdownMenuItem(
+  //                             value: method,
+  //                             child: Text(method.toUpperCase()),
+  //                           ),
+  //                         )
+  //                         .toList(),
+  //                 onChanged: (val) => setState(() => selectedMethod = val!),
+  //               ),
+  //               const SizedBox(height: 30),
+  //               SizedBox(
+  //                 width: double.infinity,
+  //                 child: ElevatedButton(
+  //                   onPressed: isLoading ? null : sendOTP,
+  //                   style: ElevatedButton.styleFrom(
+  //                     backgroundColor: Colors.grey[800],
+  //                     foregroundColor: Colors.white,
+  //                     padding: const EdgeInsets.symmetric(vertical: 16),
+  //                     shape: RoundedRectangleBorder(borderRadius: borderRadius),
+  //                   ),
+  //                   child:
+  //                       isLoading
+  //                           ? const SizedBox(
+  //                             width: 20,
+  //                             height: 20,
+  //                             child: CircularProgressIndicator(
+  //                               strokeWidth: 2,
+  //                               color: Colors.white,
+  //                             ),
+  //                           )
+  //                           : const Text(
+  //                             "Send OTP",
+  //                             style: TextStyle(fontSize: 16),
+  //                           ),
+  //                 ),
+  //               ),
+  //               const SizedBox(height: 20),
+  //             ],
+  //           ),
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // }
   @override
   Widget build(BuildContext context) {
-    final borderRadius = BorderRadius.circular(12);
-    final border = OutlineInputBorder(borderRadius: borderRadius);
-
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        foregroundColor: Colors.black,
         title: const Text("Register"),
         centerTitle: true,
-        backgroundColor: Colors.white,
-        //elevation: 1,
-        foregroundColor: Colors.black,
       ),
-      backgroundColor: Colors.white,
       body: SingleChildScrollView(
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          color: Colors.white,
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                const SizedBox(height: 24),
-                const Icon(
-                  Icons.phone_android_outlined,
-                  size: 60,
-                  color: Colors.grey,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  "Enter your phone number",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                Row(
+        padding: const EdgeInsets.all(20),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 10),
+
+              // 🔥 HEADER
+              // Center(
+              //   child: Column(
+              //     children: [
+              //       Container(
+              //         padding: const EdgeInsets.all(16),
+              //         decoration: const BoxDecoration(
+              //           color: Colors.black,
+              //           shape: BoxShape.circle,
+              //         ),
+              //         child: const Icon(
+              //           Icons.phone_android,
+              //           color: Colors.white,
+              //           size: 28,
+              //         ),
+              //       ),
+              //       const SizedBox(height: 15),
+              //       const Text(
+              //         "Enter your phone number",
+              //         style: TextStyle(
+              //           fontSize: 20,
+              //           fontWeight: FontWeight.bold,
+              //         ),
+              //       ),
+              //       const SizedBox(height: 5),
+              //       Text(
+              //         "We’ll send you a verification code",
+              //         style: TextStyle(color: Colors.grey[600]),
+              //       ),
+              //     ],
+              //   ),
+              // ),
+              // Center(
+              //   child: Column(
+              //     children: [
+              //       // 🚗 CAR ICON CONTAINER
+              //       Container(
+              //         padding: const EdgeInsets.all(18),
+              //         decoration: BoxDecoration(
+              //           color: Colors.black,
+              //           shape: BoxShape.circle,
+              //           boxShadow: [
+              //             BoxShadow(
+              //               color: Colors.black.withOpacity(0.2),
+              //               blurRadius: 10,
+              //               offset: const Offset(0, 4),
+              //             ),
+              //           ],
+              //         ),
+              //         child: const Icon(
+              //           Icons.directions_car_filled,
+              //           color: Colors.white,
+              //           size: 32,
+              //         ),
+              //       ),
+
+              //       const SizedBox(height: 20),
+
+              //       // 👋 WELCOME TEXT
+              //       const Text(
+              //         "Welcome to AMINI",
+              //         style: TextStyle(
+              //           fontSize: 22,
+              //           fontWeight: FontWeight.bold,
+              //         ),
+              //       ),
+
+              //       const SizedBox(height: 6),
+
+              //       Text(
+              //         "Ride smarter, faster, and safer",
+              //         style: TextStyle(color: Colors.grey[600], fontSize: 14),
+              //       ),
+
+              //       const SizedBox(height: 20),
+
+              //       const Text(
+              //         "Enter your phone number",
+              //         style: TextStyle(
+              //           fontSize: 18,
+              //           fontWeight: FontWeight.w600,
+              //         ),
+              //         textAlign: TextAlign.center,
+              //       ),
+
+              //       const SizedBox(height: 5),
+
+              //       Text(
+              //         "We’ll send you a verification code",
+              //         style: TextStyle(color: Colors.grey[600]),
+              //       ),
+              //     ],
+              //   ),
+              // ),
+              _buildWelcomeCard(),
+              const SizedBox(height: 25),
+              // 🔹 CARD
+              _buildCard(
+                child: Column(
                   children: [
-                    Expanded(
-                      flex: 2,
-                      child: DropdownButtonFormField<String>(
-                        value: selectedCode,
-                        decoration: InputDecoration(
-                          labelText: 'Code',
-                          border: border,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                          ),
-                        ),
-                        items:
-                            countryCodes
-                                .map(
-                                  (code) => DropdownMenuItem(
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: DropdownButtonFormField<String>(
+                            value: selectedCode,
+                            items:
+                                countryCodes.map((code) {
+                                  return DropdownMenuItem(
                                     value: code,
                                     child: Text(code),
-                                  ),
-                                )
-                                .toList(),
-                        onChanged: (val) => setState(() => selectedCode = val!),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 5,
-                      child: TextFormField(
-                        controller: phoneController,
-                        keyboardType: TextInputType.phone,
-                        decoration: InputDecoration(
-                          labelText: 'Phone Number',
-                          border: border,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
+                                  );
+                                }).toList(),
+                            onChanged:
+                                (val) => setState(() => selectedCode = val!),
+                            decoration: _inputDecoration("Code"),
                           ),
                         ),
-                        validator: validatePhone,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 5,
+                          child: TextFormField(
+                            controller: phoneController,
+                            keyboardType: TextInputType.phone,
+                            validator: validatePhone,
+                            decoration: _inputDecoration("Phone Number"),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // 🔥 OTP METHOD (MODERN)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        "OTP Method",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
                       ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    Row(
+                      children:
+                          otpMethods.map((method) {
+                            final isSelected = selectedMethod == method;
+
+                            return Expanded(
+                              child: GestureDetector(
+                                onTap:
+                                    () =>
+                                        setState(() => selectedMethod = method),
+                                child: Container(
+                                  margin: const EdgeInsets.only(right: 10),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color:
+                                        isSelected
+                                            ? Colors.blue
+                                            : Colors.grey[200],
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      method.toUpperCase(),
+                                      style: TextStyle(
+                                        color:
+                                            isSelected
+                                                ? Colors.white
+                                                : Colors.black,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
-                DropdownButtonFormField<String>(
-                  value: selectedMethod,
-                  decoration: InputDecoration(
-                    labelText: 'OTP Method',
-                    border: border,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+
+              const SizedBox(height: 30),
+
+              // 🔥 BUTTON
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: isLoading ? null : sendOTP,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    elevation: 4,
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
-                  items:
-                      otpMethods
-                          .map(
-                            (method) => DropdownMenuItem(
-                              value: method,
-                              child: Text(method.toUpperCase()),
+                  child:
+                      isLoading
+                          ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
                             ),
                           )
-                          .toList(),
-                  onChanged: (val) => setState(() => selectedMethod = val!),
-                ),
-                const SizedBox(height: 30),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: isLoading ? null : sendOTP,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[800],
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: borderRadius),
-                    ),
-                    child:
-                        isLoading
-                            ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                            : const Text(
-                              "Send OTP",
-                              style: TextStyle(fontSize: 16),
+                          : const Text(
+                            "Send OTP",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
                             ),
+                          ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCard({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  InputDecoration _inputDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: TextStyle(
+        color: Colors.grey[700],
+        fontWeight: FontWeight.w500,
+      ),
+      filled: true,
+      fillColor: Colors.white,
+
+      // 🔥 CLEAN BORDER STYLE
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.black, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.red),
+      ),
+
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+    );
+  }
+
+  Widget _buildWelcomeCard() {
+    return Container(
+      height: 160,
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: Colors.blue,
+        //   gradient: const LinearGradient(
+        //      colors: [
+        //   Color(0xFF0D47A1), // Dark blue
+        //   Color(0xFF42A5F5), // Light blue
+        // ],
+        //  colors: [Color(0xFF000000), Color(0xFF2C2C2C)],
+        //begin: Alignment.topLeft,
+        // end: Alignment.bottomRight,
+        // ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // TEXT SIDE
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  "Welcome to AMINI",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 6),
+                const Text(
+                  "Ride smarter, travel faster.\nAll transport in one app.",
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    "Start your journey",
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
-        ),
+
+          // 🚗 CAR IMAGE
+          SizedBox(
+            width: 110,
+            height: 110,
+            child: Image.asset("assets/imgs/Sedan2.png", fit: BoxFit.contain),
+          ),
+        ],
       ),
     );
   }

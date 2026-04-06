@@ -353,21 +353,67 @@ class _WalletScreenState extends State<WalletScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Wallet Balance Card
+                      // Container(
+                      //   width: double.infinity,
+                      //   padding: const EdgeInsets.all(24),
+                      //   decoration: BoxDecoration(
+                      //     gradient: const LinearGradient(
+                      //       colors: [Colors.blueAccent, Colors.lightBlue],
+                      //       begin: Alignment.topLeft,
+                      //       end: Alignment.bottomRight,
+                      //     ),
+                      //     borderRadius: BorderRadius.circular(20),
+                      //     boxShadow: [
+                      //       BoxShadow(
+                      //         color: Colors.blueAccent.withOpacity(0.3),
+                      //         blurRadius: 12,
+                      //         offset: const Offset(0, 6),
+                      //       ),
+                      //     ],
+                      //   ),
+                      //   child: Column(
+                      //     crossAxisAlignment: CrossAxisAlignment.start,
+                      //     children: [
+                      //       const Text(
+                      //         "Wallet Balance",
+                      //         style: TextStyle(
+                      //           color: Colors.white70,
+                      //           fontSize: 16,
+                      //         ),
+                      //       ),
+                      //       const SizedBox(height: 8),
+                      //       Text(
+                      //         "Ksh ${walletBalance.toStringAsFixed(2)}",
+                      //         style: const TextStyle(
+                      //           fontSize: 32,
+                      //           fontWeight: FontWeight.bold,
+                      //           color: Colors.white,
+                      //         ),
+                      //       ),
+                      //       Align(
+                      //         alignment: Alignment.topRight,
+                      //         child: IconButton(
+                      //           icon: const Icon(
+                      //             Icons.refresh,
+                      //             color: Colors.white,
+                      //           ),
+                      //           onPressed: fetchWalletData,
+                      //         ),
+                      //       ),
+                      //     ],
+                      //   ),
+                      // ),
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Colors.blueAccent, Colors.lightBlue],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
+                          color: Colors.white, // ✅ premium white
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.blueAccent.withOpacity(0.3),
-                              blurRadius: 12,
-                              offset: const Offset(0, 6),
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
                             ),
                           ],
                         ),
@@ -377,25 +423,26 @@ class _WalletScreenState extends State<WalletScreen> {
                             const Text(
                               "Wallet Balance",
                               style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 16,
+                                color: Colors.black54,
+                                fontSize: 14,
                               ),
                             ),
                             const SizedBox(height: 8),
                             Text(
                               "Ksh ${walletBalance.toStringAsFixed(2)}",
                               style: const TextStyle(
-                                fontSize: 32,
+                                fontSize: 30,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                                color: Colors.black,
                               ),
                             ),
+                            const SizedBox(height: 10),
                             Align(
                               alignment: Alignment.topRight,
                               child: IconButton(
                                 icon: const Icon(
                                   Icons.refresh,
-                                  color: Colors.white,
+                                  color: Colors.black54,
                                 ),
                                 onPressed: fetchWalletData,
                               ),
@@ -407,23 +454,26 @@ class _WalletScreenState extends State<WalletScreen> {
                       const SizedBox(height: 24),
 
                       // Add Money Button
-                      Center(
+                      SizedBox(
+                        width: double.infinity, // ✅ stretch to both ends
                         child: ElevatedButton.icon(
                           onPressed: addMoney,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 32,
-                              vertical: 14,
-                            ),
+                            backgroundColor: Colors.blue, // ✅ black button
+                            foregroundColor: Colors.white, // ✅ white text/icon
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(14),
                             ),
+                            elevation: 0,
                           ),
-                          icon: const Icon(Icons.add_circle),
+                          icon: const Icon(Icons.add),
                           label: const Text(
                             "Add Money",
-                            style: TextStyle(fontSize: 16),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),

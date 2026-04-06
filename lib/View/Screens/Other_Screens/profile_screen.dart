@@ -10,6 +10,7 @@ import 'package:niceapp/View/Routes/routes.dart';
 import 'package:niceapp/View/Screens/Other_Screens/passenger_location_live.dart';
 import 'package:niceapp/View/Screens/Other_Screens/payment_option_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/wallet_screen.dart';
+import 'package:shimmer/shimmer.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -240,7 +241,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       body:
           isLoading
-              ? const Center(child: CircularProgressIndicator())
+              ? const Center(
+                child: CircularProgressIndicator(color: Colors.blue),
+              ) // _buildSkeleton() //const Center(child: CircularProgressIndicator())
               : SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
                 child: Column(
@@ -300,26 +303,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onPressed: updateUserProfile,
                         label: "Save Profile",
                         icon: Icons.save,
-                        color: Colors.black,
+                        color: Colors.blue,
                       ),
                     if (!isEditing) ...[
                       _buildButton(
                         onPressed: openWallet,
                         label: "Wallet",
                         icon: Icons.account_balance_wallet_outlined,
-                        color: Colors.black,
+                        color: Colors.blue,
                       ),
                       const SizedBox(height: 15),
                       _buildButton(
                         onPressed: logout,
                         label: "Logout",
                         icon: Icons.logout,
-                        color: Colors.redAccent,
+                        color: Colors.blue,
                       ),
                     ],
                   ],
                 ),
               ),
+    );
+  }
+
+  Widget _buildSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: Column(
+        children: [
+          Container(height: 50, color: Colors.white),
+          const SizedBox(height: 20),
+          Container(height: 60, color: Colors.white),
+        ],
+      ),
     );
   }
 

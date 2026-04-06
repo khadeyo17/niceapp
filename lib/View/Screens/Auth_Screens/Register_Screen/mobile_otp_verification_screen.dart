@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:elegant_notification/resources/colors.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -39,19 +40,33 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
   }
 
   @override
+  void codeUpdated() {
+    final incomingCode = code;
+
+    if (incomingCode != null && incomingCode.length == 6 && !_isVerifying) {
+      otpCode = incomingCode;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        verifyOTP();
+      });
+    }
+  }
+
+  @override
   void dispose() {
     cancel();
     super.dispose();
   }
 
-  @override
-  void codeUpdated() {
-    final incomingCode = code;
-    if (incomingCode != null && incomingCode.length == 6) {
-      setState(() => otpCode = incomingCode);
-      verifyOTP();
-    }
-  }
+  // @override
+  // void codeUpdated() {
+  //   final incomingCode = code;
+  //   if (incomingCode != null && incomingCode.length == 6) {
+  //     setState(() => otpCode = incomingCode);
+  //     verifyOTP();
+  //   }
+  // }
 
   Future<void> handlePostLogin(User? user) async {
     if (user == null) return;
@@ -64,19 +79,30 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
 
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/auth/check-user/$uid'),
+        Uri.parse("$baseUrl/auth/check-user"),
         headers: {
-          'Content-Type': 'application/json',
-          // 'Authorization': 'Bearer $token',
+          HttpHeaders.contentTypeHeader: 'application/json',
+          HttpHeaders.authorizationHeader: 'Bearer $token', // ✅ Use token here
         },
       );
 
       if (response.statusCode == 200) {
         final backendData = jsonDecode(response.body);
-        final phoneFromBackend = backendData['phone'];
+        //final phoneFromBackend = backendData['phone'];
 
-        final hasBackendData =
-            phoneFromBackend != null && phoneFromBackend.trim().isNotEmpty;
+        // 🔥 Validate essential backend fields
+        final bool hasBackendData =
+            backendData.isNotEmpty &&
+            backendData['phone'] != null &&
+            backendData['phone'].toString().trim().isNotEmpty;
+
+        // if (!hasBackendUser) {
+        //   if (context.mounted) context.goNamed(Routes().register);
+        //   return;
+        // }
+
+        //   final hasBackendData =
+        //       phoneFromBackend != null && phoneFromBackend.trim().isNotEmpty;
 
         final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
         if (!(await userRef.get()).exists) {
@@ -108,6 +134,92 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
       debugPrint("Backend or Firestore check failed: $e");
     }
   }
+
+  // Future<void> handlePostLogin(User? user) async {
+  //   if (user == null) return;
+
+  //   final uid = user.uid;
+  //   final phone = user.phoneNumber ?? '';
+  //   final email = user.email ?? '';
+  //   final token = await user.getIdToken();
+  //   final fcmToken = await FirebaseMessaging.instance.getToken();
+
+  //   try {
+  //     final response = await http.get(
+  //       // Uri.parse('$baseUrl/auth/check-user/$uid'),
+  //       // headers: {
+  //       //   'Content-Type': 'application/json',
+  //       //   'Authorization': 'Bearer $token',
+  //       // },
+  //       Uri.parse("$baseUrl/auth/check-user"),
+  //       headers: {
+  //         HttpHeaders.contentTypeHeader: 'application/json',
+  //         HttpHeaders.authorizationHeader: 'Bearer $token', // ✅ Use token here
+  //       },
+  //     );
+
+  //     if (response.statusCode == 200) {
+  //       final backendData = jsonDecode(response.body);
+  //       final phoneFromBackend = backendData['phone'];
+  //       final hasBackendData =
+  //           phoneFromBackend != null && phoneFromBackend.trim().isNotEmpty;
+
+  //       if (!hasBackendData) {
+  //         // User exists in Firebase but NOT in backend -> block navigation
+  //         ScaffoldMessenger.of(context).showSnackBar(
+  //           const SnackBar(
+  //             content: Text(
+  //               "You are not registered in the system. Contact support.",
+  //             ),
+  //           ),
+  //         );
+  //         return;
+  //       }
+
+  //       // Ensure user exists in Firestore for app-side usage
+  //       final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+  //       if (!(await userRef.get()).exists) {
+  //         await userRef.set({
+  //           'uid': uid,
+  //           'phone': phone,
+  //           'email': email,
+  //           'createdAt': FieldValue.serverTimestamp(),
+  //         });
+  //       }
+
+  //       // Update FCM token in backend
+  //       await http.post(
+  //         Uri.parse('$baseUrl/auth/update-fcm-token'),
+  //         headers: {
+  //           'Content-Type': 'application/json',
+  //           'Authorization': 'Bearer $token',
+  //         },
+  //         body: jsonEncode({'token': token, 'fcmToken': fcmToken}),
+  //       );
+
+  //       // Only now navigate to home
+  //       context.goNamed(Routes().home);
+  //     } else if (response.statusCode == 404) {
+  //       // User not found in backend
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         const SnackBar(
+  //           content: Text("User not found in backend. Cannot proceed."),
+  //         ),
+  //       );
+  //     } else {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         const SnackBar(
+  //           content: Text("Backend check failed. Try again later."),
+  //         ),
+  //       );
+  //     }
+  //   } catch (e) {
+  //     debugPrint("Backend or Firestore check failed: $e");
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       const SnackBar(content: Text("Error connecting to backend.")),
+  //     );
+  //   }
+  // }
 
   Future<void> verifyOTP() async {
     if (_isVerifying) return;
@@ -161,163 +273,297 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
     }
   }
 
+  // @override
+  // Widget build(BuildContext context) {
+  //   final size = MediaQuery.of(context).size;
+
+  //   return Scaffold(
+  //     body: Container(
+  //       // width: size.width,
+  //       // height: size.height,
+  //       // decoration: const BoxDecoration(
+  //       //   gradient: LinearGradient(
+  //       //     colors: [Colors.., Color(0xFF2575FC)],
+  //       //     begin: Alignment.topLeft,
+  //       //     end: Alignment.bottomRight,
+  //       //   ),
+  //       // ),
+  //       width: size.width,
+  //       height: size.height,
+  //       decoration: BoxDecoration(
+  //         gradient: LinearGradient(
+  //           colors: [Colors.deepPurple, Colors.grey.shade900],
+  //           begin: Alignment.topLeft,
+  //           end: Alignment.bottomRight,
+  //         ),
+  //       ),
+  //       child: SafeArea(
+  //         child: Column(
+  //           children: [
+  //             Align(
+  //               alignment: Alignment.topLeft,
+  //               child: IconButton(
+  //                 icon: const Icon(Icons.arrow_back, color: Colors.white),
+  //                 onPressed: () => context.goNamed(Routes().register),
+  //               ),
+  //             ),
+  //             Expanded(
+  //               child: SingleChildScrollView(
+  //                 child: Center(
+  //                   child: Container(
+  //                     margin: const EdgeInsets.all(24),
+  //                     padding: const EdgeInsets.all(24),
+  //                     decoration: BoxDecoration(
+  //                       color: Colors.white.withOpacity(0.15),
+  //                       borderRadius: BorderRadius.circular(20),
+  //                       boxShadow: [
+  //                         BoxShadow(
+  //                           color: Colors.black.withOpacity(0.1),
+  //                           blurRadius: 10,
+  //                         ),
+  //                       ],
+  //                     ),
+  //                     child: Column(
+  //                       mainAxisSize: MainAxisSize.min,
+  //                       children: [
+  //                         const SizedBox(height: 20),
+  //                         const Icon(
+  //                           Icons.lock_outline,
+  //                           size: 60,
+  //                           color: Colors.white,
+  //                         ),
+  //                         const SizedBox(height: 20),
+  //                         Text(
+  //                           "Verify OTP",
+  //                           style: TextStyle(
+  //                             fontSize: 26,
+  //                             fontWeight: FontWeight.bold,
+  //                             color: Colors.white,
+  //                           ),
+  //                         ),
+  //                         const SizedBox(height: 10),
+  //                         Text(
+  //                           "Enter the 6-digit code sent to",
+  //                           style: TextStyle(
+  //                             fontSize: 16,
+  //                             color: Colors.white70,
+  //                           ),
+  //                         ),
+  //                         const SizedBox(height: 4),
+  //                         Text(
+  //                           widget.phoneNumber,
+  //                           style: const TextStyle(
+  //                             fontWeight: FontWeight.bold,
+  //                             fontSize: 18,
+  //                             color: Colors.white,
+  //                           ),
+  //                         ),
+  //                         const SizedBox(height: 32),
+  //                         PinFieldAutoFill(
+  //                           codeLength: 6,
+  //                           decoration: UnderlineDecoration(
+  //                             textStyle: const TextStyle(
+  //                               fontSize: 22,
+  //                               color: Colors.white,
+  //                             ),
+  //                             colorBuilder: FixedColorBuilder(
+  //                               Colors.white.withOpacity(0.8),
+  //                             ),
+  //                           ),
+  //                           currentCode: otpCode,
+  //                           onCodeChanged: (code) {
+  //                             if (code != null && code.length == 6) {
+  //                               setState(() => otpCode = code);
+  //                               verifyOTP();
+  //                             }
+  //                           },
+  //                         ),
+  //                         const SizedBox(height: 30),
+  //                         GestureDetector(
+  //                           onTap: isLoading ? null : verifyOTP,
+  //                           child: Container(
+  //                             width: double.infinity,
+  //                             padding: const EdgeInsets.symmetric(vertical: 14),
+  //                             decoration: BoxDecoration(
+  //                               // gradient: const LinearGradient(
+  //                               //   colors: [
+  //                               //     Color(0xFFFF512F),
+  //                               //     Color(0xFFF09819),
+  //                               //   ],
+  //                               // ),
+  //                               color: Colors.grey[700],
+  //                               borderRadius: BorderRadius.circular(12),
+  //                             ),
+  //                             child: Center(
+  //                               child:
+  //                                   isLoading
+  //                                       ? const CircularProgressIndicator(
+  //                                         color: Colors.white,
+  //                                       )
+  //                                       : const Text(
+  //                                         "Verify",
+  //                                         style: TextStyle(
+  //                                           color: Colors.white,
+  //                                           fontSize: 18,
+  //                                           fontWeight: FontWeight.bold,
+  //                                         ),
+  //                                       ),
+  //                             ),
+  //                           ),
+  //                         ),
+  //                         const SizedBox(height: 12),
+  //                         TextButton(
+  //                           onPressed: () {
+  //                             // resend OTP logic
+  //                           },
+  //                           child: const Text(
+  //                             "Send OTP Again",
+  //                             style: TextStyle(color: Colors.white70),
+  //                           ),
+  //                         ),
+  //                         const SizedBox(height: 20),
+  //                       ],
+  //                     ),
+  //                   ),
+  //                 ),
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // }
+
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-
     return Scaffold(
-      body: Container(
-        // width: size.width,
-        // height: size.height,
-        // decoration: const BoxDecoration(
-        //   gradient: LinearGradient(
-        //     colors: [Colors.., Color(0xFF2575FC)],
-        //     begin: Alignment.topLeft,
-        //     end: Alignment.bottomRight,
-        //   ),
-        // ),
-        width: size.width,
-        height: size.height,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.deepPurple, Colors.grey.shade900],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Align(
-                alignment: Alignment.topLeft,
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () => context.goNamed(Routes().register),
-                ),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        foregroundColor: Colors.black,
+        title: const Text("Verify OTP"),
+        centerTitle: true,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const SizedBox(height: 20),
+
+            // 🔥 ICON
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: Colors.blue,
+                shape: BoxShape.circle,
               ),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Center(
-                    child: Container(
-                      margin: const EdgeInsets.all(24),
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 10,
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(height: 20),
-                          const Icon(
-                            Icons.lock_outline,
-                            size: 60,
-                            color: Colors.white,
-                          ),
-                          const SizedBox(height: 20),
-                          Text(
-                            "Verify OTP",
-                            style: TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            "Enter the 6-digit code sent to",
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.white70,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            widget.phoneNumber,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-                          PinFieldAutoFill(
-                            codeLength: 6,
-                            decoration: UnderlineDecoration(
-                              textStyle: const TextStyle(
-                                fontSize: 22,
-                                color: Colors.white,
-                              ),
-                              colorBuilder: FixedColorBuilder(
-                                Colors.white.withOpacity(0.8),
-                              ),
-                            ),
-                            currentCode: otpCode,
-                            onCodeChanged: (code) {
-                              if (code != null && code.length == 6) {
-                                setState(() => otpCode = code);
-                                verifyOTP();
-                              }
-                            },
-                          ),
-                          const SizedBox(height: 30),
-                          GestureDetector(
-                            onTap: isLoading ? null : verifyOTP,
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              decoration: BoxDecoration(
-                                // gradient: const LinearGradient(
-                                //   colors: [
-                                //     Color(0xFFFF512F),
-                                //     Color(0xFFF09819),
-                                //   ],
-                                // ),
-                                color: Colors.grey[700],
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Center(
-                                child:
-                                    isLoading
-                                        ? const CircularProgressIndicator(
-                                          color: Colors.white,
-                                        )
-                                        : const Text(
-                                          "Verify",
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextButton(
-                            onPressed: () {
-                              // resend OTP logic
-                            },
-                            child: const Text(
-                              "Send OTP Again",
-                              style: TextStyle(color: Colors.white70),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                      ),
-                    ),
+              child: const Icon(Icons.lock, color: Colors.white, size: 28),
+            ),
+
+            const SizedBox(height: 20),
+
+            const Text(
+              "Verification Code",
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+
+            const SizedBox(height: 10),
+
+            Text(
+              "Enter the 6-digit code sent to",
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+
+            const SizedBox(height: 5),
+
+            Text(
+              widget.phoneNumber,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+
+            const SizedBox(height: 40),
+
+            // 🔥 OTP BOXES
+            PinFieldAutoFill(
+              codeLength: 6,
+              currentCode: otpCode,
+              decoration: BoxLooseDecoration(
+                strokeColorBuilder: FixedColorBuilder(Colors.black),
+                bgColorBuilder: FixedColorBuilder(Colors.grey.shade100),
+                textStyle: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+                gapSpace: 10,
+                radius: const Radius.circular(10),
+              ),
+              onCodeChanged: (code) {
+                if (code != null && code.length == 6 && !_isVerifying) {
+                  otpCode = code;
+
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted) return;
+                    verifyOTP();
+                  });
+                }
+              },
+            ),
+
+            const SizedBox(height: 30),
+
+            // 🔥 BUTTON
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: isLoading ? null : verifyOTP,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
+                child:
+                    isLoading
+                        ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                        : const Text(
+                          "Verify",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
               ),
-            ],
-          ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // 🔁 RESEND
+            TextButton(
+              onPressed:
+                  isLoading
+                      ? null
+                      : () {
+                        // TODO: resend OTP
+                      },
+              child: const Text(
+                "Resend Code",
+                style: TextStyle(color: Colors.black),
+              ),
+            ),
+          ],
         ),
       ),
     );

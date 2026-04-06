@@ -63,10 +63,10 @@ class _PendingDriverAssignmentScreenState
   }
 
   Future<void> _initializeAddresses() async {
-    pickupAddress = await ReverseGeocodingService.getAddressFromLatLng(
+    pickupAddress = await ReverseGeocodingService.getNameFromLatLng(
       widget.pickup,
     );
-    destinationAddress = await ReverseGeocodingService.getAddressFromLatLng(
+    destinationAddress = await ReverseGeocodingService.getNameFromLatLng(
       widget.destination,
     );
     //final Distance distance = Distance();
@@ -101,13 +101,12 @@ class _PendingDriverAssignmentScreenState
     final subCategoryId = widget.category;
     final scheduledTime = widget.transportDate;
 
-    final pickupAddress = await ReverseGeocodingService.getAddressFromLatLng(
+    final pickupAddress = await ReverseGeocodingService.getNameFromLatLng(
       LatLng(pickupLat, pickupLng),
     );
-    final destinationAddress =
-        await ReverseGeocodingService.getAddressFromLatLng(
-          LatLng(destLat, destLng),
-        );
+    final destinationAddress = await ReverseGeocodingService.getNameFromLatLng(
+      LatLng(destLat, destLng),
+    );
 
     final body = {
       "receiverName": widget.receiverName,

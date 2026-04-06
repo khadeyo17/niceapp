@@ -5,10 +5,10 @@ import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:niceapp/Container/utils/keys.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/driver_confirmation_screen.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/finding_driver_screen.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/reverse_geocoding_service.dart';
@@ -39,40 +39,36 @@ class ConfirmRideScreen extends ConsumerStatefulWidget {
   ConsumerState<ConfirmRideScreen> createState() => _ConfirmRideScreenState();
 }
 
-// class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
-//     with SingleTickerProviderStateMixin {
-//   late AnimationController _panelController;
-//   // late Animation<Offset> _panelOffset;
-//   late Animation<Offset> _panelOffset;
-//   final StreamController<bool> _driverLinkedController =
-//       StreamController<bool>.broadcast();
 class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _panelController;
   late Animation<Offset> _panelOffset;
+
   final StreamController<bool> _driverLinkedController =
       StreamController<bool>.broadcast();
-
   StreamSubscription<DatabaseEvent>? _rideSub;
-
-  //Offset _panelOffset = const Offset(0, 1);
-  double distanceInKm = 0;
-  int durationInMinutes = 0;
-  List<LatLng> routePoints = [];
-  int? rideId2;
-  //late StreamSubscription<DatabaseEvent> _rideSub;
   GoogleMapController? _mapController;
-
+  List<Map<String, dynamic>> _commonPlaces = [];
+  bool isPlacesLoading = false;
   Set<Marker> markers = {};
   Set<Polyline> polylines = {};
+  List<LatLng> routePoints = [];
+  double distanceInKm = 0;
+  int durationInMinutes = 0;
+  String? newRideId;
 
+  String? pickupAddress;
+  String? destinationAddress;
+
+  @override
   void initState() {
     super.initState();
+
+    // Slide panel animation
     _panelController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
-
     _panelOffset = Tween<Offset>(
       begin: const Offset(0, 1),
       end: Offset.zero,
@@ -80,22 +76,77 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
       CurvedAnimation(parent: _panelController, curve: Curves.easeOutCubic),
     );
 
-    // Start animation
-    _panelController.forward();
+    // Setup markers & fetch route
     _setupMarkers();
-    _fetchRoute();
+    _fetchAddressesAndRoute();
+    //loadNearbyPlaces(location: widget.destination);
   }
 
-  // @override
-  // void dispose() {
-  //   _panelController.dispose();
-  //   super.dispose();
-  // }
   @override
   void dispose() {
     _panelController.dispose();
-    _rideSub?.cancel(); // cancel listener when screen is disposed
+    _rideSub?.cancel();
+    _driverLinkedController.close();
     super.dispose();
+  }
+
+  Future<void> loadNearbyPlaces({required LatLng location}) async {
+    setState(() => isPlacesLoading = true);
+
+    try {
+      final latitude = location.latitude;
+      final longitude = location.longitude;
+
+      final url =
+          "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+          "?location=$latitude,$longitude"
+          "&radius=3000"
+          "&type=point_of_interest"
+          "&key=$mapKey";
+
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        if (data["status"] == "OK" && data["results"] != null) {
+          final results = data["results"] as List;
+
+          final places =
+              results.take(5).map((place) {
+                return {
+                  "name": place["name"] ?? "Unknown",
+                  "address": place["vicinity"] ?? "",
+                  "lat": place["geometry"]["location"]["lat"],
+                  "lng": place["geometry"]["location"]["lng"],
+                  "icon": Icons.place,
+                };
+              }).toList();
+
+          if (!mounted) return;
+
+          setState(() {
+            _commonPlaces = places;
+            isPlacesLoading = false;
+          });
+
+          // ✅ After fetching places, fetch route
+          await _fetchRoute();
+        } else {
+          if (!mounted) return;
+          setState(() => isPlacesLoading = false);
+        }
+      } else {
+        if (!mounted) return;
+        setState(() => isPlacesLoading = false);
+      }
+    } catch (e) {
+      debugPrint("Nearby places error: $e");
+      if (!mounted) return;
+      setState(() => isPlacesLoading = false);
+    }
   }
 
   void _setupMarkers() {
@@ -115,14 +166,32 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
     };
   }
 
+  Future<void> _fetchAddressesAndRoute() async {
+    // Fetch human-readable names for pickup & destination
+    final pickupName = await ReverseGeocodingService.getNameFromLatLng(
+      widget.pickup,
+    );
+    final destinationName = await ReverseGeocodingService.getNameFromLatLng(
+      widget.destination,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      pickupAddress = pickupName;
+      destinationAddress = destinationName;
+    });
+
+    await _fetchRoute();
+  }
+
   Future<void> _fetchRoute() async {
     final origin = '${widget.pickup.latitude},${widget.pickup.longitude}';
     final destination =
         '${widget.destination.latitude},${widget.destination.longitude}';
-    final apiKey = mapKey; // Your Google Maps API Key
 
     final url = Uri.parse(
-      'https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$destination&key=$apiKey',
+      'https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$destination&key=$mapKey',
     );
 
     final response = await http.get(url);
@@ -133,15 +202,13 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
       if (data['status'] == 'OK') {
         final route = data['routes'][0];
         final leg = route['legs'][0];
-
         final overviewPolyline = route['overview_polyline']['points'];
         final points = _decodePolyline(overviewPolyline);
 
         setState(() {
           routePoints = points;
-          distanceInKm = leg['distance']['value'] / 1000.0; // meters to km
+          distanceInKm = leg['distance']['value'] / 1000;
           durationInMinutes = (leg['duration']['value'] / 60).round();
-
           polylines = {
             Polyline(
               polylineId: const PolylineId('route'),
@@ -152,42 +219,20 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
           };
         });
 
-        // Move camera to show both points + route
+        // Move camera to bounds
         if (_mapController != null) {
           _moveCameraToBounds(widget.pickup, widget.destination);
         }
-      } else {
-        print('Google Directions API error: ${data['status']}');
       }
-    } else {
-      print('Failed to fetch directions. Status: ${response.statusCode}');
     }
   }
 
-  void _moveCameraToBounds(LatLng pos1, LatLng pos2) async {
-    final southWest = LatLng(
-      min(pos1.latitude, pos2.latitude),
-      min(pos1.longitude, pos2.longitude),
-    );
-    final northEast = LatLng(
-      max(pos1.latitude, pos2.latitude),
-      max(pos1.longitude, pos2.longitude),
-    );
-
-    final bounds = LatLngBounds(southwest: southWest, northeast: northEast);
-
-    final cameraUpdate = CameraUpdate.newLatLngBounds(bounds, 50);
-    await _mapController?.animateCamera(cameraUpdate);
-  }
-
-  // Decode encoded polyline from Google Directions API
   List<LatLng> _decodePolyline(String encoded) {
     List<LatLng> poly = [];
-    int index = 0, len = encoded.length;
-    int lat = 0, lng = 0;
+    int index = 0, lat = 0, lng = 0;
 
-    while (index < len) {
-      int b, shift = 0, result = 0;
+    while (index < encoded.length) {
+      int shift = 0, result = 0, b;
       do {
         b = encoded.codeUnitAt(index++) - 63;
         result |= (b & 0x1f) << shift;
@@ -211,403 +256,106 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
     return poly;
   }
 
-  // Future<void> bookRide() async {
-  //   final user = FirebaseAuth.instance.currentUser;
+  void _moveCameraToBounds(LatLng pos1, LatLng pos2) {
+    final southWest = LatLng(
+      min(pos1.latitude, pos2.latitude),
+      min(pos1.longitude, pos2.longitude),
+    );
+    final northEast = LatLng(
+      max(pos1.latitude, pos2.latitude),
+      max(pos1.longitude, pos2.longitude),
+    );
 
-  //   if (user == null) {
-  //     _closeFindingDriverDialog();
-  //     print("User is not authenticated");
-  //     return;
-  //   }
+    final bounds = LatLngBounds(southwest: southWest, northeast: northEast);
+    _mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 50));
+  }
 
-  //   try {
-  //     final idToken = await user.getIdToken();
-  //     final url = '$baseUrl/rides/passenger/request';
+  Future<void> bookRide() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final idToken = await user.getIdToken(true);
+    final pickupAddr = pickupAddress ?? "Unknown Pickup";
+    final destAddr = destinationAddress ?? "Unknown Destination";
 
-  //     final pickupLat = widget.pickup.latitude;
-  //     final pickupLng = widget.pickup.longitude;
-  //     final destLat = widget.destination.latitude;
-  //     final destLng = widget.destination.longitude;
-  //     final subCategoryId = widget.category;
-  //     final scheduledTime = widget.scheduledDate;
+    final body = {
+      "firebaseIdToken": idToken,
+      "pickupLocation": pickupAddr,
+      "destination": destAddr,
+      "pickupLat": widget.pickup.latitude,
+      "pickupLng": widget.pickup.longitude,
+      "destLat": widget.destination.latitude,
+      "destLng": widget.destination.longitude,
+      "subCategoryId": widget.category,
+      "scheduledTime": widget.scheduledDate?.toIso8601String(),
+      "fare": widget.fare.toStringAsFixed(2),
+    };
 
-  //     final pickupAddress = await ReverseGeocodingService.getAddressFromLatLng(
-  //       LatLng(pickupLat, pickupLng),
-  //     );
-  //     final destinationAddress =
-  //         await ReverseGeocodingService.getAddressFromLatLng(
-  //           LatLng(destLat, destLng),
-  //         );
+    final response = await http.post(
+      Uri.parse('$baseUrl/rides/passenger/request'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
 
-  //     final body = {
-  //       "firebaseIdToken": user.uid,
-  //       "pickupLocation": pickupAddress,
-  //       "destination": destinationAddress,
-  //       "pickupLat": pickupLat,
-  //       "pickupLng": pickupLng,
-  //       "destLat": destLat,
-  //       "destLng": destLng,
-  //       "subCategoryId": subCategoryId,
-  //       "scheduledTime": scheduledTime?.toIso8601String(),
-  //       "fare": widget.fare.toStringAsFixed(2),
-  //     };
-
-  //     if (!mounted) return;
-
-  //     final response = await http.post(
-  //       Uri.parse(url),
-  //       headers: {'Content-Type': 'application/json'},
-  //       body: jsonEncode(body),
-  //     );
-
-  //     if (response.statusCode == 200) {
-  //       final responseData = jsonDecode(response.body);
-  //       final rideId = responseData['rideId'];
-  //       rideId2 = responseData['rideId'];
-
-  //       if (scheduledTime == null) {
-  //         await pollForDriverAssignment(rideId);
-  //       } else {
-  //         _closeFindingDriverDialog();
-  //         Navigator.push(
-  //           context,
-  //           MaterialPageRoute(builder: (_) => RideHistoryScreen()),
-  //         );
-  //       }
-  //     } else {
-  //       _closeFindingDriverDialog();
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(
-  //           content: Text('Failed to book ride: ${response.statusCode}'),
-  //         ),
-  //       );
-  //       print('Failed to book ride: ${response.statusCode}');
-  //       print(response.body);
-  //     }
-  //   } catch (e) {
-  //     _closeFindingDriverDialog();
-  //     ScaffoldMessenger.of(
-  //       context,
-  //     ).showSnackBar(SnackBar(content: Text('Error booking ride: $e')));
-  //     print('Error booking ride: $e');
-  //   }
-  // }
-
-  void _closeFindingDriverDialog() {
-    if (_dialogContext != null && Navigator.canPop(_dialogContext!)) {
-      Navigator.pop(_dialogContext!);
+    if (response.statusCode == 200) {
+      final rideId = jsonDecode(response.body)['rideId'];
+      newRideId = rideId.toString();
+      if (widget.scheduledDate == null) {
+        listenForDriverAssignment(rideId);
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => RideHistoryScreen()),
+        );
+      }
     }
   }
 
-  //late StreamSubscription<DatabaseEvent> _rideSub;
-
-  /// Start listening to Firebase for driver assignment
   void listenForDriverAssignment(int requestId) {
     final dbRef = FirebaseDatabase.instance.ref("rideRequests/$requestId");
-
     _rideSub = dbRef.onValue.listen((event) async {
       if (!mounted || event.snapshot.value == null) return;
 
       final requestData = event.snapshot.value as Map;
-
-      // Check if rideId is present
-      if (requestData['rideId'] == null) return;
       final realRideId = requestData['rideId'];
+      if (realRideId == null) return;
 
-      try {
-        // Fetch ride from backend (optional if Firebase contains driver info)
-        final url = '$baseUrl/rides/myrides/$realRideId';
-        final response = await http.get(Uri.parse(url));
-
-        if (response.statusCode == 200) {
-          final rideData = jsonDecode(response.body);
-
-          if (rideData['driver'] != null) {
-            final driverData = rideData['driver'];
-
-            // Notify "Finding Driver" screen
-            _driverLinkedController.add(true);
-
-            // Cancel the listener after driver is found
-            await _rideSub?.cancel();
-
-            // Navigate instantly
-            if (!mounted) return;
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder:
-                    (_) => DriverConfirmationScreen(
-                      rideId: realRideId,
-                      pickup: widget.pickup,
-                      destination: widget.destination,
-                      driverId: driverData['firebaseId'],
-                      Phone: driverData['phoneNumber'],
-                      regnumber: driverData['registrationNumber'],
-                      vehicleMake: driverData['vehicleMake'],
-                      vehicleModel: driverData['vehicleModel'],
-                      colour: driverData['vehicleColour'],
-                      drivername: driverData['firstName'],
-                      photoUrl: driverData['photoUrl'],
-                    ),
-              ),
-            );
-          }
+      final response = await http.get(
+        Uri.parse('$baseUrl/rides/myrides/$realRideId'),
+      );
+      if (response.statusCode == 200) {
+        final rideData = jsonDecode(response.body);
+        if (rideData['driver'] != null) {
+          final driverData = rideData['driver'];
+          _driverLinkedController.add(true);
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (_) => DriverConfirmationScreen(
+                    rideId: realRideId,
+                    pickup: widget.pickup,
+                    destination: widget.destination,
+                    driverId: driverData['firebaseId'],
+                    Phone: driverData['phoneNumber'],
+                    regnumber: driverData['registrationNumber'],
+                    vehicleMake: driverData['vehicleMake'],
+                    vehicleModel: driverData['vehicleModel'],
+                    colour: driverData['vehicleColour'],
+                    drivername: driverData['firstName'],
+                    photoUrl: driverData['photoUrl'],
+                  ),
+            ),
+          );
         }
-      } catch (e) {
-        debugPrint("Error in listener: $e");
       }
     });
   }
 
-  /// Call this instead of pollForDriverAssignment()
-  Future<void> bookRide() async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      _closeFindingDriverDialog();
-      print("User not authenticated");
-      return;
-    }
-
-    try {
-      final url = '$baseUrl/rides/passenger/request';
-      final pickupLat = widget.pickup.latitude;
-      final pickupLng = widget.pickup.longitude;
-      final destLat = widget.destination.latitude;
-      final destLng = widget.destination.longitude;
-      final subCategoryId = widget.category;
-      final scheduledTime = widget.scheduledDate;
-
-      final pickupAddress = await ReverseGeocodingService.getAddressFromLatLng(
-        LatLng(pickupLat, pickupLng),
-      );
-      final destinationAddress =
-          await ReverseGeocodingService.getAddressFromLatLng(
-            LatLng(destLat, destLng),
-          );
-
-      final body = {
-        "firebaseIdToken": user.uid,
-        "pickupLocation": pickupAddress,
-        "destination": destinationAddress,
-        "pickupLat": pickupLat,
-        "pickupLng": pickupLng,
-        "destLat": destLat,
-        "destLng": destLng,
-        "subCategoryId": subCategoryId,
-        "scheduledTime": scheduledTime?.toIso8601String(),
-        "fare": widget.fare.toStringAsFixed(2),
-      };
-
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(body),
-      );
-
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        final rideId = responseData['rideId'];
-
-        if (scheduledTime == null) {
-          // 👇 Start realtime listener instead of polling
-          listenForDriverAssignment(rideId);
-        } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => RideHistoryScreen()),
-          );
-        }
-      } else {
-        _closeFindingDriverDialog();
-        print('Failed to book ride: ${response.body}');
-      }
-    } catch (e) {
-      _closeFindingDriverDialog();
-      print("Error booking ride: $e");
-    }
-  }
-
-  // void listenForDriverAssignment(int requestId) {
-  //   final dbRef = FirebaseDatabase.instance.ref("rideRequests/$requestId");
-
-  //   _rideSub = dbRef.onValue.listen((event) async {
-  //     if (!mounted || event.snapshot.value == null) return;
-
-  //     final requestData = event.snapshot.value as Map;
-  //     if (requestData['rideId'] == null) return;
-
-  //     final realRideId = requestData['rideId'];
-
-  //     // 🔥 Option A: If Firebase already has driver info, navigate immediately.
-  //     // 🔥 Option B: If not, still call backend but no need to poll repeatedly.
-  //     final url = '$baseUrl/rides/myrides/$realRideId';
-  //     final response = await http.get(Uri.parse(url));
-
-  //     if (response.statusCode == 200) {
-  //       final rideData = jsonDecode(response.body);
-
-  //       if (rideData['driver'] != null) {
-  //         final driverData = rideData['driver'];
-
-  //         if (!mounted) return;
-  //         Navigator.pushReplacement(
-  //           context,
-  //           MaterialPageRoute(
-  //             builder: (_) => DriverConfirmationScreen(
-  //               rideId: realRideId,
-  //               pickup: widget.pickup,
-  //               driverId: driverData['firebaseId'],
-  //               Phone: driverData['phoneNumber'],
-  //               regnumber: driverData['registrationNumber'],
-  //               vehicleMake: driverData['vehicleMake'],
-  //               vehicleModel: driverData['vehicleModel'],
-  //               colour: driverData['vehicleColour'],
-  //               drivername: driverData['firstName'],
-  //               photoUrl: driverData['photoUrl'],
-  //             ),
-  //           ),
-  //         );
-  //       }
-  //     }
-  //   });
-  // }
-
-  // @override
-  // void dispose() {
-  //   _rideSub.cancel();
-  //   super.dispose();
-  // }
-
-  Future<bool> checkForExistingRide() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return false;
-
-    final idToken = await user.getIdToken();
-    final url = '$baseUrl/rides/passenger/current';
-
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $idToken',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final currentRide = jsonDecode(response.body);
-      return true;
-    }
-
-    return false;
-  }
-
-  BuildContext? _dialogContext;
-
-  void showFindingDriverDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        _dialogContext = dialogContext;
-        return AlertDialog(
-          title: const Text("Finding you a driver..."),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              CircularProgressIndicator(),
-              SizedBox(height: 10),
-              Text("Please wait while we assign a driver."),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> pollForDriverAssignment(int requestId) async {
-    const maxAttempts = 20;
-    const interval = Duration(seconds: 5);
-
-    for (int i = 0; i < maxAttempts; i++) {
-      if (!mounted) return;
-
-      try {
-        // 1. Check Firebase first
-        //final dbRef = FirebaseDatabase.instance.ref("rideRequests/$requestId");
-        final dbRef = FirebaseDatabase.instance.ref(
-          "rideRequests/${requestId.toString()}",
-        );
-
-        final dbSnapshot = await dbRef.get();
-
-        if (dbSnapshot.exists) {
-          final requestData = dbSnapshot.value as Map;
-
-          if (requestData['rideId'] != null) {
-            final realRideId = requestData['rideId'];
-
-            // 2. Now check backend ride
-            final url = '$baseUrl/rides/myrides/$realRideId';
-            final response = await http.get(Uri.parse(url));
-
-            if (response.statusCode == 200) {
-              final rideData = jsonDecode(response.body);
-
-              if (rideData['driver'] != null) {
-                final driverData = rideData['driver'];
-
-                _driverLinkedController.add(true);
-
-                await Future.delayed(const Duration(milliseconds: 200));
-
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder:
-                        (_) => DriverConfirmationScreen(
-                          rideId: realRideId,
-                          pickup: widget.pickup,
-                          driverId: driverData['firebaseId'],
-                          Phone: driverData['phoneNumber'],
-                          regnumber: driverData['registrationNumber'],
-                          vehicleMake: driverData['vehicleMake'],
-                          vehicleModel: driverData['vehicleModel'],
-                          colour: driverData['vehicleColour'],
-                          drivername: driverData['firstName'],
-                        ),
-                  ),
-                );
-                return;
-              }
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint("Error checking driver assignment: $e");
-      }
-
-      await Future.delayed(interval);
-    }
-
-    _driverLinkedController.add(false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("No driver accepted your ride. Try again later."),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final pickupAddressAsync = ref.watch(pickupAddressProvider);
-    final fare = widget.fare;
-
     return Scaffold(
       body: Stack(
         children: [
-          // Google Map
           GoogleMap(
             initialCameraPosition: CameraPosition(
               target: widget.pickup,
@@ -618,15 +366,11 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
             onMapCreated: (controller) {
               _mapController = controller;
               _moveCameraToBounds(widget.pickup, widget.destination);
-
-              // Trigger slide-up animation after map loads
               Future.delayed(const Duration(milliseconds: 300), () {
                 _panelController.forward();
               });
             },
           ),
-
-          // Sliding Bottom Panel
           Positioned(
             bottom: 0,
             left: 0,
@@ -641,7 +385,7 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
                   child: child,
                 );
               },
-              child: _buildBottomPanel(pickupAddressAsync, fare),
+              child: _buildBottomPanel(),
             ),
           ),
         ],
@@ -649,11 +393,7 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
     );
   }
 
-  /// Bottom panel widget
-  Widget _buildBottomPanel(
-    AsyncValue<String?> pickupAddressAsync,
-    double fare,
-  ) {
+  Widget _buildBottomPanel() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -671,110 +411,50 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          pickupAddressAsync.when(
-            data:
-                (address) => Text(
-                  "${address ?? 'Unknown'}",
-                  style: const TextStyle(
-                    fontSize: 18,
-                    // fontWeight: FontWeight.w600,
-                  ),
-                ),
-            loading:
-                () => const Text(
-                  "Pickup: Loading...",
-                  style: TextStyle(fontSize: 18), // fontWeight: FontWeight.w600
-                ),
-            error:
-                (err, _) => const Text(
-                  "Pickup: Error",
-                  style: TextStyle(
-                    fontSize: 18,
-                    //fontWeight: FontWeight.w600,
-                    //color: Colors.red,
-                  ),
-                ),
+          // Text(
+          //   pickupAddress ?? "Loading Pickup...",
+          //   style: const TextStyle(fontSize: 18),
+          // ),
+          //const SizedBox(height: 4),
+          Text(
+            destinationAddress ?? "Loading Destination...",
+            style: const TextStyle(fontSize: 22),
           ),
           const SizedBox(height: 8),
           Text(
-            "${widget.optionSelected}",
-            style: const TextStyle(fontSize: 18), // fontWeight: FontWeight.bold
+            widget.optionSelected ?? "",
+            style: const TextStyle(fontSize: 18),
           ),
+
           const SizedBox(height: 8),
           Text(
-            "KES ${fare.toStringAsFixed(2)}",
-            style: const TextStyle(
-              fontSize: 20,
-              //fontWeight: FontWeight.bold,
-              //color: Colors.green,
-            ),
+            "KES ${widget.fare.toStringAsFixed(2)}",
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
-
-          // SizedBox(
-          //   width: double.infinity,
-          //   child: ElevatedButton(
-          //     onPressed: () async {
-          //       if (mounted) {
-          //         showFindingDriverDialog(context);
-          //         await bookRide();
-          //       }
-          //     },
-          //     style: ElevatedButton.styleFrom(
-          //       backgroundColor: Colors.grey[700],
-          //       foregroundColor: Colors.white,
-          //       padding: const EdgeInsets.symmetric(vertical: 14),
-          //       textStyle: const TextStyle(fontSize: 18),
-          //       shape: RoundedRectangleBorder(
-          //         borderRadius: BorderRadius.circular(12),
-          //       ),
-          //     ),
-          //     child: Text(
-          //       widget.isScheduled == true
-          //           ? "📅 Confirm Booking"
-          //           : "✅ Confirm Ride",
-          //     ),
-          //   ),
-          // ),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () async {
                 if (mounted) {
-                  // Instead of dialog, push full screen
-                  // Navigator.push(
-                  //   context,
-                  //   MaterialPageRoute(
-                  //     builder:
-                  //         (_) => FindingDriverScreen(
-                  //           onCancel: () async {
-                  //             // TODO: cancel ride request via API
-                  //             print("Ride canceled by passenger");
-                  //           },
-                  //         ),
-                  //   ),
-                  // );
-
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       fullscreenDialog: true,
                       builder:
                           (_) => FindingDriverScreen(
-                            onCancel: () async {
-                              // Call cancel API
-                              print("Ride canceled by passenger");
-                            },
+                            rideId: newRideId,
+                            onCancel:
+                                () async => print("Ride canceled by passenger"),
                             driverLinkedStream: _driverLinkedController.stream,
                           ),
                     ),
                   );
-
                   await bookRide();
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.grey[700],
+                backgroundColor: Colors.blue,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 textStyle: const TextStyle(fontSize: 18),
@@ -794,7 +474,6 @@ class _ConfirmRideScreenState extends ConsumerState<ConfirmRideScreen>
     );
   }
 }
-
   // Future<void> bookRide() async {
   //   final user = FirebaseAuth.instance.currentUser;
 

@@ -539,7 +539,7 @@ class _OtherServicesScreenState extends State<OtherServicesScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey, width: 1.5),
+          border: Border.all(color: Colors.black, width: 1.5),
           boxShadow: const [
             BoxShadow(
               color: Colors.black12,

@@ -15,6 +15,7 @@ import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/location_providers
 import 'package:niceapp/View/Screens/Other_Screens/ride_detail_screen.dart';
 import 'package:niceapp/View/Screens/Vehicles/ride_history_model.dart';
 
+
 class RideHistoryScreen extends StatefulWidget {
   const RideHistoryScreen({super.key});
 
@@ -27,20 +28,36 @@ class _RideHistoryScreenState extends State<RideHistoryScreen>
   List<RideHistory> allRides = [];
   List<RideHistory> pastRides = [];
   List<RideHistory> upcomingRides = [];
-
+  bool isLoading = true;
   LatLng? currentLocation;
   TabController? _tabController;
   DateTime selectedMonth = DateTime.now();
+  List<RideHistory>? _cachedRides;
+  final ValueNotifier<LatLng?> currentLocationNotifier = ValueNotifier(null);
+
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   _tabController = TabController(length: 2, vsync: this);
+  //   WidgetsBinding.instance.addPostFrameCallback((_) {
+  //     fetchRideHistory();
+  //     _getCurrentLocation();
+  //   });
+  // }
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+
     _tabController!.addListener(() {
-      setState(() {});
+      setState(() {}); // 🔥 forces UI refresh when tab changes
     });
-    fetchRideHistory();
-    _getCurrentLocation();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      fetchRideHistory();
+      _getCurrentLocation();
+    });
   }
 
   Future<void> _getCurrentLocation() async {
@@ -53,26 +70,46 @@ class _RideHistoryScreenState extends State<RideHistoryScreen>
     ref.onValue.listen((event) {
       final location = event.snapshot.value as Map?;
       if (location != null) {
-        setState(() {
-          currentLocation = LatLng(location['latitude'], location['longitude']);
-        });
+        final latLng = LatLng(location['latitude'], location['longitude']);
+        currentLocationNotifier.value = latLng; // update notifier
+        setState(() => currentLocation = latLng);
       }
     });
   }
 
   Future<void> fetchRideHistory() async {
+    if (_cachedRides != null) {
+      setState(() {
+        allRides = _cachedRides!;
+        isLoading = false;
+      });
+      filterRides();
+      return;
+    }
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/rides/passenger/history/${user.uid}'),
-    );
+    setState(() => isLoading = true);
 
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      allRides =
-          data.map((json) => RideHistory.fromPassengerJson(json)).toList();
-      filterRides();
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl/rides/passenger/history/${user.uid}'))
+          .timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        final rides =
+            data.map((json) => RideHistory.fromPassengerJson(json)).toList();
+
+        _cachedRides = rides; // cache rides
+        setState(() => allRides = rides);
+        filterRides();
+      }
+    } catch (e) {
+      debugPrint("Ride fetch error: $e");
+    } finally {
+      setState(() => isLoading = false);
     }
   }
 
@@ -99,11 +136,7 @@ class _RideHistoryScreenState extends State<RideHistoryScreen>
       firstDate: DateTime(DateTime.now().year - 2),
       lastDate: DateTime(DateTime.now().year + 1),
     );
-    if (picked != null) {
-      setState(() {
-        selectedMonth = picked;
-      });
-    }
+    if (picked != null) setState(() => selectedMonth = picked);
   }
 
   List<RideHistory> _getFilteredRides(List<RideHistory> rides) {
@@ -115,6 +148,58 @@ class _RideHistoryScreenState extends State<RideHistoryScreen>
     }).toList();
   }
 
+  // Widget _buildSkeletonList() {
+  //   return ListView.builder(
+  //     padding: const EdgeInsets.all(12),
+  //     itemCount: 5,
+  //     itemBuilder:
+  //         (_, __) => Shimmer.fromColors(
+  //           baseColor: Colors.grey.shade300,
+  //           highlightColor: Colors.grey.shade100,
+  //           child: Card(
+  //             margin: const EdgeInsets.symmetric(vertical: 8),
+  //             shape: RoundedRectangleBorder(
+  //               borderRadius: BorderRadius.circular(14),
+  //             ),
+  //             child: Padding(
+  //               padding: const EdgeInsets.all(14),
+  //               child: Row(
+  //                 children: [
+  //                   Container(height: 50, width: 50, color: Colors.white),
+  //                   const SizedBox(width: 14),
+  //                   Expanded(
+  //                     child: Column(
+  //                       crossAxisAlignment: CrossAxisAlignment.start,
+  //                       children: [
+  //                         Container(
+  //                           height: 14,
+  //                           width: 120,
+  //                           color: Colors.white,
+  //                         ),
+  //                         const SizedBox(height: 8),
+  //                         Container(
+  //                           height: 12,
+  //                           width: 180,
+  //                           color: Colors.white,
+  //                         ),
+  //                         const SizedBox(height: 6),
+  //                         Container(
+  //                           height: 12,
+  //                           width: 100,
+  //                           color: Colors.white,
+  //                         ),
+  //                       ],
+  //                     ),
+  //                   ),
+  //                   Container(height: 20, width: 60, color: Colors.white),
+  //                 ],
+  //               ),
+  //             ),
+  //           ),
+  //         ),
+  //   );
+  // }
+
   Widget _buildRideList(List<RideHistory> rides) {
     if (rides.isEmpty) {
       return const Center(
@@ -124,13 +209,19 @@ class _RideHistoryScreenState extends State<RideHistoryScreen>
         ),
       );
     }
+
     return ListView.builder(
       padding: const EdgeInsets.all(8),
       itemCount: rides.length,
       itemBuilder: (context, index) {
-        return UberStyleRideTile(
-          ride: rides[index],
-          currentLocation: currentLocation,
+        return ValueListenableBuilder<LatLng?>(
+          valueListenable: currentLocationNotifier,
+          builder: (_, location, __) {
+            return UberStyleRideTile(
+              ride: rides[index],
+              currentLocation: location,
+            );
+          },
         );
       },
     );
@@ -191,15 +282,27 @@ class _RideHistoryScreenState extends State<RideHistoryScreen>
                 icon: const Icon(Icons.schedule),
                 label: const Text(
                   "Schedule Ride",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               )
               : null,
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildRideList(_getFilteredRides(pastRides)),
-          _buildRideList(_getFilteredRides(upcomingRides)),
+          isLoading
+              ? const Center(
+                child: CircularProgressIndicator(color: Colors.blue),
+              )
+              : _buildRideList(_getFilteredRides(pastRides)),
+          isLoading
+              ? const Center(
+                child: CircularProgressIndicator(color: Colors.blue),
+              )
+              : _buildRideList(_getFilteredRides(upcomingRides)),
         ],
       ),
     );
@@ -223,156 +326,788 @@ class UberStyleRideTile extends ConsumerWidget {
             ? "assets/imgs/bike.png"
             : "assets/imgs/aminicar.jpeg";
 
-    Color statusColor;
-    switch (ride.status?.toLowerCase()) {
-      case 'completed':
-        statusColor = Colors.green;
-        break;
-      case 'cancelled':
-        statusColor = Colors.red;
-        break;
-      default:
-        statusColor = Colors.blue;
-    }
+    final isCancelled = ride.status?.toLowerCase() == "cancelled";
 
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => RideDetailsScreen(ride: ride)),
-        );
-      },
-      child: Card(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        elevation: 3,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.asset(
-                  imageAsset,
-                  height: 50,
-                  width: 50,
-                  fit: BoxFit.cover,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    final date = ride.dropoffTime ?? ride.scheduledDate;
+
+    return Column(
+      children: [
+        InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => RideDetailsScreen(ride: ride)),
+            );
+          },
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              // color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                /// 🚗 VEHICLE IMAGE + CANCEL OVERLAY
+                Stack(
                   children: [
-                    Text(
-                      "${ride.destination}", //
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Opacity(
+                        opacity: isCancelled ? 1 : 1, // fade if cancelled
+                        child: Image.asset(
+                          imageAsset,
+                          height: 48,
+                          width: 48,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      "Driver/Company: ${ride.contactName}",
-                      style: const TextStyle(fontSize: 14, color: Colors.black),
-                    ),
+
+                    /// ❌ CROSS IF CANCELLED
+                    if (isCancelled)
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.close,
+                              color: Colors.red,
+                              size: 48,
+                              weight: 900,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+
+                const SizedBox(width: 10),
+
+                /// 📍 DETAILS
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        ride.destination ?? "Unknown destination",
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+
+                      const SizedBox(height: 4),
+
+                      Text(
+                        ride.contactName ?? "",
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.black.withOpacity(0.7),
+                        ),
+                      ),
+
+                      const SizedBox(height: 4),
+
+                      Text(
+                        "KES ${ride.fare.toStringAsFixed(0)}",
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+
+                      const SizedBox(height: 6),
+
+                      if (date != null)
+                        Text(
+                          DateFormat('dd MMM yyyy, HH:mm').format(date),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.black.withOpacity(0.5),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+
+                /// 👉 RIGHT SIDE (ONLY REBOOK NOW)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
                     const SizedBox(height: 4),
-                    Text(
-                      "Fare: KES ${ride.fare.toStringAsFixed(0)}",
-                      style: const TextStyle(fontSize: 14, color: Colors.black),
+
+                    /// 🔁 REBOOK
+                    InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () {
+                        if (currentLocation == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Location not ready"),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
+
+                        final destination = LatLng(
+                          ride.destinationLatitude,
+                          ride.destinationLongitude,
+                        );
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (_) => HomeScreen(
+                                  pickup: currentLocation!,
+                                  destination: destination,
+                                  stops: ref.read(stopsProvider),
+                                  category: VehicleCategory.passenger,
+                                ),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[500],
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.refresh, size: 16, color: Colors.white),
+                            SizedBox(width: 4),
+                            Text(
+                              "Rebook",
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: statusColor),
-                    ),
-                    child: Text(
-                      ride.status ?? "Unknown",
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: statusColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    ride.dropoffTime != null
-                        ? DateFormat('dd MMM').format(ride.dropoffTime!)
-                        : ride.scheduledDate != null
-                        ? DateFormat('dd MMM').format(ride.scheduledDate!)
-                        : 'N/A',
-                    style: const TextStyle(fontSize: 12, color: Colors.black45),
-                  ),
-                  TextButton.icon(
-                    onPressed: () {
-                      if (currentLocation == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              "Current location not available yet.",
-                            ),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                        return;
-                      }
-                      final destination = LatLng(
-                        ride.destinationLatitude,
-                        ride.destinationLongitude,
-                      );
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (_) => HomeScreen(
-                                pickup: currentLocation!,
-                                destination: destination,
-                                stops: ref.read(stopsProvider),
-                                category: VehicleCategory.passenger,
-                              ),
-                        ),
-                      );
-                    },
-                    icon: Icon(
-                      Icons.repeat,
-                      color: Colors.blue.shade700,
-                      size: 18,
-                    ),
-                    label: Text(
-                      "Rebook",
-                      style: TextStyle(
-                        color: Colors.blue.shade700,
-                        fontSize: 13,
-                      ),
-                    ),
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      minimumSize: const Size(50, 30),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
+
+        /// ✨ FADED DIVIDER
+        ///
+        Divider(
+          height: 1, // 🔥 removes vertical spacing
+          thickness: 1,
+          indent: 20,
+          endIndent: 20,
+          color: Colors.grey.withOpacity(0.4),
+        ),
+        // Padding(
+        //   padding: const EdgeInsets.symmetric(horizontal: 20),
+        //   child: Divider(thickness: 1, color: Colors.grey.withOpacity(0.4)),
+        // ),
+      ],
     );
   }
 }
+
+// class UberStyleRideTile extends ConsumerWidget {
+//   final RideHistory ride;
+//   final LatLng? currentLocation;
+
+//   const UberStyleRideTile({
+//     super.key,
+//     required this.ride,
+//     required this.currentLocation,
+//   });
+
+//   @override
+//   Widget build(BuildContext context, WidgetRef ref) {
+//     final imageAsset =
+//         ride.vehicleType == "bike"
+//             ? "assets/imgs/bike.png"
+//             : "assets/imgs/aminicar.jpeg";
+
+//     Color statusColor;
+//     switch (ride.status?.toLowerCase()) {
+//       case 'completed':
+//         statusColor = Colors.green;
+//         break;
+//       case 'cancelled':
+//         statusColor = Colors.red;
+//         break;
+//       default:
+//         statusColor = Colors.blue;
+//     }
+
+//     final date = ride.dropoffTime ?? ride.scheduledDate;
+
+//     return InkWell(
+//       borderRadius: BorderRadius.circular(14),
+//       onTap: () {
+//         Navigator.push(
+//           context,
+//           MaterialPageRoute(builder: (_) => RideDetailsScreen(ride: ride)),
+//         );
+//       },
+//       child: Card(
+//         margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+//         color: Colors.white,
+//         elevation: 0, // ❗ no shadow
+//         shape: RoundedRectangleBorder(
+//           borderRadius: BorderRadius.circular(14),
+//           side: BorderSide(
+//             color: Colors.grey.withOpacity(0.8), // ✅ black border
+//             width: 1,
+//           ),
+//         ),
+//         child: Padding(
+//           padding: const EdgeInsets.all(14),
+//           child: Row(
+//             crossAxisAlignment: CrossAxisAlignment.start,
+//             children: [
+//               /// 🚗 VEHICLE IMAGE
+//               ClipRRect(
+//                 borderRadius: BorderRadius.circular(10),
+//                 child: Image.asset(
+//                   imageAsset,
+//                   height: 55,
+//                   width: 55,
+//                   fit: BoxFit.cover,
+//                 ),
+//               ),
+
+//               const SizedBox(width: 14),
+
+//               /// 📍 RIDE DETAILS
+//               Expanded(
+//                 child: Column(
+//                   crossAxisAlignment: CrossAxisAlignment.start,
+//                   children: [
+//                     /// DESTINATION
+//                     Text(
+//                       ride.destination ?? "Unknown destination",
+//                       style: const TextStyle(
+//                         fontSize: 16,
+//                         fontWeight: FontWeight.w700,
+//                       ),
+//                       maxLines: 1,
+//                       overflow: TextOverflow.ellipsis,
+//                     ),
+
+//                     const SizedBox(height: 6),
+
+//                     /// DRIVER / COMPANY
+//                     Text(
+//                       ride.contactName ?? "",
+//                       style: TextStyle(
+//                         fontSize: 14,
+//                         color: Colors.black.withOpacity(0.7),
+//                       ),
+//                     ),
+
+//                     const SizedBox(height: 4),
+
+//                     /// FARE
+//                     Text(
+//                       "KES ${ride.fare.toStringAsFixed(0)}",
+//                       style: const TextStyle(
+//                         fontSize: 14,
+//                         fontWeight: FontWeight.w600,
+//                       ),
+//                     ),
+
+//                     const SizedBox(height: 6),
+
+//                     /// DATE
+//                     if (date != null)
+//                       Text(
+//                         DateFormat('dd MMM yyyy, HH:mm').format(date),
+//                         style: TextStyle(
+//                           fontSize: 12,
+//                           color: Colors.black.withOpacity(0.5),
+//                         ),
+//                       ),
+//                   ],
+//                 ),
+//               ),
+
+//               /// 👉 RIGHT SIDE (STATUS + REBOOK)
+//               Column(
+//                 crossAxisAlignment: CrossAxisAlignment.end,
+//                 children: [
+//                   /// STATUS BADGE
+//                   Container(
+//                     padding: const EdgeInsets.symmetric(
+//                       horizontal: 10,
+//                       vertical: 5,
+//                     ),
+//                     decoration: BoxDecoration(
+//                       color: Colors.grey[400],
+//                       borderRadius: BorderRadius.circular(12),
+//                       border: Border.all(color: statusColor),
+//                     ),
+//                     child: Text(
+//                       ride.status ?? "Unknown",
+//                       style: TextStyle(
+//                         fontSize: 12,
+//                         color: Colors.white,
+//                         fontWeight: FontWeight.w600,
+//                       ),
+//                     ),
+//                   ),
+
+//                   const SizedBox(height: 12),
+
+//                   /// 🔁 REBOOK BUTTON (MODERN)
+//                   InkWell(
+//                     borderRadius: BorderRadius.circular(20),
+//                     onTap: () {
+//                       if (currentLocation == null) {
+//                         ScaffoldMessenger.of(context).showSnackBar(
+//                           const SnackBar(
+//                             content: Text("Location not ready"),
+//                             backgroundColor: Colors.red,
+//                           ),
+//                         );
+//                         return;
+//                       }
+
+//                       final destination = LatLng(
+//                         ride.destinationLatitude,
+//                         ride.destinationLongitude,
+//                       );
+
+//                       Navigator.push(
+//                         context,
+//                         MaterialPageRoute(
+//                           builder:
+//                               (_) => HomeScreen(
+//                                 pickup: currentLocation!,
+//                                 destination: destination,
+//                                 stops: ref.read(stopsProvider),
+//                                 category: VehicleCategory.passenger,
+//                               ),
+//                         ),
+//                       );
+//                     },
+//                     child: Container(
+//                       padding: const EdgeInsets.symmetric(
+//                         horizontal: 10,
+//                         vertical: 6,
+//                       ),
+//                       decoration: BoxDecoration(
+//                         color: Colors.blue, //.withOpacity(0.08),
+//                         borderRadius: BorderRadius.circular(20),
+//                         border: Border.all(color: Colors.white),
+//                       ),
+//                       child: Row(
+//                         mainAxisSize: MainAxisSize.min,
+//                         children: const [
+//                           Icon(Icons.refresh, size: 16, color: Colors.white),
+//                           SizedBox(width: 4),
+//                           Text(
+//                             "Rebook",
+//                             style: TextStyle(
+//                               fontSize: 12,
+//                               fontWeight: FontWeight.w600,
+//                               color: Colors.white,
+//                             ),
+//                           ),
+//                         ],
+//                       ),
+//                     ),
+//                   ),
+//                 ],
+//               ),
+//             ],
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+// }
+
+// class UberStyleRideTile extends ConsumerWidget {
+//   final RideHistory ride;
+//   final LatLng? currentLocation;
+
+//   const UberStyleRideTile({
+//     super.key,
+//     required this.ride,
+//     required this.currentLocation,
+//   });
+
+//   @override
+//   Widget build(BuildContext context, WidgetRef ref) {
+//     final imageAsset =
+//         ride.vehicleType == "bike"
+//             ? "assets/imgs/bike.png"
+//             : "assets/imgs/aminicar.jpeg";
+
+//     Color statusColor;
+//     switch (ride.status?.toLowerCase()) {
+//       case 'completed':
+//         statusColor = Colors.green;
+//         break;
+//       case 'cancelled':
+//         statusColor = Colors.red;
+//         break;
+//       default:
+//         statusColor = Colors.blue;
+//     }
+
+//     return GestureDetector(
+//       onTap: () {
+//         Navigator.push(
+//           context,
+//           MaterialPageRoute(builder: (_) => RideDetailsScreen(ride: ride)),
+//         );
+//       },
+//       child: Card(
+//         margin: const EdgeInsets.symmetric(vertical: 8),
+//         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+//         elevation: 3,
+//         child: Padding(
+//           padding: const EdgeInsets.all(14),
+//           child: Row(
+//             crossAxisAlignment: CrossAxisAlignment.start,
+//             children: [
+//               ClipRRect(
+//                 borderRadius: BorderRadius.circular(10),
+//                 child: Image.asset(
+//                   imageAsset,
+//                   height: 50,
+//                   width: 50,
+//                   fit: BoxFit.cover,
+//                 ),
+//               ),
+//               const SizedBox(width: 14),
+//               Expanded(
+//                 child: Column(
+//                   crossAxisAlignment: CrossAxisAlignment.start,
+//                   children: [
+//                     Text(
+//                       "${ride.destination}",
+//                       style: const TextStyle(
+//                         fontSize: 16,
+//                         fontWeight: FontWeight.bold,
+//                       ),
+//                     ),
+//                     const SizedBox(height: 6),
+//                     Text(
+//                       "Driver/Company: ${ride.contactName}",
+//                       style: const TextStyle(fontSize: 14, color: Colors.black),
+//                     ),
+//                     const SizedBox(height: 4),
+//                     Text(
+//                       "Fare: KES ${ride.fare.toStringAsFixed(0)}",
+//                       style: const TextStyle(fontSize: 14, color: Colors.black),
+//                     ),
+//                   ],
+//                 ),
+//               ),
+//               Column(
+//                 crossAxisAlignment: CrossAxisAlignment.end,
+//                 children: [
+//                   Container(
+//                     padding: const EdgeInsets.symmetric(
+//                       horizontal: 8,
+//                       vertical: 4,
+//                     ),
+//                     decoration: BoxDecoration(
+//                       color: statusColor.withOpacity(0.1),
+//                       borderRadius: BorderRadius.circular(8),
+//                       border: Border.all(color: statusColor),
+//                     ),
+//                     child: Text(
+//                       ride.status ?? "Unknown",
+//                       style: TextStyle(
+//                         fontSize: 12,
+//                         color: statusColor,
+//                         fontWeight: FontWeight.w600,
+//                       ),
+//                     ),
+//                   ),
+//                   const SizedBox(height: 8),
+//                   Text(
+//                     ride.dropoffTime != null
+//                         ? DateFormat('dd MMM').format(ride.dropoffTime!)
+//                         : ride.scheduledDate != null
+//                         ? DateFormat('dd MMM').format(ride.scheduledDate!)
+//                         : 'N/A',
+//                     style: const TextStyle(fontSize: 12, color: Colors.black45),
+//                   ),
+//                   TextButton.icon(
+//                     onPressed: () {
+//                       if (currentLocation == null) {
+//                         ScaffoldMessenger.of(context).showSnackBar(
+//                           const SnackBar(
+//                             content: Text(
+//                               "Current location not available yet.",
+//                             ),
+//                             backgroundColor: Colors.red,
+//                           ),
+//                         );
+//                         return;
+//                       }
+//                       final destination = LatLng(
+//                         ride.destinationLatitude,
+//                         ride.destinationLongitude,
+//                       );
+//                       Navigator.push(
+//                         context,
+//                         MaterialPageRoute(
+//                           builder:
+//                               (_) => HomeScreen(
+//                                 pickup: currentLocation!,
+//                                 destination: destination,
+//                                 stops: ref.read(stopsProvider),
+//                                 category: VehicleCategory.passenger,
+//                               ),
+//                         ),
+//                       );
+//                     },
+//                     icon: Icon(
+//                       Icons.repeat,
+//                       color: Colors.blue.shade700,
+//                       size: 18,
+//                     ),
+//                     label: Text(
+//                       "Rebook",
+//                       style: TextStyle(
+//                         color: Colors.blue.shade700,
+//                         fontSize: 13,
+//                       ),
+//                     ),
+//                     style: TextButton.styleFrom(
+//                       padding: EdgeInsets.zero,
+//                       minimumSize: const Size(50, 30),
+//                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+//                     ),
+//                   ),
+//                 ],
+//               ),
+//             ],
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+// }
+
+// class UberStyleRideTile extends ConsumerWidget {
+//   final RideHistory ride;
+//   final LatLng? currentLocation;
+
+//   const UberStyleRideTile({
+//     super.key,
+//     required this.ride,
+//     required this.currentLocation,
+//   });
+
+//   VehicleCategory _mapCategory(String? type) {
+//     switch (type?.toLowerCase()) {
+//       case "exhauster":
+//         return VehicleCategory.exhauster;
+//       case "cargo":
+//         return VehicleCategory.cargo;
+//       case "waterbowser":
+//         return VehicleCategory.waterBowser;
+//       default:
+//         return VehicleCategory.passenger;
+//     }
+//   }
+
+//   @override
+//   Widget build(BuildContext context, WidgetRef ref) {
+//     final imageAsset =
+//         ride.vehicleType == "bike"
+//             ? "assets/imgs/bike.png"
+//             : "assets/imgs/aminicar.jpeg";
+
+//     final date = ride.dropoffTime ?? ride.scheduledDate;
+
+//     Color statusColor;
+//     switch (ride.status?.toLowerCase()) {
+//       case 'completed':
+//         statusColor = Colors.green;
+//         break;
+//       case 'cancelled':
+//         statusColor = Colors.red;
+//         break;
+//       default:
+//         statusColor = Colors.blue;
+//     }
+
+//     return GestureDetector(
+//       onTap: () {
+//         Navigator.push(
+//           context,
+//           MaterialPageRoute(builder: (_) => RideDetailsScreen(ride: ride)),
+//         );
+//       },
+//       child: Container(
+//         margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+//         padding: const EdgeInsets.all(14),
+//         decoration: BoxDecoration(
+//           color: Colors.white,
+//           borderRadius: BorderRadius.circular(16),
+//           border: Border.all(color: Colors.grey.shade200), // ✅ BORDER ADDED
+//           boxShadow: [
+//             BoxShadow(
+//               color: Colors.black.withOpacity(0.03),
+//               blurRadius: 8,
+//               offset: const Offset(0, 3),
+//             ),
+//           ],
+//         ),
+//         child: Row(
+//           children: [
+//             ClipRRect(
+//               borderRadius: BorderRadius.circular(12),
+//               child: Image.asset(
+//                 imageAsset,
+//                 height: 55,
+//                 width: 55,
+//                 fit: BoxFit.cover,
+//               ),
+//             ),
+//             const SizedBox(width: 14),
+
+//             /// 🔥 DETAILS
+//             Expanded(
+//               child: Column(
+//                 crossAxisAlignment: CrossAxisAlignment.start,
+//                 children: [
+//                   Text(
+//                     ride.destination ?? "Unknown destination",
+//                     style: const TextStyle(
+//                       fontSize: 17, // 🔥 improved
+//                       fontWeight: FontWeight.w600,
+//                     ),
+//                   ),
+//                   const SizedBox(height: 6),
+
+//                   Text(
+//                     ride.contactName ?? "",
+//                     style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+//                   ),
+
+//                   const SizedBox(height: 4),
+
+//                   Text(
+//                     "KES ${ride.fare.toStringAsFixed(0)}",
+//                     style: const TextStyle(
+//                       fontSize: 15,
+//                       fontWeight: FontWeight.w500,
+//                     ),
+//                   ),
+
+//                   const SizedBox(height: 6),
+
+//                   /// ✅ EXACT DATE
+//                   if (date != null)
+//                     Text(
+//                       DateFormat('dd MMM yyyy, HH:mm').format(date),
+//                       style: TextStyle(
+//                         fontSize: 12,
+//                         color: Colors.grey.shade500,
+//                       ),
+//                     ),
+//                 ],
+//               ),
+//             ),
+
+//             /// 🔥 RIGHT SIDE
+//             Column(
+//               crossAxisAlignment: CrossAxisAlignment.end,
+//               children: [
+//                 /// STATUS CHIP
+//                 Container(
+//                   padding: const EdgeInsets.symmetric(
+//                     horizontal: 10,
+//                     vertical: 5,
+//                   ),
+//                   decoration: BoxDecoration(
+//                     color: statusColor.withOpacity(0.08),
+//                     borderRadius: BorderRadius.circular(20),
+//                     border: Border.all(color: statusColor.withOpacity(0.4)),
+//                   ),
+//                   child: Text(
+//                     ride.status ?? "Unknown",
+//                     style: TextStyle(
+//                       fontSize: 12,
+//                       color: statusColor,
+//                       fontWeight: FontWeight.w600,
+//                     ),
+//                   ),
+//                 ),
+
+//                 const SizedBox(height: 10),
+
+//                 /// 🔥 MODERN REBOOK (ICON ONLY / CLEAN)
+//                 InkWell(
+//                   borderRadius: BorderRadius.circular(20),
+//                   onTap: () {
+//                     if (currentLocation == null) {
+//                       ScaffoldMessenger.of(context).showSnackBar(
+//                         const SnackBar(
+//                           content: Text("Location not ready"),
+//                           backgroundColor: Colors.red,
+//                         ),
+//                       );
+//                       return;
+//                     }
+
+//                     Navigator.push(
+//                       context,
+//                       MaterialPageRoute(
+//                         builder:
+//                             (_) => WhereToScreen(
+//                               category: _mapCategory(
+//                                 ride.vehicleType,
+//                               ), // ✅ dynamic
+//                               IsScheduled: false, // ✅ blank new ride
+//                             ),
+//                       ),
+//                     );
+//                   },
+//                   child: Container(
+//                     padding: const EdgeInsets.all(8),
+//                     decoration: BoxDecoration(
+//                       color: Colors.grey.shade100,
+//                       shape: BoxShape.circle,
+//                     ),
+//                     child: Icon(
+//                       Icons.refresh,
+//                       size: 18,
+//                       color: Colors.grey.shade800,
+//                     ),
+//                   ),
+//                 ),
+//               ],
+//             ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+// }
 
 // import 'dart:convert';
 
