@@ -128,7 +128,7 @@ class _RideMapState extends State<RideMap> {
     //   _fitBounds([pickupPos, widget.destination!]);
     // }
   }
-
+//google
   Future<void> _getRoute() async {
     final pickupPos = widget.pickup ?? _currentLocation;
     if (pickupPos == null || widget.destination == null) return;
@@ -170,6 +170,73 @@ class _RideMapState extends State<RideMap> {
       debugPrint('HTTP error: ${res.statusCode}');
     }
   }
+
+  //mbox
+
+//   Future<void> _getRoute() async {
+//   final pickupPos = widget.pickup ?? _currentLocation;
+
+//   if (pickupPos == null || widget.destination == null) return;
+
+//   final String apiKey = mapboxAccessToken;
+
+//   final String coordinates =
+//       '${pickupPos.longitude},${pickupPos.latitude};'
+//       '${widget.destination!.longitude},${widget.destination!.latitude}';
+
+//   final Uri url = Uri.parse(
+//     'https://api.mapbox.com/directions/v5/mapbox/driving/'
+//     '$coordinates'
+//     '?alternatives=false'
+//     '&geometries=polyline'
+//     '&overview=full'
+//     '&steps=true'
+//     '&access_token=$apiKey',
+//   );
+
+//   try {
+//     final response = await http.get(url);
+
+//     if (response.statusCode != 200) {
+//       debugPrint("Mapbox HTTP Error: ${response.statusCode}");
+//       return;
+//     }
+
+//     final data = jsonDecode(response.body);
+
+//     if (data["routes"] == null || data["routes"].isEmpty) {
+//       debugPrint("No route found.");
+//       return;
+//     }
+
+//     final route = data["routes"][0];
+
+//     final String encodedPolyline = route["geometry"];
+
+//     final List<LatLng> polylinePoints =
+//         _decodePolyline(encodedPolyline);
+
+//     final double distanceMeters =
+//         (route["distance"] as num).toDouble();
+
+//     setState(() {
+//       _routeDistance = distanceMeters / 1000;
+
+//       _polylines = {
+//         Polyline(
+//           polylineId: const PolylineId("route"),
+//           color: Colors.blue,
+//           width: 4,
+//           points: polylinePoints,
+//         ),
+//       };
+//     });
+
+//     _fitBounds(polylinePoints);
+//   } catch (e) {
+//     debugPrint("Mapbox Directions Error: $e");
+//   }
+// }
 
   void _fitBounds(List<LatLng> points) {
     if (_mapController == null || points.isEmpty) return;

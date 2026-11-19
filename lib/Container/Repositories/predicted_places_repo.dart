@@ -25,9 +25,19 @@ class PredictedPlacesRepo {
       if (text.length < 2) {
         return;
       }
+      //google
       String url =
           "https://maps.googleapis.com/maps/api/place/autocomplete/json?input=$text&key=$mapKey&components=country:pk";
 
+//mbox
+// String url =
+//     "https://api.mapbox.com/search/searchbox/v1/suggest"
+//     "?q=$text"
+//     "&language=en"
+//     "&country=KE"
+//     "&access_token=$mapboxAccessToken";
+
+    
       Response res = await Dio().get(url);
 
       if (res.statusCode == 200) {

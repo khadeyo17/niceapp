@@ -12,6 +12,7 @@ import 'package:niceapp/View/Screens/Main_Screens/Home_Screen/home_screen.dart';
 //import 'package:niceapp/View/Screens/Main_Screens/Home_Screen/dashboard_screen';
 //import 'package:niceapp/View/Routes/routes.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Home_Screen/main_layout.dart';
+import 'package:niceapp/View/Screens/Main_Screens/Home_Screen/plan_ahead_screen.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/driver_confirmation_screen.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/driver_provider.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/ride_in_progress_screen.dart';
@@ -169,98 +170,149 @@ final GoRouter router = GoRouter(
           name: 'transportServices',
           builder: (context, state) => const TransportServicesScreen(),
           routes: [
-            GoRoute(
-              path: 'ride-booking',
-              name: 'rideBooking',
-              builder:
-                  (context, state) =>
-                      HomeScreen(category: VehicleCategory.passenger),
-              //category: VehicleCategory.passenger
-            ),
-            GoRoute(
-              path: 'bus-booking',
-              name: 'busBooking',
-              builder:
-                  (context, state) =>
-                      BusBookingScreen(category: VehicleCategory.matatu),
-            ),
-            GoRoute(
-              path: 'honey-sucker',
-              name: 'honeySucker',
-              builder:
-                  (context, state) =>
-                      HoneySuckerScreen(category: VehicleCategory.exhauster),
-            ),
-            GoRoute(
-              path: 'movers',
-              name: 'movers',
-              builder: (context, state) {
-                return const MoversScreen(category: VehicleCategory.movers);
-              },
-            ),
+            // GoRoute(
+            //   path: 'ride-booking',
+            //   name: 'rideBooking',
+            //   builder:
+            //       (context, state) =>
+            //           WhereToScreen(category: VehicleCategory.passenger),
+            //   //category: VehicleCategory.passenger
+            // ),
+            // GoRoute(
+            //   path: 'bus-booking',
+            //   name: 'busBooking',
+            //   builder:
+            //       (context, state) =>
+            //           BusBookingScreen(category: VehicleCategory.matatu),
+            // ),
+            // GoRoute(
+            //   path: 'honey-sucker',
+            //   name: 'honeySucker',
+            //   builder:
+            //       (context, state) =>
+            //           WhereToScreen(category: VehicleCategory.exhauster),
+            // ),
+            // GoRoute(
+            //   path: 'movers',
+            //   name: 'movers',
+            //   builder: (context, state) {
+            //     return const MoversScreen(category: VehicleCategory.movers);
+            //   },
+            // ),
 
+            // // GoRoute(
+            // //   path: 'cargo',
+            // //   name: 'cargoTransport',
+            // //   builder: (context, state) => const CargoTransportScreen(),
+            // // ),
             // GoRoute(
             //   path: 'cargo',
             //   name: 'cargoTransport',
-            //   builder: (context, state) => const CargoTransportScreen(),
+            //   builder:
+            //       (context, state) => CargoTransportScreen(
+            //         category: VehicleCategory.cargo,
+            //         pickup: null, // Or use state.extra or state.queryParams
+            //         destination: null,
+            //       ),
             // ),
+            // GoRoute(
+            //   path: 'car-hire',
+            //   name: 'carHire',
+            //   builder:
+            //       (context, state) =>
+            //           const CarHireScreen(category: VehicleCategory.carhire),
+            // ),
+            // GoRoute(
+            //   path: 'ambulance',
+            //   name: 'ambulance',
+            //   builder:
+            //       (context, state) => const AmbulanceScreen(
+            //         category: VehicleCategory.ambulance,
+            //       ),
+            // ),
+            // GoRoute(
+            //   path: 'water-bower',
+            //   name: 'waterBower',
+            //   builder:
+            //       (context, state) => const WhereToScreen(
+            //         category: VehicleCategory.waterBowser,
+            //         //  pickup: null, // Or use state.extra or state.queryParams
+            //         //destination: null,
+            //       ),
+            // ),
+            // GoRoute(
+            //   path: 'breakdown',
+            //   name: 'breakdown',
+            //   builder:
+            //       (context, state) => const BreakdownScreen(
+            //         category: VehicleCategory.breakdown,
+            //       ),
+            // ),
+            // GoRoute(
+            //   path: 'mechanical',
+            //   builder:
+            //       (context, state) => const MechanicalScreen(
+            //         category: VehicleCategory.mechanical,
+            //       ),
+            // ),
+            // GoRoute(
+            //   path: 'machinery',
+            //   builder:
+            //       (context, state) => const WhereToScreen(
+            //         category: VehicleCategory.machinery,
+            //       ),
+            // ),
+
             GoRoute(
-              path: 'cargo',
-              name: 'cargoTransport',
-              builder:
-                  (context, state) => CargoTransportScreen(
-                    category: VehicleCategory.cargo,
-                    pickup: null, // Or use state.extra or state.queryParams
-                    destination: null,
-                  ),
-            ),
-            GoRoute(
-              path: 'car-hire',
-              name: 'carHire',
-              builder:
-                  (context, state) =>
-                      const CarHireScreen(category: VehicleCategory.carhire),
-            ),
-            GoRoute(
-              path: 'ambulance',
-              name: 'ambulance',
-              builder:
-                  (context, state) => const AmbulanceScreen(
-                    category: VehicleCategory.ambulance,
-                  ),
-            ),
-            GoRoute(
-              path: 'water-bower',
-              name: 'waterBower',
-              builder:
-                  (context, state) => const WaterBowerScreen(
-                    category: VehicleCategory.waterBowser,
-                    //  pickup: null, // Or use state.extra or state.queryParams
-                    //destination: null,
-                  ),
-            ),
-            GoRoute(
-              path: 'breakdown',
-              name: 'breakdown',
-              builder:
-                  (context, state) => const BreakdownScreen(
-                    category: VehicleCategory.breakdown,
-                  ),
-            ),
-            GoRoute(
-              path: 'mechanical',
-              builder:
-                  (context, state) => const MechanicalScreen(
-                    category: VehicleCategory.mechanical,
-                  ),
-            ),
-            GoRoute(
-              path: 'machinery',
-              builder:
-                  (context, state) => const MachineryScreen(
-                    category: VehicleCategory.machinery,
-                  ),
-            ),
+  path: 'ride-booking',
+  name: 'rideBooking',
+  builder: (context, state) {
+    final extra = state.extra as Map<String, dynamic>? ?? {};
+
+    return WhereToScreen(
+      category: VehicleCategory.passenger,
+      IsScheduled: extra['IsScheduled'] == true,
+    );
+  },
+),
+
+GoRoute(
+  path: 'honey-sucker',
+  name: 'honeySucker',
+  builder: (context, state) {
+    final extra = state.extra as Map<String, dynamic>? ?? {};
+
+    return WhereToScreen(
+      category: VehicleCategory.exhauster,
+      IsScheduled: extra['IsScheduled'] == true,
+    );
+  },
+),
+
+GoRoute(
+  path: 'water-bower',
+  name: 'waterBower',
+  builder: (context, state) {
+    final extra = state.extra as Map<String, dynamic>? ?? {};
+
+    return WhereToScreen(
+      category: VehicleCategory.waterBowser,
+      IsScheduled: extra['IsScheduled'] == true,
+    );
+  },
+),
+
+GoRoute(
+  path: 'machinery',
+  builder: (context, state) {
+    final extra = state.extra as Map<String, dynamic>? ?? {};
+
+    return WhereToScreen(
+      category: VehicleCategory.machinery,
+      IsScheduled: extra['IsScheduled'] == true,
+    );
+  },
+),
           ],
         ),
         GoRoute(
@@ -273,6 +325,11 @@ final GoRouter router = GoRouter(
           name: 'profile',
           builder: (context, state) => const ProfileScreen(),
         ),
+
+        GoRoute(
+  path: '/plan-ahead',
+  builder: (context, state) => const PlanAheadScreen(),
+),
       ],
     ),
   ],

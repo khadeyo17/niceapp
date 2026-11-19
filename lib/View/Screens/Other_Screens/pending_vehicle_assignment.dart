@@ -92,7 +92,7 @@ class _PendingDriverAssignmentScreenState
     }
 
     final idToken = await user.getIdToken();
-    final url = '$baseUrl/rides/cargo/book';
+    final url = '$baseUrl/passengerrides/cargo/book';
 
     final pickupLat = widget.pickup.latitude;
     final pickupLng = widget.pickup.longitude;
@@ -185,7 +185,7 @@ class _PendingDriverAssignmentScreenState
     });
 
     final url = Uri.parse(
-      '$baseUrl/rides/create',
+      '$baseUrl/passengerrides/create',
     ); // Replace with your endpoint
 
     final body = {

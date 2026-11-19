@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:elegant_notification/elegant_notification.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geocoder2/geocoder2.dart';
+
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -101,33 +101,33 @@ class HomeScreenLogics {
   /// [getAddressfromCordinates] read data from [cameraMovementProvider] (which is updated whenever the camera moves) and gets the human readable address
   /// from the [cameraMovementProvider] and returns a [Direction] model which is assigned to [pickUpLocationProvider] (which sets the user's pick up Location)
 
-  void getAddressfromCordinates(BuildContext context, WidgetRef ref) async {
-    try {
-      if (ref.read(homeScreenCameraMovementProvider) == null) {
-        return;
-      }
+  // void getAddressfromCordinates(BuildContext context, WidgetRef ref) async {
+  //   try {
+  //     if (ref.read(homeScreenCameraMovementProvider) == null) {
+  //       return;
+  //     }
 
-      GeoData data = await Geocoder2.getDataFromCoordinates(
-        latitude: ref.read(homeScreenCameraMovementProvider)!.latitude,
-        longitude: ref.read(homeScreenCameraMovementProvider)!.longitude,
-        googleMapApiKey: "",
-      );
+  //     GeoData data = await Geocoder2.getDataFromCoordinates(
+  //       latitude: ref.read(homeScreenCameraMovementProvider)!.latitude,
+  //       longitude: ref.read(homeScreenCameraMovementProvider)!.longitude,
+  //       googleMapApiKey: "",
+  //     );
 
-      Direction model = Direction(
-        locationLatitude: data.latitude,
-        locationLongitude: data.longitude,
-        humanReadableAddress: data.address,
-      );
+  //     Direction model = Direction(
+  //       locationLatitude: data.latitude,
+  //       locationLongitude: data.longitude,
+  //       humanReadableAddress: data.address,
+  //     );
 
-      ref
-          .read(homeScreenPickUpLocationProvider.notifier)
-          .update((state) => model);
-    } catch (e) {
-      if (context.mounted) {
-        ErrorNotification().showError(context, "An Error Occurred $e");
-      }
-    }
-  }
+  //     ref
+  //         .read(homeScreenPickUpLocationProvider.notifier)
+  //         .update((state) => model);
+  //   } catch (e) {
+  //     if (context.mounted) {
+  //       ErrorNotification().showError(context, "An Error Occurred $e");
+  //     }
+  //   }
+  // }
 
   /// Function for [WhereTo] TextField Button
 

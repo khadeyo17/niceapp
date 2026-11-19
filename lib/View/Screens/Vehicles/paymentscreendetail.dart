@@ -163,7 +163,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   Future<void> completeBooking(String? token) async {
     final bookingResponse = await http.post(
-      Uri.parse('$baseUrl/rides/bus/book'),
+      Uri.parse('$baseUrl/passengerrides/bus/book'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode({
         "busId": widget.busId,

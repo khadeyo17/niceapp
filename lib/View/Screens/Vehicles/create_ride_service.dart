@@ -5,7 +5,7 @@ import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/dr
 import 'package:niceapp/View/Screens/Vehicles/create_ride.dart';
 
 // Future<void> createRide(RideCreateDto ride) async {
-//   const String url = '$baseUrl/rides/create'; // replace with your real API
+//   const String url = '$baseUrl/passengerrides/create'; // replace with your real API
 
 //   final response = await http.post(
 //     Uri.parse(url),
@@ -24,7 +24,7 @@ import 'package:niceapp/View/Screens/Vehicles/create_ride.dart';
 // }
 
 // Future<Map<String, dynamic>?> createRide(RideCreateDto ride) async {
-//   const String url = '$baseUrl/rides/passenger/book';
+//   const String url = '$baseUrl/passengerrides/passenger/book';
 //   print(jsonEncode(ride.toJson()));
 //   final response = await http.post(
 //     Uri.parse(url),
@@ -43,7 +43,7 @@ import 'package:niceapp/View/Screens/Vehicles/create_ride.dart';
 // }
 
 // Future<Driver?> createRide(RideCreateDto ride) async {
-//   const String url = '$baseUrl/rides/create';
+//   const String url = '$baseUrl/passengerrides/create';
 //   print(jsonEncode(ride.toJson()));
 //   final response = await http.post(
 //     Uri.parse(url),

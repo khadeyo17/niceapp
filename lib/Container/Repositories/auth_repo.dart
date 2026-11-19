@@ -6,7 +6,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:sms_autofill/sms_autofill.dart';
 // import 'package:google_sign_in/google_sign_in.dart';
 // import 'package:http/http.dart' as http;
 // import 'package:niceapp/Container/utils/keys.dart';
@@ -321,7 +320,7 @@ class AuthRepo {
 //     try {
 //       // Step 1: Check if user exists in backend
 //       // final checkResponse = await http.get(
-//       //   Uri.parse("$baseUrl/auth/check-user-by-email?email=$email"),
+//       //   Uri.parse("$baseUrl/passengerauth/check-user-by-email?email=$email"),
 //       //   headers: {'Content-Type': 'application/json'},
 //       // );
 
@@ -361,7 +360,7 @@ class AuthRepo {
 //           //context.go('/vehicle-onboarding');
 //         }
 //         // final response = await http.post(
-//         //   Uri.parse('$baseUrl/auth/firebase-login'),
+//         //   Uri.parse('$baseUrl/passengerauth/firebase-login'),
 //         //   headers: {
 //         //     HttpHeaders.contentTypeHeader: 'application/json',
 //         //     HttpHeaders.authorizationHeader: 'Bearer $idToken',
@@ -436,7 +435,7 @@ class AuthRepo {
 //       //   //body: jsonEncode({'token': idToken}),
 //       // );
 //       // final authResponse = await http.get(
-//       //   Uri.parse("$baseUrl/auth/check-user/${user.uid}"),
+//       //   Uri.parse("$baseUrl/passengerauth/check-user/${user.uid}"),
 //       //   headers: {HttpHeaders.authorizationHeader: 'Bearer $idToken'},
 //       // );
 
@@ -507,7 +506,7 @@ class AuthRepo {
 //       final idToken = await user?.getIdToken();
 
 //       // final response = await http.post(
-//       //   Uri.parse("$baseUrl/auth/firebase-login"),
+//       //   Uri.parse("$baseUrl/passengerauth/firebase-login"),
 //       //   headers: {
 //       //     HttpHeaders.contentTypeHeader: 'application/json',
 //       //     HttpHeaders.authorizationHeader: 'Bearer $idToken',

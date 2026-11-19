@@ -22,6 +22,31 @@ class AddressParser {
     WidgetRef ref,
   ) async {
     try {
+
+// String url =
+//     "https://api.mapbox.com/geocoding/v5/mapbox.places/"
+//     "${userPosition.longitude},${userPosition.latitude}.json"
+//     "?access_token=$mapboxAccessToken";
+
+// Response res = await Dio().get(url);
+
+// if (res.statusCode == 200) {
+//   Direction model = Direction(
+//     locationLatitude: userPosition.latitude,
+//     locationLongitude: userPosition.longitude,
+//     humanReadableAddress: res.data["features"][0]["place_name"],
+//   );
+
+//   ref
+//       .read(homeScreenPickUpLocationProvider.notifier)
+//       .update((state) => model);
+
+//   return res.data["features"][0]["place_name"];
+// }
+
+
+
+      // googlemaps
       String url =
           "https://maps.googleapis.com/maps/api/geocode/json?latlng=${userPosition.latitude},${userPosition.longitude}&key=$mapKey";
 
@@ -38,7 +63,9 @@ class AddressParser {
             .update((state) => model);
 
         return res.data["results"][0]["formatted_address"];
-      } else {
+      
+      }
+      else {
         ErrorNotification().showError(context, "Failed to get data");
       }
     } catch (e) {

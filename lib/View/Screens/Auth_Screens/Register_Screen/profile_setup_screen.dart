@@ -1,255 +1,4 @@
-// import 'dart:convert';
 
-// import 'package:firebase_auth/firebase_auth.dart';
-// import 'package:cloud_firestore/cloud_firestore.dart';
-// import 'package:firebase_messaging/firebase_messaging.dart';
-// import 'package:flutter/material.dart';
-// import 'package:go_router/go_router.dart';
-// import 'package:http/http.dart' as http;
-// import 'package:niceapp/Container/utils/keys.dart';
-// import 'package:niceapp/View/Routes/routes.dart';
-// import 'package:niceapp/View/Screens/Other_Screens/transport_screen.dart';
-
-// class ProfileSetupScreen extends StatefulWidget {
-//   //final bool isOwner;
-//   const ProfileSetupScreen({super.key});
-
-//   @override
-//   State<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
-// }
-
-// class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
-//   final TextEditingController firstNameController = TextEditingController();
-//   final TextEditingController lastNameController = TextEditingController();
-//   //final TextEditingController dealerNameController = TextEditingController();
-//   final TextEditingController emailController = TextEditingController();
-
-//   // final List<String> registrationOptions = [
-//   //   "Register as Driver only",
-//   //   "Register as Vehicle Owner only",
-//   //   "Register as Both Driver and Vehicle Owner",
-//   // ];
-
-//   //String selectedOption = "Register as Driver only";
-
-//   //bool isLoading = true;
-
-//   @override
-//   void initState() {
-//     super.initState();
-
-//     //checkIfProfileExists();
-//   }
-
-//   // Future<void> checkIfProfileExists() async {
-//   //   final user = FirebaseAuth.instance.currentUser;
-
-//   //   if (user == null) {
-//   //     context.goNamed(Routes().register);
-//   //     // Navigator.pushReplacement(
-//   //     //   context,
-//   //     //   MaterialPageRoute(builder: (_) => const TransportServicesScreen()),
-//   //     // );
-//   //     return;
-//   //   }
-
-//   //   try {
-//   //     final doc =
-//   //         await FirebaseFirestore.instance
-//   //             .collection('users')
-//   //             .doc(user.uid)
-//   //             .get();
-
-//   //     if (doc.exists) {
-//   //       final data = doc.data();
-//   //       final email = data?['email'] ?? '';
-//   //       final firstName = data?['firstName'] ?? '';
-//   //       final lastName = data?['lastName'] ?? '';
-
-//   //       // Pre-fill if partial data exists
-//   //       emailController.text = email;
-//   //       firstNameController.text = firstName;
-//   //       lastNameController.text = lastName;
-
-//   //       // If complete, navigate
-//   //       if (email.isNotEmpty && firstName.isNotEmpty && lastName.isNotEmpty) {
-//   //         if (mounted) {
-//   //           context.goNamed(Routes().home);
-//   //         }
-//   //         return;
-//   //       }
-//   //     }
-//   //   } catch (e) {
-//   //     ScaffoldMessenger.of(
-//   //       context,
-//   //     ).showSnackBar(SnackBar(content: Text("Error checking profile: $e")));
-//   //   }
-//   //   setState(() => isLoading = false);
-//   // }
-
-//   Future<void> saveProfileAndContinue() async {
-//     final firstName = firstNameController.text.trim();
-//     final lastName = lastNameController.text.trim();
-//     //final dealerName = lastNameController.text.trim();
-//     final email = emailController.text.trim();
-
-//     final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-//     if (firstName.isEmpty ||
-//         lastName.isEmpty ||
-//         email.isEmpty ||
-//         !emailRegex.hasMatch(email)) {
-//       ScaffoldMessenger.of(context).showSnackBar(
-//         const SnackBar(content: Text("Please enter a valid name and email")),
-//       );
-//       return;
-//     }
-
-//     //setState(() => isLoading = true);
-
-//     try {
-//       final user = FirebaseAuth.instance.currentUser;
-//       if (user == null) {
-//         context.goNamed(Routes().register);
-//         return;
-//       }
-
-//       // 1️⃣ Get Firebase ID token
-//       // final idToken = await user.getIdToken();
-//       final idToken = await user.getIdToken(true);
-//       final fcmToken = await FirebaseMessaging.instance.getToken();
-//       // 2️⃣ Send to backend
-//       final response = await http.post(
-//         Uri.parse('$baseUrl/auth/firebase-login'),
-//         headers: {'Content-Type': 'application/json'},
-//         body: jsonEncode({
-//           'token': idToken,
-//           'role': 0,
-//           'firstName': firstName,
-//           'lastName': lastName,
-//           'phoneNumber': user.phoneNumber ?? user.uid,
-//           //'dealerName': dealerName,
-//           'email': email,
-//           'fcmToken': fcmToken,
-//         }),
-//       );
-
-//       if (response.statusCode != 200) {
-//         throw Exception('Backend error: ${response.body}');
-//       }
-
-//       // 3️⃣ Mirror into Firestore for client‐side reads
-//       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-//         'firstName': firstName,
-//         'lastName': lastName,
-//         'email': email,
-//         'phone': user.phoneNumber ?? '',
-//         'updatedAt': FieldValue.serverTimestamp(),
-//       }, SetOptions(merge: true));
-
-//       if (mounted) context.goNamed(Routes().home);
-//     } catch (e) {
-//       ScaffoldMessenger.of(
-//         context,
-//       ).showSnackBar(SnackBar(content: Text("Failed to save profile: $e")));
-//     } finally {
-//       //if (mounted) setState(() => isLoading = false);
-//     }
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     // if (isLoading) {
-//     //   return const Scaffold(body: Center(child: CircularProgressIndicator()));
-//     // }
-
-//     return Scaffold(
-//       backgroundColor: Colors.white,
-//       appBar: AppBar(
-//         title: const Text("Set Up Profile"),
-//         centerTitle: true,
-//         backgroundColor: Colors.white,
-//         elevation: 0,
-//         foregroundColor: Colors.black,
-//       ),
-//       body: Padding(
-//         padding: const EdgeInsets.all(20),
-//         child: Column(
-//           children: [
-//             // const Text("Enter Your Profile Information"),
-//             // DropdownButtonFormField<String>(
-//             //   value: selectedOption,
-//             //   items:
-//             //       registrationOptions.map((String value) {
-//             //         return DropdownMenuItem<String>(
-//             //           value: value,
-//             //           child: Text(value),
-//             //         );
-//             //       }).toList(),
-//             //   onChanged: (value) {
-//             //     setState(() {
-//             //       selectedOption = value!;
-//             //     });
-//             //   },
-//             //   decoration: const InputDecoration(
-//             //     labelText: 'Register As',
-//             //     border: OutlineInputBorder(),
-//             //   ),
-//             // ),
-//             const SizedBox(height: 10),
-//             TextField(
-//               controller: emailController,
-//               keyboardType: TextInputType.emailAddress,
-//               decoration: const InputDecoration(
-//                 hintText: "Email",
-//                 border: OutlineInputBorder(),
-//               ),
-//             ),
-//             const SizedBox(height: 20),
-//             TextField(
-//               controller: firstNameController,
-//               decoration: const InputDecoration(
-//                 hintText: "First Name",
-//                 border: OutlineInputBorder(),
-//               ),
-//             ),
-//             const SizedBox(height: 10),
-//             TextField(
-//               controller: lastNameController,
-//               decoration: const InputDecoration(
-//                 hintText: "Last Name",
-//                 border: OutlineInputBorder(),
-//               ),
-//             ),
-
-//             const SizedBox(height: 20),
-
-//             // ElevatedButton(
-//             //   onPressed: saveProfileAndContinue,
-//             //   child: const Text("Continue"),
-//             // ),
-//             SizedBox(
-//               width: double.infinity,
-//               child: ElevatedButton(
-//                 style: ElevatedButton.styleFrom(
-//                   backgroundColor: Colors.grey[700],
-//                   foregroundColor: Colors.white,
-//                   padding: const EdgeInsets.symmetric(vertical: 18),
-//                   textStyle: const TextStyle(
-//                     fontSize: 18,
-//                     fontWeight: FontWeight.w600,
-//                     // fontco: col
-//                   ),
-//                 ),
-//                 onPressed: saveProfileAndContinue,
-//                 child: const Text("Continue"),
-//               ),
-//             ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -259,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:niceapp/Container/utils/keys.dart';
 import 'package:niceapp/View/Routes/routes.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class ProfileSetupScreen extends StatefulWidget {
   const ProfileSetupScreen({super.key});
@@ -281,14 +31,44 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
     if (firstName.isEmpty ||
-        lastName.isEmpty ||
-        email.isEmpty ||
-        !emailRegex.hasMatch(email)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter a valid name and email")),
-      );
-      return;
-    }
+    lastName.isEmpty ||
+    email.isEmpty ||
+    !emailRegex.hasMatch(email)) {
+  String message;
+
+  if (firstName.isEmpty) {
+    message = "Please enter your first name.";
+  } else if (lastName.isEmpty) {
+    message = "Please enter your last name.";
+  } else if (email.isEmpty) {
+    message = "Please enter your email address.";
+  } else {
+    message = "Please enter a valid email address.";
+  }
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        message,
+        style: GoogleFonts.nunitoSans(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
+      ),
+      backgroundColor: const Color(0xFF015ACE),
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.all(16),
+      duration: const Duration(seconds: 3),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+    ),
+  );
+
+  return;
+}
+
 
     setState(() => isLoading = true);
 
@@ -303,7 +83,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       final fcmToken = await FirebaseMessaging.instance.getToken();
 
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/firebase-login'),
+        Uri.parse('$baseUrl/passengerauth/firebase-login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'token': idToken,
@@ -316,11 +96,34 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         }),
       );
 
-      if (response.statusCode != 200) {
-        throw Exception('Backend error: ${response.body}');
+      // if (response.statusCode != 200) {
+      //   throw Exception('Backend error: ${response.body}');
+      // }
+    if (response.statusCode != 200) {
+      String message = "Something went wrong. Please try again.";
+
+      try {
+        final data = jsonDecode(response.body);
+
+        if (data is Map<String, dynamic>) {
+          message = data["message"]?.toString() ??
+              data["Message"]?.toString() ??
+              message;
+        }
+      } catch (_) {
+        // Keep default message
       }
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+      throw Exception(message);
+    }
+
+    // Success
+    if (!mounted) return;
+
+    // Continue to next screen
+    //context.go('/home');
+
+          await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'firstName': firstName,
         'lastName': lastName,
         'email': email,
@@ -329,153 +132,433 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       }, SetOptions(merge: true));
 
       if (mounted) context.goNamed(Routes().home);
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Failed to save profile: $e")));
-    } finally {
-      if (mounted) setState(() => isLoading = false);
-    }
-  }
+  } catch (error) {
+    if (!mounted) return;
 
-  InputDecoration _inputDecoration(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      filled: true,
-      fillColor: Colors.grey.shade100,
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade500, width: 1.5),
-      ),
-      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey.shade100,
-      appBar: AppBar(
-        title: const Text("Set Up Profile"),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 0,
-        foregroundColor: Colors.black,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-
-            // ✨ Header
-            Center(
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: const BoxDecoration(
-                      color: Colors.black,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.person,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  const Text(
-                    "Profile Setup",
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    "Fill in your details to continue",
-                    style: TextStyle(color: Colors.grey.shade600),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            // ✨ Card container for input fields
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  TextField(
-                    controller: emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: _inputDecoration("Email"),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: firstNameController,
-                    decoration: _inputDecoration("First Name"),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: lastNameController,
-                    decoration: _inputDecoration("Last Name"),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            // ✨ Black button with circular loading
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: isLoading ? null : saveProfileAndContinue,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                child:
-                    isLoading
-                        ? const SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                        : const Text(
-                          "Next Step",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-              ),
-            ),
-          ],
+    // SHOW ERROR HERE
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          error.toString().replaceFirst('Exception: ', ''),
+          style: GoogleFonts.nunitoSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
+        ),
+        backgroundColor: const Color(0xFF015ACE),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
         ),
       ),
     );
+  } finally {
+    if (mounted) {
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
+}
+
+  //     await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+  //       'firstName': firstName,
+  //       'lastName': lastName,
+  //       'email': email,
+  //       'phone': user.phoneNumber ?? '',
+  //       'updatedAt': FieldValue.serverTimestamp(),
+  //     }, SetOptions(merge: true));
+
+  //     if (mounted) context.goNamed(Routes().home);
+  //   } catch (e) {
+  //     ScaffoldMessenger.of(
+  //       context,
+  //     ).showSnackBar(SnackBar(content: Text("Failed to save profile: $e")));
+  //   } 
+  //   finally {
+  //     if (mounted) setState(() => isLoading = false);
+  //   }
+  // }
+
+// InputDecoration _inputDecoration(String hint) {
+//   const primaryBlue = Color(0xFF015ACE);
+//   const textColor = Color(0xFF172033);
+
+//   return InputDecoration(
+//     hintText: hint,
+
+//     hintStyle: GoogleFonts.nunitoSans(
+//       fontSize: 14,
+//       fontWeight: FontWeight.w500,
+//       color: Colors.grey.shade500,
+//     ),
+
+//     filled: true,
+//     fillColor: const Color(0xFFF8FAFD),
+
+//     enabledBorder: OutlineInputBorder(
+//       borderRadius: BorderRadius.circular(12),
+//       borderSide: const BorderSide(
+//         color: Color(0xFFE2E7EF),
+//         width: 1,
+//       ),
+//     ),
+
+//     focusedBorder: OutlineInputBorder(
+//       borderRadius: BorderRadius.circular(12),
+//       borderSide: const BorderSide(
+//         color: primaryBlue,
+//         width: 1.5,
+//       ),
+//     ),
+
+//     contentPadding: const EdgeInsets.symmetric(
+//       vertical: 16,
+//       horizontal: 16,
+//     ),
+
+//     // Text entered by the user
+//     // is controlled by the TextField style.
+//   );
+// }
+
+
+  @override
+Widget build(BuildContext context) {
+  const primaryBlue = Color(0xFF015ACE);
+  const accentYellow = Color(0xFFF0D000);
+  const darkText = Color(0xFF172033);
+  const secondaryText = Color(0xFF6B7280);
+
+  return Scaffold(
+    backgroundColor: const Color(0xFFF7F9FC),
+
+    appBar: AppBar(
+      title: Text(
+        "Set Up Profile",
+        style: GoogleFonts.spaceGrotesk(
+          fontSize: 19,
+          fontWeight: FontWeight.w700,
+          color: darkText,
+        ),
+      ),
+      centerTitle: true,
+      backgroundColor: Colors.white,
+      elevation: 0,
+      foregroundColor: darkText,
+    ),
+
+    body: SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+      child: Column(
+        children: [
+
+          const SizedBox(height: 15),
+
+          // =========================================================
+          // HEADER
+          // =========================================================
+
+          Center(
+            child: Column(
+              children: [
+
+                Container(
+                  width: 68,
+                  height: 68,
+                  decoration: BoxDecoration(
+                    color: primaryBlue,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryBlue.withOpacity(0.18),
+                        blurRadius: 15,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.person_rounded,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                Text(
+                  "Profile Setup",
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    color: darkText,
+                  ),
+                ),
+
+                const SizedBox(height: 6),
+
+                Text(
+                  "Fill in your details to continue",
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.nunitoSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: secondaryText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 30),
+
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: const Color(0xFFE8ECF2),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+
+            child: Column(
+              children: [
+
+               
+
+                // FIRST NAME
+                TextField(
+                  controller: firstNameController,
+                  textCapitalization: TextCapitalization.words,
+                  style: GoogleFonts.nunitoSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: darkText,
+                  ),
+                  decoration: _inputDecoration(
+                    "First Name",
+                    icon: Icons.person_outline_rounded,
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // LAST NAME
+                TextField(
+                  controller: lastNameController,
+                  textCapitalization: TextCapitalization.words,
+                  style: GoogleFonts.nunitoSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: darkText,
+                  ),
+                  decoration: _inputDecoration(
+                    "Last Name",
+                    icon: Icons.person_outline_rounded,
+                  ),
+                ),
+const SizedBox(height: 16),
+ // EMAIL
+                TextField(
+                  controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  style: GoogleFonts.nunitoSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: darkText,
+                  ),
+                  decoration: _inputDecoration(
+                    "Email",
+                    icon: Icons.email_outlined,
+                  ),
+                ),
+
+                
+
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 30),
+
+          // =========================================================
+          // NEXT BUTTON
+          // =========================================================
+
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+
+            child: ElevatedButton(
+              onPressed: isLoading
+                  ? null
+                  : saveProfileAndContinue,
+
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryBlue,
+                disabledBackgroundColor:
+                    primaryBlue.withOpacity(0.55),
+                foregroundColor: Colors.white,
+
+                elevation: 0,
+
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+
+              child: isLoading
+                  ? const SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+
+                        Text(
+                          "Next Step",
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+
+                        const SizedBox(width: 10),
+
+                        const Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 21,
+                          color: Colors.white,
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // =========================================================
+          // STEP INDICATOR
+          // =========================================================
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: primaryBlue,
+                  shape: BoxShape.circle,
+                ),
+              ),
+
+              const SizedBox(width: 7),
+
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  shape: BoxShape.circle,
+                ),
+              ),
+
+              const SizedBox(width: 7),
+
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+InputDecoration _inputDecoration(
+  String label, {
+  IconData? icon,
+}) 
+{
+  const primaryBlue = Color(0xFF015ACE);
+
+  return InputDecoration(
+    labelText: label,
+
+    labelStyle: GoogleFonts.nunitoSans(
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+      color: Colors.grey.shade600,
+    ),
+
+    floatingLabelStyle: GoogleFonts.nunitoSans(
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+      color: primaryBlue,
+    ),
+
+    prefixIcon: icon == null
+        ? null
+        : Icon(
+            icon,
+            color: Colors.grey.shade500,
+            size: 21,
+          ),
+
+    filled: true,
+    fillColor: const Color(0xFFF8FAFD),
+
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: 16,
+      vertical: 17,
+    ),
+
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(
+        color: Color(0xFFE2E7EF),
+      ),
+    ),
+
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(
+        color: Color(0xFFE2E7EF),
+      ),
+    ),
+
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(
+        color: primaryBlue,
+        width: 1.5,
+      ),
+    ),
+  );
+}
 }

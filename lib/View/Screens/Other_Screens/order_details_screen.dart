@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:niceapp/Container/utils/keys.dart';
@@ -302,8 +303,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   Future<void> cancelServiceBooking(String reason) async {
     final endpoint =
         widget.serviceType == VehicleCategory.exhauster
-            ? '$baseUrl/rides/exhauster/cancel/${widget.rideId}'
-            : '$baseUrl/rides/waterbowser/cancel/${widget.rideId}';
+            ? '$baseUrl/passengerrides/exhauster/cancel/${widget.rideId}'
+            : '$baseUrl/passengerrides/waterbowser/cancel/${widget.rideId}';
 
     final response = await http.post(
       Uri.parse(endpoint),
@@ -434,7 +435,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   Future<List<String>> fetchCancellationReasons() async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/rides/cancellation/reasons'),
+        Uri.parse('$baseUrl/passengerrides/cancellation/reasons'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -461,7 +462,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   Future<void> cancelRide(String rideId, String reason) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/rides/cancel'),
+        Uri.parse('$baseUrl/passengerrides/cancel'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'rideId': rideId, 'reason': reason}),
       );
@@ -525,7 +526,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       final int categoryType = widget.serviceType.index;
 
       final response = await http.get(
-        Uri.parse('$baseUrl/rides/${widget.rideId}/$categoryType'),
+        Uri.parse('$baseUrl/passengerrides/${widget.rideId}/$categoryType'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -574,8 +575,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     try {
       final endpoint =
           widget.serviceType == VehicleCategory.exhauster
-              ? '$baseUrl/rides/exhauster/assigndriver/${widget.rideId}'
-              : '$baseUrl/rides/waterbowser/assigndriver/${widget.rideId}';
+              ? '$baseUrl/passengerrides/exhauster/assigndriver/${widget.rideId}'
+              : '$baseUrl/passengerrides/waterbowser/assigndriver/${widget.rideId}';
 
       final response = await http.post(
         Uri.parse(endpoint),
@@ -601,7 +602,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       final int categoryType = widget.serviceType.index;
 
       final response = await http.get(
-        Uri.parse('$baseUrl/rides/${widget.rideId}/$categoryType'),
+        Uri.parse('$baseUrl/passengerrides/${widget.rideId}/$categoryType'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -720,143 +721,274 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         );
         return false; // prevent default back navigation
       },
-      child: Scaffold(
-        backgroundColor: Colors.grey.shade100,
-        appBar: AppBar(
-          title: const Text("Order Details"),
-          centerTitle: true,
-          backgroundColor: Colors.blueAccent,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () {
-              // Same behavior for app bar back button
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const TransportServicesScreen(),
-                ),
-              );
-            },
+      // child: Scaffold(
+      //   backgroundColor: Colors.white,
+      //   appBar: AppBar(
+      //     title: const Text("Order Details"),
+      //     centerTitle: true,
+      //     backgroundColor: Color(0xFF015ACE),
+      //     foregroundColor: Colors.white,
+      //     elevation: 0,
+      //     leading: IconButton(
+      //       icon: const Icon(Icons.arrow_back),
+      //       onPressed: () {
+      //         // Same behavior for app bar back button
+      //         Navigator.pushReplacement(
+      //           context,
+      //           MaterialPageRoute(
+      //             builder: (_) => const TransportServicesScreen(),
+      //           ),
+      //         );
+      //       },
+      //     ),
+      //   ),
+      //   body: SafeArea(
+      //     child: SingleChildScrollView(
+      //       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      //       child: Column(
+      //         crossAxisAlignment: CrossAxisAlignment.start,
+      //         children: [
+      //           _buildCard(
+      //             title: "🧾 Order Details",
+      //             color: Colors.white,
+      //             children: [
+      //               _buildRow("Order No:", orderNo),
+      //               _buildRow("Address:", formatAddress(deliveryAddress)),
+      //               //_buildRow("Delivery Address:", deliveryAddress),
+      //               _buildRow("Scheduled For:", scheduledFor),
+
+      //               //_buildRow("Quantity:", quantity),
+      //               _buildRow("$quantityLabel:", quantity),
+      //               _buildRow(
+      //                 "Total Amount:",
+      //                 "KES ${totalAmount.toStringAsFixed(2)}",
+      //                 //valueColor: Colors.black87,
+      //               ),
+      //               _buildRow(
+      //                 "Payment Status:",
+      //                 paymentStatus,
+      //                 // valueColor: isPaid ? Colors.green : Colors.red,
+      //               ),
+      //             ],
+      //           ),
+      //           const SizedBox(height: 24),
+
+      //           _buildStatusCard(),
+      //           const SizedBox(height: 20),
+
+      //           //if (canCancelRide) _cancelBookingButton(backendCancelReasons),
+      //           const SizedBox(height: 20),
+
+      //           //if (!isAssigned) _buildWaitingForTruckCard(),
+      //           if (isAssigned)
+      //             _buildCard(
+      //               // title: "🚛 Assigned Truck",
+      //               title: "Assigned $serviceName",
+
+      //               color: Colors.lightBlue.shade50,
+      //               children:
+      //                   trucks.map((truck) => _buildTruckTile(truck)).toList(),
+      //             ),
+
+      //           // if (isPaid && trucks.isNotEmpty)
+      //           //   _buildCard(
+      //           //     title: "🚛 Assigned Trucks",
+      //           //     color: Colors.lightBlue.shade50,
+      //           //     children:
+      //           //         trucks.map((truck) => _buildTruckTile(truck)).toList(),
+      //           //   ),
+      //           // if (!isPaid)
+      //           if (canCancelRide) _cancelBookingButton(backendCancelReasons),
+      //           if (canPay)
+      //             Padding(
+      //               padding: const EdgeInsets.only(top: 24),
+      //               child: SizedBox(
+      //                 width: double.infinity,
+      //                 child: ElevatedButton.icon(
+      //                   // onPressed: () {
+      //                   //   Navigator.push(
+      //                   //     context,
+      //                   //     MaterialPageRoute(
+      //                   //       builder:
+      //                   //           (_) => GeneralPaymentScreen(
+      //                   //             serviceType: serviceType!,
+      //                   //             amount: totalAmount,
+      //                   //             rideId: widget.rideId,
+      //                   //           ),
+      //                   //     ),
+      //                   //   );
+      //                   // },
+      //                   onPressed: _showPaymentOptionsDialog,
+      //                   icon: const Icon(Icons.payment),
+      //                   label: const Text("Make Payment"),
+      //                   style: ElevatedButton.styleFrom(
+      //                     backgroundColor: Color(0xFF015ACE),
+      //                     foregroundColor: Colors.white,
+      //                     padding: const EdgeInsets.symmetric(vertical: 16),
+      //                     textStyle: const TextStyle(
+      //                       fontSize: 18,
+      //                       fontWeight: FontWeight.bold,
+      //                     ),
+      //                     shape: RoundedRectangleBorder(
+      //                       borderRadius: BorderRadius.circular(12),
+      //                     ),
+      //                   ),
+      //                 ),
+      //               ),
+      //             ),
+      //         ],
+      //       ),
+      //     ),
+      //   ),
+      // ),
+
+
+      
+child: Scaffold(
+  backgroundColor: const Color(0xFFF7F9FC),
+  appBar: AppBar(
+    title: Text(
+      "Order Details",
+      style: GoogleFonts.spaceGrotesk(
+        fontSize: 17,
+        fontWeight: FontWeight.w700,
+        color: Colors.white,
+      ),
+    ),
+    centerTitle: true,
+    backgroundColor: const Color(0xFF015ACE),
+    foregroundColor: Colors.white,
+    elevation: 0,
+    leading: IconButton(
+      icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+      onPressed: () {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const TransportServicesScreen(),
           ),
-        ),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildCard(
-                  title: "🧾 Order Details",
-                  color: Colors.white,
-                  children: [
-                    _buildRow("Order No:", orderNo),
-                    _buildRow("Address:", formatAddress(deliveryAddress)),
-                    //_buildRow("Delivery Address:", deliveryAddress),
-                    _buildRow("Scheduled For:", scheduledFor),
+        );
+      },
+    ),
+  ),
+  body: SafeArea(
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ORDER DETAILS
+          _buildCard(
+            title: "Order Details",
+            color: Colors.white,
+            children: [
+              _buildRow("Order No.", orderNo),
+              _buildRow(
+                "Delivery Address",
+                formatAddress(deliveryAddress),
+              ),
+              _buildRow("Scheduled For", scheduledFor),
+              _buildRow("$quantityLabel", quantity),
+              _buildRow(
+                "Total Amount",
+                "KES ${totalAmount.toStringAsFixed(2)}",
+              ),
+              _buildRow("Payment Status", paymentStatus),
+            ],
+          ),
 
-                    //_buildRow("Quantity:", quantity),
-                    _buildRow("$quantityLabel:", quantity),
-                    _buildRow(
-                      "Total Amount:",
-                      "KES ${totalAmount.toStringAsFixed(2)}",
-                      //valueColor: Colors.black87,
-                    ),
-                    _buildRow(
-                      "Payment Status:",
-                      paymentStatus,
-                      // valueColor: isPaid ? Colors.green : Colors.red,
-                    ),
-                  ],
+          const SizedBox(height: 16),
+
+          // ORDER STATUS
+          _buildStatusCard(),
+
+          const SizedBox(height: 16),
+
+          // ASSIGNED VEHICLE
+          if (isAssigned)
+            _buildCard(
+              title: "Assigned $serviceName",
+              color: const Color(0xFFF0F7FF),
+              children: trucks
+                  .map((truck) => _buildTruckTile(truck))
+                  .toList(),
+            ),
+
+          if (isAssigned) const SizedBox(height: 16),
+
+          // CANCEL ORDER
+          if (canCancelRide) ...[
+            _cancelBookingButton(backendCancelReasons),
+            const SizedBox(height: 12),
+          ],
+
+          // PAYMENT
+          if (canPay)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: const Color(0xFFE8EEF6),
                 ),
-                const SizedBox(height: 24),
-
-                // _buildCard(
-                //   title: "💰 Payment Details",
-                //   color: Colors.yellow.shade100,
-                //   children: [
-                //     _buildRow(
-                //       "Total Amount:",
-                //       "KES ${totalAmount.toStringAsFixed(2)}",
-                //       valueColor: Colors.black87,
-                //     ),
-                //     _buildRow(
-                //       "Payment Status:",
-                //       paymentStatus,
-                //       valueColor: isPaid ? Colors.green : Colors.red,
-                //     ),
-                //   ],
-                // ),
-                // const SizedBox(height: 20),
-                _buildStatusCard(),
-                const SizedBox(height: 20),
-
-                //if (canCancelRide) _cancelBookingButton(backendCancelReasons),
-                const SizedBox(height: 20),
-
-                //if (!isAssigned) _buildWaitingForTruckCard(),
-                if (isAssigned)
-                  _buildCard(
-                    // title: "🚛 Assigned Truck",
-                    title: "Assigned $serviceName",
-
-                    color: Colors.lightBlue.shade50,
-                    children:
-                        trucks.map((truck) => _buildTruckTile(truck)).toList(),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Complete your payment",
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF172B4D),
+                    ),
                   ),
-
-                // if (isPaid && trucks.isNotEmpty)
-                //   _buildCard(
-                //     title: "🚛 Assigned Trucks",
-                //     color: Colors.lightBlue.shade50,
-                //     children:
-                //         trucks.map((truck) => _buildTruckTile(truck)).toList(),
-                //   ),
-                // if (!isPaid)
-                if (canCancelRide) _cancelBookingButton(backendCancelReasons),
-                if (canPay)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 24),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        // onPressed: () {
-                        //   Navigator.push(
-                        //     context,
-                        //     MaterialPageRoute(
-                        //       builder:
-                        //           (_) => GeneralPaymentScreen(
-                        //             serviceType: serviceType!,
-                        //             amount: totalAmount,
-                        //             rideId: widget.rideId,
-                        //           ),
-                        //     ),
-                        //   );
-                        // },
-                        onPressed: _showPaymentOptionsDialog,
-                        icon: const Icon(Icons.payment),
-                        label: const Text("Make Payment"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          textStyle: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                  const SizedBox(height: 5),
+                  Text(
+                    "Pay securely to proceed with your order.",
+                    style: GoogleFonts.nunitoSans(
+                      fontSize: 12,
+                      color: const Color(0xFF778399),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: _showPaymentOptionsDialog,
+                      icon: const Icon(
+                        Icons.lock_outline_rounded,
+                        size: 17,
+                      ),
+                      label: Text(
+                        "Make Payment",
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF015ACE),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ),
+        ],
       ),
+    ),
+  ),
+),
+
     );
   }
 
@@ -917,7 +1049,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: enabled ? Colors.blueAccent : Colors.grey.shade400,
+          color: enabled ? Color(0xFF015ACE) : Colors.grey.shade400,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -948,8 +1080,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         width: double.infinity,
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
+          backgroundColor: const Color(0xFF015ACE),
+              foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -996,104 +1128,161 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     );
   }
 
-  Widget _buildRow(String label, String value, {Color? valueColor}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 3,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                color: Colors.black54,
-              ),
+  
+Widget _buildRow(String label, String value, {Color? valueColor}) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 3,
+          child: Text(
+            label,
+            style: GoogleFonts.nunitoSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF8491A5),
             ),
           ),
-          Expanded(
-            flex: 5,
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: 17,
-                color: valueColor ?? Colors.black87,
-                fontWeight: FontWeight.w700,
-              ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 5,
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: GoogleFonts.nunitoSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: valueColor ?? const Color(0xFF243247),
             ),
           ),
-        ],
-      ),
-    );
+        ),
+      ],
+    ),
+  );
+}
+
+
+  
+Widget _buildStatusCard() {
+  switch (status) {
+    case "Requested":
+      return _infoCard(
+        "Request received. Looking for available $serviceName",
+        icon: Icons.search_rounded,
+        color: const Color(0xFFEAF3FF),
+      );
+
+    case "Pending":
+      return _infoCard(
+        "$serviceName booking pending confirmation",
+        icon: Icons.hourglass_top_rounded,
+        color: const Color(0xFFFFF7E8),
+      );
+
+    case "DriverAssigned":
+      return _infoCard(
+        "$serviceName assigned. Preparing for service",
+        icon: Icons.local_shipping_outlined,
+        color: const Color(0xFFEAF3FF),
+      );
+
+    case "OnTheWay":
+      return _infoCard(
+        "$serviceName is on the way",
+        icon: Icons.delivery_dining_rounded,
+        color: const Color(0xFFEAF3FF),
+      );
+
+    case "InProgress":
+      return _infoCard(
+        widget.serviceType == VehicleCategory.waterBowser
+            ? "Delivering water"
+            : "Service in progress",
+        icon: Icons.sync_rounded,
+        color: const Color(0xFFEAF3FF),
+      );
+
+    case "Completed":
+      return _infoCard(
+        widget.serviceType == VehicleCategory.waterBowser
+            ? "Water delivered. Please make payment"
+            : "Service completed. Please make payment",
+        icon: Icons.check_circle_outline_rounded,
+        color: const Color(0xFFE9F8F0),
+      );
+
+    case "Cancelled":
+      return _infoCard(
+        "$serviceName booking was cancelled",
+        icon: Icons.cancel_outlined,
+        color: const Color(0xFFF2F3F5),
+      );
+
+    case "Scheduled":
+      return _scheduledCard();
+
+    default:
+      return const SizedBox.shrink();
   }
+}
 
-  Widget _buildStatusCard() {
-    switch (status) {
-      case "Requested":
-        return _infoCard(
-          "Request received. Looking for available $serviceName",
-        );
 
-      case "Pending":
-        return _infoCard("$serviceName booking pending confirmation");
-
-      case "DriverAssigned":
-        return _infoCard("$serviceName assigned. Preparing for service");
-
-      case "OnTheWay":
-        return _infoCard("$serviceName is on the way");
-
-      case "InProgress":
-        return _infoCard(
-          widget.serviceType == VehicleCategory.waterBowser
-              ? "Delivering water"
-              : "Service in progress",
-        );
-
-      case "Completed":
-        return _infoCard(
-          widget.serviceType == VehicleCategory.waterBowser
-              ? "Water delivered. Please make payment"
-              : "Service completed. Please make payment",
-        );
-
-      case "Cancelled":
-        return _infoCard("$serviceName booking was cancelled");
-
-      case "Scheduled":
-        return _scheduledCard();
-      //_infoCard("$serviceName delivery scheduled for $scheduledFor");
-
-      default:
-        return const SizedBox();
-    }
-  }
-
-  Widget _infoCard(String message) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+  
+Widget _infoCard(
+  String message, {
+  IconData? icon,
+  Color? color,
+}) {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(
+      horizontal: 15,
+      vertical: 16,
+    ),
+    decoration: BoxDecoration(
+      color: color ?? const Color(0xFFF0F7FF),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(
+        color: const Color(0xFFE5EDF7),
+        width: 1,
       ),
-      child: Row(
-        children: [
-          Icon(serviceIcon, color: Colors.blue),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+    ),
+    child: Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.85),
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Icon(
+            icon ?? serviceIcon,
+            color: const Color(0xFF015ACE),
+            size: 19,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            message,
+            style: GoogleFonts.nunitoSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF243247),
+              height: 1.4,
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
+
+
 
   // Widget _buildWaitingForTruckCard() {
   //   //final state = _waitingCardState();
@@ -1782,7 +1971,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
 //   //   try {
 //   //     final response = await http.get(
-//   //       Uri.parse('$baseUrl/rides/${widget.orderId}'),
+//   //       Uri.parse('$baseUrl/passengerrides/${widget.orderId}'),
 //   //     );
 
 //   //     if (response.statusCode == 200) {
@@ -1851,7 +2040,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
 //   //   try {
 //   //     final response = await http.get(
-//   //       Uri.parse('$baseUrl/rides/${widget.rideId}'),
+//   //       Uri.parse('$baseUrl/passengerrides/${widget.rideId}'),
 //   //     );
 
 //   //     if (response.statusCode == 200) {
@@ -1920,7 +2109,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 //       final int categoryType = widget.serviceType.index;
 
 //       final response = await http.get(
-//         Uri.parse('$baseUrl/rides/${widget.rideId}/$categoryType'),
+//         Uri.parse('$baseUrl/passengerrides/${widget.rideId}/$categoryType'),
 //         headers: {'Content-Type': 'application/json'},
 //       );
 
@@ -2324,7 +2513,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
 // //   Future<void> fetchorderHistory() async {
 // //     final response = await http.get(
-// //       Uri.parse('$baseUrl/rides/orders/$orderId'),
+// //       Uri.parse('$baseUrl/passengerrides/orders/$orderId'),
 // //     );
 
 // //     if (response.statusCode == 200) {
@@ -2753,7 +2942,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
   //   try {
   //     final response = await http.post(
-  //       Uri.parse('$baseUrl/rides/waterbowser/assigndriver/${widget.rideId}'),
+  //       Uri.parse('$baseUrl/passengerrides/waterbowser/assigndriver/${widget.rideId}'),
   //       headers: {'Content-Type': 'application/json'},
   //     );
 
@@ -2770,7 +2959,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   // }
 
   // Future<void> assignWaterBowserDriver(int rideId) async {
-  //   final url = Uri.parse('$baseUrl/rides/waterbowser/assigndriver/$rideId');
+  //   final url = Uri.parse('$baseUrl/passengerrides/waterbowser/assigndriver/$rideId');
 
   //   try {
   //     final response = await http.post(

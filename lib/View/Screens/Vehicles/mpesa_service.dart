@@ -44,7 +44,7 @@ class MpesaService {
     final token = await getIdToken();
 
     final response = await http.post(
-      Uri.parse('$baseUrl/rides/bookings'),
+      Uri.parse('$baseUrl/passengerrides/bookings'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         "busId": busId,

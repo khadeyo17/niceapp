@@ -103,7 +103,7 @@ class _CargoTransportScreenState extends ConsumerState<CargoTransportScreen> {
   //   }
 
   //   try {
-  //     final url = '$baseUrl/rides/passenger/request';
+  //     final url = '$baseUrl/passengerrides/passenger/request';
   //     final pickupLat = pickup!.latitude;
   //     final pickupLng = pickup!.longitude;
   //     final destLat = destination!.latitude;
@@ -189,7 +189,7 @@ class _CargoTransportScreenState extends ConsumerState<CargoTransportScreen> {
 
     try {
       final url =
-          '$baseUrl/rides/cargo/request'; // Adjust to your actual endpoint
+          '$baseUrl/passengerrides/cargo/request'; // Adjust to your actual endpoint
 
       final body = {
         "firebaseId": user.uid,
@@ -275,6 +275,7 @@ class _CargoTransportScreenState extends ConsumerState<CargoTransportScreen> {
     }
   }
 
+//google
   Future<void> getRoadDistanceInKm(LatLng pickup, LatLng destination) async {
     const apiKey = mapKey; // 🔐 Replace with your key
     final url =
@@ -316,9 +317,59 @@ class _CargoTransportScreenState extends ConsumerState<CargoTransportScreen> {
     }
   }
 
+  //mbox
+//   Future<void> getRoadDistanceInKm(
+//   LatLng pickup,
+//   LatLng destination,
+// ) async {
+//   try {
+//     final url = Uri.parse(
+//       'https://api.mapbox.com/directions/v5/mapbox/driving/'
+//       '${pickup.longitude},${pickup.latitude};'
+//       '${destination.longitude},${destination.latitude}'
+//       '?overview=false'
+//       '&steps=false'
+//       '&access_token=$mapboxAccessToken',
+//     );
+
+//     final response = await http.get(url);
+
+//     if (response.statusCode != 200) {
+//       throw Exception("HTTP Error: ${response.statusCode}");
+//     }
+
+//     final data = json.decode(response.body);
+
+//     if (data["routes"] != null && data["routes"].isNotEmpty) {
+//       final route = data["routes"][0];
+
+//       final distanceMeters = route["distance"];
+//       final durationSeconds = route["duration"];
+
+//       if (!mounted) return;
+
+//       setState(() {
+//         distanceInKm = distanceMeters / 1000.0;
+//         durationInMinutes = durationSeconds / 60.0;
+//       });
+
+//       debugPrint(
+//         "✅ Distance: ${distanceInKm.toStringAsFixed(2)} km",
+//       );
+//       debugPrint(
+//         "✅ Duration: ${durationInMinutes.toStringAsFixed(1)} min",
+//       );
+//     } else {
+//       throw Exception("No route returned by Mapbox.");
+//     }
+//   } catch (e) {
+//     debugPrint("Mapbox Directions Error: $e");
+//   }
+// }
+
   Future<List<VehicleSubCategory>> fetchVehicleSubCategories(int type) async {
     final response = await http.get(
-      Uri.parse('$baseUrl/rides/categories?type=$type'),
+      Uri.parse('$baseUrl/passengerrides/categories?type=$type'),
     );
 
     if (response.statusCode == 200) {
@@ -1424,7 +1475,7 @@ class _CargoTransportScreenState extends ConsumerState<CargoTransportScreen> {
   //   Future<List<VehicleSubCategory>> fetchVehicleSubCategories(int type) async {
   //     final response = await http.get(
   //       Uri.parse(
-  //         '$baseUrl/rides/categories?type=$type',
+  //         '$baseUrl/passengerrides/categories?type=$type',
   //       ), // e.g., type=0 for RideBooking
   //     );
 

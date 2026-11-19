@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:geocoding/geocoding.dart';
@@ -20,8 +22,13 @@ import 'package:niceapp/View/Screens/Vehicles/vehicle_service.dart';
 class WaterBowerScreen extends StatefulWidget {
   final VehicleCategory category;
   final LatLng? destination;
+  final LatLng? pickup;
+   final String? destinationPlaceName;
+  final String? destinationSecondaryText;
+  final DateTime? scheduledDate;
+  final bool? isScheduled;
 
-  const WaterBowerScreen({super.key, required this.category, this.destination});
+  const WaterBowerScreen({super.key, required this.category,this.scheduledDate, this.destination, this.isScheduled,this.pickup,this.destinationPlaceName,this.destinationSecondaryText});
 
   @override
   State<WaterBowerScreen> createState() => _HoneySuckerScreenState();
@@ -36,9 +43,18 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
   LatLng? selectedLatLng;
   String? displayAddress;
   BuildContext? _dialogContext;
+String selectedPayment = "AMiNi";
   int? rideId2;
   //Map<String, double> priceMap = {};
   double? selectedPrice;
+  LatLng _initialFallback = const LatLng(-1.286389, 36.817223);
+  GoogleMapController? _mapController;
+  Set<Marker> markers = {};
+   Set<Polyline> polylines = {};
+
+   Timer? _blinkTimer;
+bool _destinationVisible = true;
+double _destinationRadius = 35;
 
   String? selectedDeliveryPeriod;
   final List<String> deliveryPeriods = [
@@ -47,6 +63,10 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
     'Next Day',
     'Within 3 Days',
   ];
+
+  String? destinationPlaceName;
+String? destinationSecondaryText;
+String? destinationFullAddress;
   DateTime? selectedDate;
   TimeOfDay? deliveryTime;
   // TimeOfDay? timeTo;
@@ -64,63 +84,642 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
     super.dispose();
   }
 
-  @override
-  void initState() {
-    super.initState();
-    //_checkPendingOrders();
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   //_checkPendingOrders();
 
-    fetchSubcategories();
-    _fetchCurrentLocation();
+  //   fetchSubcategories();
+  //   _fetchCurrentLocation();
 
-    if (widget.destination != null) {
-      selectedLatLng = widget.destination;
-      _getAddressFromLatLng(widget.destination!);
-    }
-    //_initializeDefaultSchedule();
+  //   selectedLatLng = widget.destination;
 
-    selectedDate = DateTime.now();
-    deliveryTime = TimeOfDay.fromDateTime(
-      DateTime.now(), //.add(const Duration(minutes: 10)
+
+
+  //   if (widget.destination != null) {
+  //     selectedLatLng = widget.destination;
+  //     _getAddressFromLatLng(widget.destination!);
+  //   }
+  //   //_initializeDefaultSchedule();
+
+  //   selectedDate = DateTime.now();
+  //   deliveryTime = TimeOfDay.fromDateTime(
+  //     DateTime.now(), //.add(const Duration(minutes: 10)
+  //   );
+
+  //   WidgetsBinding.instance.addPostFrameCallback((_) {
+  //     _checkPendingOrders();
+  //   });
+  // }
+
+
+@override
+void initState() {
+  super.initState();
+
+  fetchSubcategories();
+
+selectedLatLng = widget.destination;
+
+
+if (selectedLatLng != null) {
+  _updateDestinationMarker();
+}
+ _blinkTimer = Timer.periodic(
+    const Duration(milliseconds: 700),
+    (_) {
+      if (!mounted || selectedLatLng == null) return;
+
+      setState(() {
+        _destinationVisible = !_destinationVisible;
+
+        _destinationRadius =
+            _destinationVisible ? 45 : 25;
+      });
+    },
+  );
+
+    if (widget.isScheduled==true && widget.scheduledDate != null) {
+    selectedDate = DateTime(
+      widget.scheduledDate!.year,
+      widget.scheduledDate!.month,
+      widget.scheduledDate!.day,
     );
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkPendingOrders();
-    });
+    deliveryTime = TimeOfDay.fromDateTime(
+      widget.scheduledDate!,
+    );
+  } else {
+    selectedDate = DateTime.now();
+
+    deliveryTime = TimeOfDay.fromDateTime(
+      DateTime.now(),
+    );
+  }
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    _checkPendingOrders();
+  });
+  destinationPlaceName = widget.destinationPlaceName;
+  destinationSecondaryText = widget.destinationSecondaryText;
+  displayAddress=widget.destinationPlaceName;
+}
+
+String _getWaterBowserDescription(String name) {
+  final value = name.toLowerCase();
+
+  if (value.contains("standard")) {
+    return "Standard tank suitable for homes, construction and general water delivery.";
   }
 
-  Future<void> _fetchCurrentLocation() async {
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        setState(() => displayAddress = "Location services disabled");
-        return;
-      }
+  if (value.contains("large")) {
+    return "Large capacity tank ideal for construction sites, institutions and bulk delivery.";
+  }
 
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          setState(() => displayAddress = "Permission denied");
-          return;
-        }
-      }
+  if (value.contains("medium")) {
+    return "Medium capacity water bowser suitable for regular residential and commercial delivery.";
+  }
 
-      if (permission == LocationPermission.deniedForever) {
-        setState(() => displayAddress = "Permission permanently denied");
-        return;
-      }
+  if (value.contains("small")) {
+    return "Compact water tank suitable for smaller residential and emergency deliveries.";
+  }
 
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+  if (value.contains("5,000")) {
+    return "5,000 litre water bowser for residential and small commercial deliveries.";
+  }
+
+  if (value.contains("10,000")) {
+    return "10,000 litre water bowser for larger residential and commercial requirements.";
+  }
+
+  if (value.contains("15,000")) {
+    return "15,000 litre water bowser for construction sites and large-scale water delivery.";
+  }
+
+  if (value.contains("20,000")) {
+    return "20,000 litre high-capacity water bowser for major construction and commercial projects.";
+  }
+
+  return "Water bowser suitable for reliable water delivery to your selected location.";
+}
+
+void _selectSubcategory(dynamic sub) {
+  if (selectedLatLng == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          "Please select delivery location first.",
+        ),
+      ),
+    );
+    return;
+  }
+
+  setState(() {
+    selectedSubcategory = sub;
+    selectedPrice = sub.baseFare;
+    totalPrice = sub.baseFare;
+
+    priceController.text =
+        'KES ${totalPrice.toStringAsFixed(0)}';
+  });
+}
+Set<Circle> get destinationCircles {
+  if (selectedLatLng == null) {
+    return {};
+  }
+
+  return {
+    Circle(
+      circleId: const CircleId('delivery_radius'),
+      center: selectedLatLng!,
+      radius: _destinationRadius,
+      fillColor: const Color(0xFF015ACE).withOpacity(
+        _destinationVisible ? 0.18 : 0.08,
+      ),
+      strokeColor: const Color(0xFF015ACE).withOpacity(
+        _destinationVisible ? 0.7 : 0.25,
+      ),
+      strokeWidth: 2,
+    ),
+  };
+}
+void _showPaymentMethods() {
+  showModalBottomSheet(
+    context: context,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(
+        top: Radius.circular(24),
+      ),
+    ),
+    builder: (context) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+
+              Text(
+                "Payment Method",
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              ListTile(
+                leading: const Icon(
+                  Icons.account_balance_wallet,
+                  color: Color(0xFF015ACE),
+                ),
+                title: const Text("AMiNi Wallet"),
+                trailing: selectedPayment == "AMiNi"
+                    ? const Icon(
+                        Icons.check_circle,
+                        color: Color(0xFF015ACE),
+                      )
+                    : null,
+                onTap: () {
+                  setState(() {
+                    selectedPayment = "AMiNi";
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+
+              ListTile(
+                leading: const Icon(
+                  Icons.credit_card,
+                  color: Color(0xFF015ACE),
+                ),
+                title: const Text("Visa"),
+                trailing: selectedPayment == "Visa"
+                    ? const Icon(
+                        Icons.check_circle,
+                        color: Color(0xFF015ACE),
+                      )
+                    : null,
+                onTap: () {
+                  setState(() {
+                    selectedPayment = "Visa";
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+  void _moveCameraToBounds(LatLng pickup, LatLng destination) {
+    final southwest = LatLng(
+      min(pickup.latitude, destination.latitude),
+      min(pickup.longitude, destination.longitude),
+    );
+    final northeast = LatLng(
+      max(pickup.latitude, destination.latitude),
+      max(pickup.longitude, destination.longitude),
+    );
+
+    final bounds = LatLngBounds(southwest: southwest, northeast: northeast);
+
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngBounds(bounds, 50),
+    ); // padding of 100
+  }
+
+  double _initialZoom = 14.0; // your fixed zoom
+  LatLngBounds? _bounds;
+
+  void _initMap(LatLng pickup, LatLng destination) async {
+    if (_mapController == null) return;
+
+    // Calculate bounds with small horizontal padding to keep from/to fully visible horizontally
+    final bounds = LatLngBounds(
+      southwest: LatLng(
+        min(pickup.latitude, destination.latitude),
+        min(pickup.longitude, destination.longitude),
+      ),
+      northeast: LatLng(
+        max(pickup.latitude, destination.latitude),
+        max(pickup.longitude, destination.longitude),
+      ),
+    );
+
+    _bounds = bounds;
+
+    // Move camera to show bounds with fixed padding once
+    await _mapController!.moveCamera(CameraUpdate.newLatLngBounds(bounds, 50));
+
+    // Fix zoom level
+    await _mapController!.moveCamera(CameraUpdate.zoomTo(_initialZoom));
+  }
+double _lastScrollFraction = 0;
+  void onDraggableScroll(double scrollFraction) {
+    if (_mapController == null || _bounds == null) return;
+
+    // Only update if fraction changes meaningfully
+    if ((_lastScrollFraction - scrollFraction).abs() < 0.01) return;
+    _lastScrollFraction = scrollFraction;
+
+    // Map visible area adjusts with bottom sheet
+    // fraction = 0 minimized, 1 fully expanded
+    final bottomPadding =
+        100 + 250 * scrollFraction; // tweak 250 to sheet height range
+
+    _mapController!.animateCamera(
+      CameraUpdate.newLatLngBounds(_bounds!, bottomPadding),
+    );
+  }
+
+// Future<void> _scheduleOrder() async {
+//   if (selectedLatLng == null) {
+//     ScaffoldMessenger.of(context).showSnackBar(
+//       const SnackBar(
+//         content: Text("Please select delivery location."),
+//         backgroundColor: Colors.red,
+//       ),
+//     );
+//     return;
+//   }
+
+//   if (selectedSubcategory == null) {
+//     ScaffoldMessenger.of(context).showSnackBar(
+//       const SnackBar(
+//         content: Text("Please select water quantity."),
+//         backgroundColor: Colors.red,
+//       ),
+//     );
+//     return;
+//   }
+
+//   if (selectedDate == null || deliveryTime == null) {
+//     ScaffoldMessenger.of(context).showSnackBar(
+//       const SnackBar(
+//         content: Text("Please select delivery date and time."),
+//         backgroundColor: Colors.red,
+//       ),
+//     );
+//     return;
+//   }
+
+//   try {
+//     setState(() {
+//       _isLoading = true;
+//     });
+
+//     await bookRide(isScheduled: true);
+
+//     if (!mounted) return;
+
+//     if (rideId2 != null) {
+//       Navigator.push(
+//         context,
+//         MaterialPageRoute(
+//           builder: (_) => OrderDetailsScreen(
+//             rideId: rideId2!,
+//             serviceType: VehicleCategory.waterBowser,
+//             destination: selectedLatLng!,
+//             isScheduled: true,
+//           ),
+//         ),
+//       );
+//     }
+//   } catch (e) {
+//     debugPrint("Water Bowser scheduling failed: $e");
+
+//     if (!mounted) return;
+
+//     ScaffoldMessenger.of(context).showSnackBar(
+//       SnackBar(
+//         content: Text("Unable to schedule order: $e"),
+//         backgroundColor: Colors.red,
+//       ),
+//     );
+//   } finally {
+//     if (mounted) {
+//       setState(() {
+//         _isLoading = false;
+//       });
+//     }
+//   }
+// }
+Future<void> _orderNow({bool isScheduled = false}) async {
+  if (selectedLatLng == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Please select delivery location."),
+        backgroundColor: Colors.red,
+      ),
+    );
+    return;
+  }
+
+  if (selectedSubcategory == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Please select water quantity."),
+        backgroundColor: Colors.red,
+      ),
+    );
+    return;
+  }
+
+  try {
+    setState(() {
+      _isLoading = true;
+    });
+
+    await bookRide(isScheduled: isScheduled);
+
+    if (!mounted) return;
+
+    if (rideId2 == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Unable to retrieve the order details."),
+        ),
+      );
+      return;
+    }
+
+    if (isScheduled) {
+      // Scheduled orders go directly to OrderDetailsScreen.
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OrderDetailsScreen(
+            rideId: rideId2!,
+            serviceType: VehicleCategory.waterBowser,
+            destination: selectedLatLng!,
+            isScheduled: isScheduled,
+          ),
+        ),
+      );
+    } else {
+      // Immediate orders go to FindingDriverScreen.
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => FindingDriverScreen(
+            onCancel: () async {
+              debugPrint("Water Bowser ride cancelled");
+            },
+            driverLinkedStream: _driverLinkedController.stream,
+            category: VehicleCategory.waterBowser,
+            destination: selectedLatLng,
+          ),
+        ),
       );
 
-      selectedLatLng = LatLng(position.latitude, position.longitude);
-      _getAddressFromLatLng(selectedLatLng!);
-    } catch (e) {
-      debugPrint("Error fetching location: $e");
-      setState(() => displayAddress = "Unable to fetch location");
+      pollForDriverAssignment(rideId2!);
+    }
+  } catch (e) {
+    debugPrint("Water Bowser order failed: $e");
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Unable to place order: $e"),
+        backgroundColor: Colors.red,
+      ),
+    );
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
+}
+//   Future<void> _orderNow() async {
+//   if (selectedLatLng == null) {
+//     ScaffoldMessenger.of(context).showSnackBar(
+//       const SnackBar(
+//         content: Text("Please select delivery location."),
+//         backgroundColor: Colors.red,
+//       ),
+//     );
+//     return;
+//   }
+
+//   if (selectedSubcategory == null) {
+//     ScaffoldMessenger.of(context).showSnackBar(
+//       const SnackBar(
+//         content: Text("Please select water quantity."),
+//         backgroundColor: Colors.red,
+//       ),
+//     );
+//     return;
+//   }
+
+//   try {
+//     setState(() {
+//       _isLoading = true;
+//     });
+
+//     await bookRide(isScheduled: false);
+
+//     if (!mounted) return;
+
+//     if (rideId2 != null) {
+//       Navigator.push(
+//         context,
+//         MaterialPageRoute(
+//           fullscreenDialog: true,
+//           builder: (_) => FindingDriverScreen(
+//             onCancel: () async {
+//               debugPrint("Water Bowser ride cancelled");
+//             },
+//             driverLinkedStream: _driverLinkedController.stream,
+//             category: VehicleCategory.waterBowser,
+//             destination: selectedLatLng,
+//           ),
+//         ),
+//       );
+
+//       pollForDriverAssignment(rideId2!);
+//     }
+//   } catch (e) {
+//     debugPrint("Water Bowser order failed: $e");
+
+//     if (!mounted) return;
+
+//     ScaffoldMessenger.of(context).showSnackBar(
+//       SnackBar(
+//         content: Text("Unable to place order: $e"),
+//         backgroundColor: Colors.red,
+//       ),
+//     );
+//   } finally {
+//     if (mounted) {
+//       setState(() {
+//         _isLoading = false;
+//       });
+//     }
+//   }
+// }
+
+  Widget _badge(String text) {
+    return Container(
+      margin: const EdgeInsets.only(right: 6, top: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF015ACE),
+        //Colors.blue, 
+        
+        // ⬅️ blue background
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white, // ⬅️ white text
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+  
+  // void _setupMarkers() {
+  //   final newMarkers = <Marker>{};
+
+  //   // Pickup Marker
+  //   if (widget.pickup != null) {
+  //     newMarkers.add(
+  //       Marker(
+  //         markerId: const MarkerId('pickup'),
+  //         position: widget.pickup!,
+  //         infoWindow: const InfoWindow(title: 'Pickup'),
+  //         icon: BitmapDescriptor.defaultMarkerWithHue(
+  //           BitmapDescriptor.hueGreen,
+  //         ),
+  //       ),
+  //     );
+  //   }
+
+  //   // Destination Marker
+  //   if (widget.destination != null) {
+  //     newMarkers.add(
+  //       Marker(
+  //         markerId: const MarkerId('destination'),
+  //         position: widget.destination!,
+  //         infoWindow: const InfoWindow(title: 'Destination'),
+  //         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+  //       ),
+  //     );
+  //   }
+
+    
+
+  //   setState(() {
+  //     markers = newMarkers;
+  //   });
+  // }
+
+  void _updateDestinationMarker() {
+  if (selectedLatLng == null) {
+    setState(() {
+      markers.clear();
+    });
+    return;
+  }
+
+  setState(() {
+    markers = {
+      Marker(
+        markerId: const MarkerId('water_delivery_destination'),
+        position: selectedLatLng!,
+        infoWindow: InfoWindow(
+          title: 'Delivery Location',
+          snippet: displayAddress ?? 'Water delivery destination',
+        ),
+      ),
+    };
+  });
+}
+  // Future<void> _fetchCurrentLocation() async {
+  //   try {
+  //     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  //     if (!serviceEnabled) {
+  //       setState(() => displayAddress = "Location services disabled");
+  //       return;
+  //     }
+
+  //     LocationPermission permission = await Geolocator.checkPermission();
+  //     if (permission == LocationPermission.denied) {
+  //       permission = await Geolocator.requestPermission();
+  //       if (permission == LocationPermission.denied) {
+  //         setState(() => displayAddress = "Permission denied");
+  //         return;
+  //       }
+  //     }
+
+  //     if (permission == LocationPermission.deniedForever) {
+  //       setState(() => displayAddress = "Permission permanently denied");
+  //       return;
+  //     }
+
+  //     final position = await Geolocator.getCurrentPosition(
+  //       desiredAccuracy: LocationAccuracy.high,
+  //     );
+
+  //     selectedLatLng = LatLng(position.latitude, position.longitude);
+  //     _getAddressFromLatLng(selectedLatLng!);
+  //   } catch (e) {
+  //     debugPrint("Error fetching location: $e");
+  //     setState(() => displayAddress = "Unable to fetch location");
+  //   }
+  // }
 
   Future<void> fetchSubcategories() async {
     final category = widget.category;
@@ -153,6 +752,35 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
       debugPrint('Error fetching subcategories: $e');
     }
   }
+void _setDestination(
+  LatLng location, {
+  String? address,
+}) {
+  setState(() {
+    selectedLatLng = location;
+    displayAddress =
+        address?.trim().isNotEmpty == true
+            ? address!
+            : "Selected delivery location";
+  });
+
+  _updateDestinationMarker();
+
+  _moveToDestination(location);
+}
+Future<void> _moveToDestination(LatLng location) async {
+  if (_mapController == null) return;
+
+  await _mapController!.animateCamera(
+    CameraUpdate.newCameraPosition(
+      CameraPosition(
+        target: location,
+        zoom: 17,
+      ),
+    ),
+  );
+}
+
 
   Future<void> _pollDriverAssignment(
     BuildContext context,
@@ -166,7 +794,7 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
       await Future.delayed(pollingInterval);
 
       final response = await http.get(
-        Uri.parse('$baseUrl/rides/passenger/current/$firebaseId'),
+        Uri.parse('$baseUrl/passengerrides/passenger/current/$firebaseId'),
       );
 
       if (response.statusCode == 200) {
@@ -259,7 +887,7 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
   //     setState(() => _isLoading = true);
 
   //     final response = await http.post(
-  //       Uri.parse('$baseUrl/rides/waterbowser/request'),
+  //       Uri.parse('$baseUrl/passengerrides/waterbowser/request'),
   //       headers: {'Content-Type': 'application/json'},
   //       body: jsonEncode(requestBody),
   //     );
@@ -333,6 +961,7 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
     }
 
     DateTime? scheduledDateTime;
+    // scheduledDateTime = selectedDate;
     if (isScheduled && selectedDate != null && deliveryTime != null) {
       scheduledDateTime = DateTime(
         selectedDate!.year,
@@ -342,18 +971,18 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
         deliveryTime!.minute,
       );
 
-      final now = DateTime.now();
-      final minutesDiff = scheduledDateTime.difference(now).inMinutes;
+      // final now = DateTime.now();
+      // final minutesDiff = scheduledDateTime.difference(now).inMinutes;
 
-      // ✅ If too soon, push it forward (avoid backend rejection)
-      if (minutesDiff <= 29) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Please select a time at least 30 minutes from now"),
-          ),
-        );
-        return null;
-      }
+      // // ✅ If too soon, push it forward (avoid backend rejection)
+      // if (minutesDiff <= 29) {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     const SnackBar(
+      //       content: Text("Please select a time at least 30 minutes from now"),
+      //     ),
+      //   );
+      //   return null;
+      // }
 
       // if (minutesDiff <= 5) {
       //   scheduledDateTime = scheduledDateTime.add(const Duration(minutes: 30));
@@ -376,7 +1005,7 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
       setState(() => _isLoading = true);
 
       final response = await http.post(
-        Uri.parse('$baseUrl/rides/waterbowser/request'),
+        Uri.parse('$baseUrl/passengerrides/waterbowser/request'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(requestBody),
       );
@@ -434,7 +1063,7 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
             final realRideId = requestData['rideId'];
 
             // 2. Now check backend ride
-            final url = '$baseUrl/rides/myrides/$realRideId';
+            final url = '$baseUrl/passengerrides/myrides/$realRideId';
             final response = await http.get(Uri.parse(url));
 
             if (response.statusCode == 200) {
@@ -484,22 +1113,72 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
     );
   }
 
-  void _openDestinationPicker() async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => WhereToScreen(category: VehicleCategory.waterBowser),
-      ),
-    );
+  // void _openDestinationPicker() async {
+  //   final result = await Navigator.push(
+  //     context,
+  //     MaterialPageRoute(
+  //       builder: (_) => WhereToScreen(category: VehicleCategory.waterBowser),
+  //     ),
+  //   );
 
-    if (result != null && result is LatLng) {
+  //   if (result != null && result is LatLng) {
+  //     setState(() {
+  //       selectedLatLng = result;
+  //     });
+
+  //     _getAddressFromLatLng(result);
+  //   }
+  // }
+
+  Future<void> _openDestinationPicker() async {
+  final result = await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => WhereToScreen(
+        category: VehicleCategory.waterBowser,
+      ),
+    ),
+  );
+
+  if (!mounted || result == null) return;
+
+  if (result is Map<String, dynamic>) {
+    final location = result['location'];
+
+    if (location is LatLng) {
       setState(() {
-        selectedLatLng = result;
+        selectedLatLng = location;
+
+        // Exact Google Places name
+        displayAddress =
+            result['placeName']?.toString() ??
+            result['address']?.toString() ??
+            "Selected delivery location";
+
+        // Optional: keep these separately
+        destinationPlaceName =
+            result['placeName']?.toString();
+
+        destinationSecondaryText =
+            result['secondaryText']?.toString();
+
+        destinationFullAddress =
+            result['address']?.toString();
       });
 
-      _getAddressFromLatLng(result);
+      _updateDestinationMarker();
+
+      if (_mapController != null) {
+        await _mapController!.animateCamera(
+          CameraUpdate.newLatLngZoom(
+            location,
+            16,
+          ),
+        );
+      }
     }
   }
+}
 
   Future<void> _checkPendingOrders() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -509,7 +1188,7 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
 
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/rides/pendingOrder/${user.uid}/$categoryType'),
+        Uri.parse('$baseUrl/passengerrides/pendingOrder/${user.uid}/$categoryType'),
       );
 
       if (response.statusCode == 200) {
@@ -616,433 +1295,1224 @@ class _HoneySuckerScreenState extends State<WaterBowerScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Water Bowser Service'),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 1,
-        foregroundColor: Colors.black87,
-      ),
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       appBar: AppBar(
+//         title: const Text('Water Bowser Service'),
+//         centerTitle: true,
+//         backgroundColor: Colors.white,
+//         elevation: 1,
+//         foregroundColor: Colors.black87,
+//       ),
 
-      // ...
+//       // ...
+//       body: SafeArea(
+//         child: Stack(
+//           children: [
+//             SingleChildScrollView(
+//               child: Padding(
+//                 padding: const EdgeInsets.symmetric(
+//                   horizontal: 16,
+//                   vertical: 12,
+//                 ),
+//                 child: Column(
+//                   crossAxisAlignment: CrossAxisAlignment.start,
+//                   children: [
+//                     /// 🌊 Header Image
+//                     Container(
+//                       height: MediaQuery.of(context).size.height * 0.25,
+//                       decoration: BoxDecoration(
+//                         borderRadius: BorderRadius.circular(20),
+//                         border: Border.all(
+//                           color: Colors.blueAccent.withOpacity(0.3),
+//                           width: 1.5,
+//                         ),
+//                         image: const DecorationImage(
+//                           image: AssetImage('assets/imgs/WaterTruck.jpg'),
+//                           fit: BoxFit.cover,
+//                         ),
+//                       ),
+//                     ),
+
+//                     const SizedBox(height: 15),
+//                     Card(
+//                       shape: RoundedRectangleBorder(
+//                         borderRadius: BorderRadius.circular(12),
+//                       ),
+//                       elevation: 2,
+//                       child: InkWell(
+//                         onTap: _openDestinationPicker,
+//                         borderRadius: BorderRadius.circular(12),
+//                         child: Padding(
+//                           padding: const EdgeInsets.all(14),
+//                           child: Row(
+//                             children: [
+//                               Container(
+//                                 padding: const EdgeInsets.all(10),
+//                                 decoration: BoxDecoration(
+//                                   color: Colors.blueAccent.withOpacity(0.1),
+//                                   borderRadius: BorderRadius.circular(10),
+//                                 ),
+//                                 child: const Icon(
+//                                   Icons.location_on_outlined,
+//                                   color: Colors.blueAccent,
+//                                 ),
+//                               ),
+//                               const SizedBox(width: 12),
+//                               Expanded(
+//                                 child: Column(
+//                                   crossAxisAlignment: CrossAxisAlignment.start,
+//                                   children: [
+//                                     const Text(
+//                                       'Delivery Location',
+//                                       style: TextStyle(
+//                                         fontWeight: FontWeight.bold,
+//                                       ),
+//                                     ),
+//                                     const SizedBox(height: 6),
+//                                     Text(
+//                                       displayAddress ??
+//                                           'Tap to select destination on map',
+//                                       style: TextStyle(
+//                                         color:
+//                                             displayAddress == null
+//                                                 ? Colors.grey[700]
+//                                                 : Colors.black87,
+//                                       ),
+//                                     ),
+//                                   ],
+//                                 ),
+//                               ),
+//                               const Icon(Icons.chevron_right),
+//                             ],
+//                           ),
+//                         ),
+//                       ),
+//                     ),
+
+//                     const SizedBox(height: 15),
+
+//                     /// 🚰 Quantity Selector
+//                     const Text(
+//                       "Select Quantity",
+//                       style: TextStyle(
+//                         fontSize: 18,
+//                         fontWeight: FontWeight.bold,
+//                       ),
+//                     ),
+
+//                     const SizedBox(height: 10),
+
+//                     SizedBox(
+//                       height: 60,
+//                       child: ListView.builder(
+//                         scrollDirection: Axis.horizontal,
+//                         itemCount: subcategories.length,
+//                         itemBuilder: (context, index) {
+//                           final sub = subcategories[index];
+//                           final isSelected = selectedSubcategory?.id == sub.id;
+//                           return GestureDetector(
+//                             onTap: () {
+//                               if (selectedLatLng == null) {
+//                                 ScaffoldMessenger.of(context).showSnackBar(
+//                                   const SnackBar(
+//                                     content: Text(
+//                                       "Please select delivery location first.",
+//                                     ),
+//                                   ),
+//                                 );
+//                                 return;
+//                               }
+
+//                               setState(() {
+//                                 selectedSubcategory = sub;
+//                                 selectedPrice = sub.baseFare;
+//                                 // numberOfTrucks = 0;
+//                                 //numberOfTrucks = int.tryParse(value) ?? 0;
+//                                 //  totalPrice = selectedPrice!;
+//                                 totalPrice = selectedSubcategory!.baseFare;
+//                                 // numberOfTrucks;
+//                                 priceController.text =
+//                                     'KES ${totalPrice.toStringAsFixed(2)}';
+//                               });
+//                             },
+//                             child: Container(
+//                               margin: const EdgeInsets.only(right: 12),
+//                               padding: const EdgeInsets.symmetric(
+//                                 horizontal: 20,
+//                                 vertical: 12,
+//                               ),
+//                               decoration: BoxDecoration(
+//                                 color:
+//                                     isSelected ? Colors.blue : Colors.grey[200],
+//                                 borderRadius: BorderRadius.circular(20),
+//                                 border: Border.all(
+//                                   color:
+//                                       isSelected
+//                                           ? Colors.blue
+//                                           : Colors.grey.shade300,
+//                                   width: 2,
+//                                 ),
+//                               ),
+//                               child: Center(
+//                                 child: Text(
+//                                   sub.name,
+//                                   style: TextStyle(
+//                                     color:
+//                                         isSelected
+//                                             ? Colors.white
+//                                             : Colors.black87,
+//                                     fontWeight: FontWeight.w600,
+//                                   ),
+//                                 ),
+//                               ),
+//                             ),
+//                           );
+//                         },
+//                       ),
+//                     ),
+
+//                     const SizedBox(height: 15),
+
+//                     Card(
+//                       shape: RoundedRectangleBorder(
+//                         borderRadius: BorderRadius.circular(12),
+//                       ),
+//                       elevation: 2,
+//                       child: Padding(
+//                         padding: const EdgeInsets.all(14),
+//                         child: Column(
+//                           crossAxisAlignment: CrossAxisAlignment.start,
+//                           children: [
+//                             const Text(
+//                               'Estimated Price',
+//                               style: TextStyle(fontWeight: FontWeight.bold),
+//                             ),
+//                             const SizedBox(height: 8),
+//                             Row(
+//                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+//                               children: [
+//                                 Text(
+//                                   priceController.text.isNotEmpty
+//                                       ? priceController.text
+//                                       : 'KES 0.00',
+//                                   style: const TextStyle(
+//                                     fontSize: 18,
+//                                     fontWeight: FontWeight.w700,
+//                                   ),
+//                                 ),
+//                               ],
+//                             ),
+//                             const SizedBox(height: 12),
+//                             // if (numberOfTrucks > 0)
+//                             //   Text(
+//                             //     '${numberOfTrucks} truck(s) selected',
+//                             //     style: const TextStyle(color: Colors.black87),
+//                             //   ),
+//                           ],
+//                         ),
+//                       ),
+//                     ),
+//                     const SizedBox(height: 15),
+
+//                     Card(
+//                       shape: RoundedRectangleBorder(
+//                         borderRadius: BorderRadius.circular(12),
+//                       ),
+//                       elevation: 1,
+//                       child: Padding(
+//                         padding: const EdgeInsets.all(12),
+//                         child: Row(
+//                           children: [
+//                             const Icon(
+//                               Icons.calendar_today_outlined,
+//                               size: 20,
+//                               color: Colors.black54,
+//                             ),
+//                             const SizedBox(width: 12),
+//                             Expanded(
+//                               child: GestureDetector(
+//                                 onTap: () async {
+//                                   final now = DateTime.now();
+//                                   final pickedDate = await showDatePicker(
+//                                     context: context,
+//                                     initialDate: selectedDate ?? now,
+//                                     firstDate: now,
+//                                     lastDate: now.add(const Duration(days: 30)),
+//                                   );
+//                                   if (pickedDate == null) return;
+//                                   final pickedTime = await showTimePicker(
+//                                     context: context,
+//                                     initialTime:
+//                                         deliveryTime ?? TimeOfDay.now(),
+//                                   );
+//                                   if (pickedTime == null) return;
+//                                   setState(() {
+//                                     selectedDate = pickedDate;
+//                                     deliveryTime = pickedTime;
+//                                   });
+//                                 },
+//                                 child: Column(
+//                                   crossAxisAlignment: CrossAxisAlignment.start,
+//                                   children: [
+//                                     const Text(
+//                                       'Delivery Date & Time',
+//                                       style: TextStyle(
+//                                         fontWeight: FontWeight.w600,
+//                                       ),
+//                                     ),
+//                                     const SizedBox(height: 6),
+//                                     Text(
+//                                       "${DateFormat('yyyy-MM-dd').format(selectedDate!)} ${deliveryTime!.format(context)}",
+//                                       style: const TextStyle(fontSize: 15),
+//                                     ),
+//                                   ],
+//                                 ),
+//                               ),
+//                             ),
+//                           ],
+//                         ),
+//                       ),
+//                     ),
+
+//                     const SizedBox(height: 15),
+
+//                     Row(
+//                       children: [
+//                         /// 🚀 ORDER NOW
+//                         Expanded(
+//                           child: ElevatedButton(
+//                             onPressed: () async {
+//                               if (selectedLatLng == null) {
+//                                 ScaffoldMessenger.of(context).showSnackBar(
+//                                   const SnackBar(
+//                                     content: Text(
+//                                       "Please select destination first.",
+//                                     ),
+//                                   ),
+//                                 );
+//                                 return;
+//                               }
+
+//                               if (selectedSubcategory == null) {
+//                                 ScaffoldMessenger.of(context).showSnackBar(
+//                                   const SnackBar(
+//                                     content: Text("Please select quantity."),
+//                                   ),
+//                                 );
+//                                 return;
+//                               }
+
+//                               // 👉 Create ride first
+//                               await bookRide(isScheduled: false);
+
+//                               // 👉 Then open Finding Driver screen
+//                               if (mounted) {
+//                                 Navigator.push(
+//                                   context,
+//                                   MaterialPageRoute(
+//                                     fullscreenDialog: true,
+//                                     builder:
+//                                         (_) => FindingDriverScreen(
+//                                           onCancel:
+//                                               () async => print(
+//                                                 "Ride canceled by passenger",
+//                                               ),
+//                                           driverLinkedStream:
+//                                               _driverLinkedController.stream,
+//                                         ),
+//                                   ),
+//                                 );
+//                               }
+
+//                               // 👉 Start polling for driver
+//                               if (rideId2 != null) {
+//                                 pollForDriverAssignment(rideId2!);
+//                               }
+//                             },
+//                             style: ElevatedButton.styleFrom(
+//                               backgroundColor: Colors.blue,
+//                               foregroundColor: Colors.white,
+//                               minimumSize: const Size.fromHeight(50),
+//                               shape: RoundedRectangleBorder(
+//                                 borderRadius: BorderRadius.circular(12),
+//                               ),
+//                             ),
+//                             child: const Text("Order Now"),
+//                           ),
+//                         ),
+
+//                         const SizedBox(width: 12),
+
+//                         /// 📅 SCHEDULE
+//                         Expanded(
+//                           child: ElevatedButton(
+//                             onPressed: () async {
+//                               if (selectedLatLng == null) {
+//                                 ScaffoldMessenger.of(context).showSnackBar(
+//                                   const SnackBar(
+//                                     content: Text(
+//                                       "Please select destination first.",
+//                                     ),
+//                                   ),
+//                                 );
+//                                 return;
+//                               }
+
+//                               if (selectedSubcategory == null) {
+//                                 ScaffoldMessenger.of(context).showSnackBar(
+//                                   const SnackBar(
+//                                     content: Text("Please select quantity."),
+//                                   ),
+//                                 );
+//                                 return;
+//                               }
+
+//                               // 👉 Just create ride (scheduled)
+//                               await bookRide(isScheduled: true);
+
+//                               // 👉 Go directly to Order Details (no driver search)
+//                               if (rideId2 != null && mounted) {
+//                                 Navigator.push(
+//                                   context,
+//                                   MaterialPageRoute(
+//                                     builder:
+//                                         (_) => OrderDetailsScreen(
+//                                           rideId: rideId2!,
+//                                           serviceType: widget.category,
+//                                           destination: selectedLatLng,
+//                                           isScheduled: true,
+//                                           //   orde
+//                                         ),
+//                                   ),
+//                                 );
+//                               }
+//                             },
+//                             style: ElevatedButton.styleFrom(
+//                               backgroundColor: Colors.blue,
+//                               foregroundColor: Colors.white,
+//                               minimumSize: const Size.fromHeight(50),
+//                               //side: const BorderSide(color: Colors.blue),
+//                               shape: RoundedRectangleBorder(
+//                                 borderRadius: BorderRadius.circular(12),
+//                               ),
+//                             ),
+//                             child: const Text("Schedule"),
+//                           ),
+//                         ),
+//                       ],
+//                     ),
+//                   ],
+//                 ),
+//               ),
+//             ),
+
+//             if (_isLoading)
+//               Container(
+//                 color: Colors.black.withOpacity(0.5),
+//                 child: const Center(
+//                   child: CircularProgressIndicator(color: Colors.white),
+//                   //           ),
+//                   //         ),
+//                   //     ],
+//                   //   ),
+//                   // );
+//                 ),
+//               ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+// }
+
+ @override
+  Widget build(BuildContext context) {
+    final hasDestination = selectedLatLng != null;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FB),
+
       body: SafeArea(
         child: Stack(
           children: [
-            SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+
+
+            Positioned.fill(
+  child: 
+  GoogleMap(
+  initialCameraPosition: CameraPosition(
+    target: selectedLatLng ?? _initialFallback,
+    zoom: selectedLatLng != null ? 16 : 12,
+  ),
+
+  markers: markers,
+
+  circles: destinationCircles,
+
+  myLocationEnabled: false,
+  myLocationButtonEnabled: false,
+  zoomControlsEnabled: false,
+
+  onMapCreated: (controller) {
+    _mapController = controller;
+
+    if (selectedLatLng != null) {
+      _moveToDestination(selectedLatLng!);
+    }
+  },
+
+  onTap: _setDestination,
+),
+),
+
+            // ====================================================
+            // TOP BAR
+            // ====================================================
+
+            Positioned(
+  top: 12,
+  left: 16,
+  right: 16,
+  child: Row(
+    children: [
+      // Back button
+      _mapButton(
+        icon: Icons.arrow_back,
+        onTap: () => Navigator.pop(context),
+      ),
+
+      const SizedBox(width: 10),
+
+      // Delivery location
+      Expanded(
+        child: GestureDetector(
+          onTap: _openDestinationPicker,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 8,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(.15),
+                  blurRadius: 10,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFD000),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.local_shipping,
+                    color: Colors.black,
+                    size: 19,
+                  ),
+                ),
+
+                const SizedBox(width: 9),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "Delivery Location",
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 10,
+                          color: Colors.black54,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        displayAddress ??
+                            "Select delivery location",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const Icon(
+                  Icons.chevron_right,
+                  size: 19,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+
+      const SizedBox(width: 10),
+
+      // Move map to destination
+      _mapButton(
+        icon: Icons.my_location,
+        onTap: () {
+          if (selectedLatLng != null) {
+            _moveToDestination(selectedLatLng!);
+          }
+        },
+      ),
+    ],
+  ),
+),
+
+            // ====================================================
+            // BOTTOM BOOKING SHEET
+            // ====================================================
+
+            DraggableScrollableSheet(
+  initialChildSize: .55,
+  minChildSize: .32,
+  maxChildSize: .85,
+  builder: (context, sheetScrollController) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(28),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black26,
+            blurRadius: 15,
+            offset: Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+
+          // =====================================================
+          // DRAG HANDLE
+          // =====================================================
+
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Center(
+              child: Container(
+                width: 45,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ),
+
+          // =====================================================
+          // SCROLLABLE CONTENT
+          // =====================================================
+
+          Expanded(
+            child: ListView(
+              controller: sheetScrollController,
+              padding: const EdgeInsets.fromLTRB(
+                20,
+                15,
+                20,
+                20,
+              ),
+              children: [
+
+
+
+                // =================================================
+                // WATER TANK
+                // =================================================
+
+                Row(
+                  mainAxisAlignment:
+                      MainAxisAlignment.spaceBetween,
                   children: [
-                    /// 🌊 Header Image
-                    Container(
-                      height: MediaQuery.of(context).size.height * 0.25,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.blueAccent.withOpacity(0.3),
-                          width: 1.5,
-                        ),
-                        image: const DecorationImage(
-                          image: AssetImage('assets/imgs/WaterTruck.jpg'),
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
 
-                    const SizedBox(height: 15),
-                    Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 2,
-                      child: InkWell(
-                        onTap: _openDestinationPicker,
-                        borderRadius: BorderRadius.circular(12),
-                        child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: Colors.blueAccent.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: const Icon(
-                                  Icons.location_on_outlined,
-                                  color: Colors.blueAccent,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Delivery Location',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      displayAddress ??
-                                          'Tap to select destination on map',
-                                      style: TextStyle(
-                                        color:
-                                            displayAddress == null
-                                                ? Colors.grey[700]
-                                                : Colors.black87,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const Icon(Icons.chevron_right),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 15),
-
-                    /// 🚰 Quantity Selector
-                    const Text(
-                      "Select Quantity",
-                      style: TextStyle(
+                    Text(
+                      "Select Water Tank",
+                      style: GoogleFonts.spaceGrotesk(
                         fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
 
-                    const SizedBox(height: 10),
-
-                    SizedBox(
-                      height: 60,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: subcategories.length,
-                        itemBuilder: (context, index) {
-                          final sub = subcategories[index];
-                          final isSelected = selectedSubcategory?.id == sub.id;
-                          return GestureDetector(
-                            onTap: () {
-                              if (selectedLatLng == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      "Please select delivery location first.",
-                                    ),
-                                  ),
-                                );
-                                return;
-                              }
-
-                              setState(() {
-                                selectedSubcategory = sub;
-                                selectedPrice = sub.baseFare;
-                                // numberOfTrucks = 0;
-                                //numberOfTrucks = int.tryParse(value) ?? 0;
-                                //  totalPrice = selectedPrice!;
-                                totalPrice = selectedSubcategory!.baseFare;
-                                // numberOfTrucks;
-                                priceController.text =
-                                    'KES ${totalPrice.toStringAsFixed(2)}';
-                              });
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.only(right: 12),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color:
-                                    isSelected ? Colors.blue : Colors.grey[200],
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color:
-                                      isSelected
-                                          ? Colors.blue
-                                          : Colors.grey.shade300,
-                                  width: 2,
-                                ),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  sub.name,
-                                  style: TextStyle(
-                                    color:
-                                        isSelected
-                                            ? Colors.white
-                                            : Colors.black87,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
+                    if (selectedSubcategory != null)
+                      Text(
+                        "Selected",
+                        style:
+                            GoogleFonts.spaceGrotesk(
+                          color: const Color(0xFF015ACE),
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
+                  ],
+                ),
 
-                    const SizedBox(height: 15),
+                const SizedBox(height: 12),
 
-                    Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                // =================================================
+                // SUBCATEGORIES
+                // =================================================
+
+                ...subcategories.map((sub) {
+                  final isSelected =
+                      selectedSubcategory?.id == sub.id;
+
+                  return GestureDetector(
+                    onTap: () => _selectSubcategory(sub),
+
+                    child: AnimatedContainer(
+                      duration:
+                          const Duration(milliseconds: 200),
+
+                      margin: const EdgeInsets.only(
+                        bottom: 12,
                       ),
-                      elevation: 2,
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Estimated Price',
-                              style: TextStyle(fontWeight: FontWeight.bold),
+
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
+                      ),
+
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFFEAF3FF)
+                            : Colors.white,
+
+                        borderRadius:
+                            BorderRadius.circular(16),
+
+                        border: Border.all(
+                          color: isSelected
+                              ? const Color(0xFFF0D000)
+                              : Colors.grey.shade300,
+                          width: isSelected ? 2 : 1,
+                        ),
+
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(
+                              isSelected ? .08 : .04,
                             ),
-                            const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+
+                      child: Row(
+                        children: [
+
+                          // Water lorry
+                          Container(
+                            width: 58,
+                            height: 58,
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? const Color(0xFF015ACE)
+                                  : const Color(0xFFF1F6FC),
+                              borderRadius:
+                                  BorderRadius.circular(14),
+                            ),
+                            child: Icon(
+                              Icons.local_shipping_rounded,
+                              size: 30,
+                              color: isSelected
+                                  ? Colors.white
+                                  : const Color(0xFF015ACE),
+                            ),
+                          ),
+
+                          const SizedBox(width: 14),
+
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
                               children: [
+
                                 Text(
-                                  priceController.text.isNotEmpty
-                                      ? priceController.text
-                                      : 'KES 0.00',
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
+                                  sub.name,
+                                  maxLines: 1,
+                                  overflow:
+                                      TextOverflow.ellipsis,
+                                  style:
+                                      GoogleFonts.spaceGrotesk(
+                                    fontSize: 16,
+                                    fontWeight:
+                                        FontWeight.w700,
+                                  ),
+                                ),
+
+                                const SizedBox(height: 5),
+
+                                Text(
+                                  _getWaterBowserDescription(
+                                    sub.name,
+                                  ),
+                                  maxLines: 2,
+                                  overflow:
+                                      TextOverflow.ellipsis,
+                                  style:
+                                      GoogleFonts.nunitoSans(
+                                    fontSize: 13,
+                                    color: Colors.black54,
+                                    height: 1.3,
+                                  ),
+                                ),
+
+                                const SizedBox(height: 7),
+
+                                Text(
+                                  "KES ${sub.baseFare.toStringAsFixed(0)}",
+                                  style:
+                                      GoogleFonts.spaceGrotesk(
+                                    fontSize: 13,
+                                    fontWeight:
+                                        FontWeight.w700,
+                                    color:
+                                        const Color(
+                                      0xFF015ACE,
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 12),
-                            // if (numberOfTrucks > 0)
-                            //   Text(
-                            //     '${numberOfTrucks} truck(s) selected',
-                            //     style: const TextStyle(color: Colors.black87),
-                            //   ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-
-                    Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 1,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.calendar_today_outlined,
-                              size: 20,
-                              color: Colors.black54,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () async {
-                                  final now = DateTime.now();
-                                  final pickedDate = await showDatePicker(
-                                    context: context,
-                                    initialDate: selectedDate ?? now,
-                                    firstDate: now,
-                                    lastDate: now.add(const Duration(days: 30)),
-                                  );
-                                  if (pickedDate == null) return;
-                                  final pickedTime = await showTimePicker(
-                                    context: context,
-                                    initialTime:
-                                        deliveryTime ?? TimeOfDay.now(),
-                                  );
-                                  if (pickedTime == null) return;
-                                  setState(() {
-                                    selectedDate = pickedDate;
-                                    deliveryTime = pickedTime;
-                                  });
-                                },
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Delivery Date & Time',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      "${DateFormat('yyyy-MM-dd').format(selectedDate!)} ${deliveryTime!.format(context)}",
-                                      style: const TextStyle(fontSize: 15),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 15),
-
-                    Row(
-                      children: [
-                        /// 🚀 ORDER NOW
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              if (selectedLatLng == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      "Please select destination first.",
-                                    ),
-                                  ),
-                                );
-                                return;
-                              }
-
-                              if (selectedSubcategory == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("Please select quantity."),
-                                  ),
-                                );
-                                return;
-                              }
-
-                              // 👉 Create ride first
-                              await bookRide(isScheduled: false);
-
-                              // 👉 Then open Finding Driver screen
-                              if (mounted) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    fullscreenDialog: true,
-                                    builder:
-                                        (_) => FindingDriverScreen(
-                                          onCancel:
-                                              () async => print(
-                                                "Ride canceled by passenger",
-                                              ),
-                                          driverLinkedStream:
-                                              _driverLinkedController.stream,
-                                        ),
-                                  ),
-                                );
-                              }
-
-                              // 👉 Start polling for driver
-                              if (rideId2 != null) {
-                                pollForDriverAssignment(rideId2!);
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size.fromHeight(50),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: const Text("Order Now"),
                           ),
-                        ),
 
-                        const SizedBox(width: 12),
+                          const SizedBox(width: 10),
 
-                        /// 📅 SCHEDULE
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              if (selectedLatLng == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      "Please select destination first.",
-                                    ),
-                                  ),
-                                );
-                                return;
-                              }
-
-                              if (selectedSubcategory == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("Please select quantity."),
-                                  ),
-                                );
-                                return;
-                              }
-
-                              // 👉 Just create ride (scheduled)
-                              await bookRide(isScheduled: true);
-
-                              // 👉 Go directly to Order Details (no driver search)
-                              if (rideId2 != null && mounted) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder:
-                                        (_) => OrderDetailsScreen(
-                                          rideId: rideId2!,
-                                          serviceType: widget.category,
-                                          destination: selectedLatLng,
-                                          isScheduled: true,
-                                          //   orde
-                                        ),
-                                  ),
-                                );
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size.fromHeight(50),
-                              //side: const BorderSide(color: Colors.blue),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                          // Selection indicator
+                          Container(
+                            width: 25,
+                            height: 25,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isSelected
+                                  ? const Color(0xFFF0D000)
+                                  : Colors.transparent,
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFFF0D000)
+                                    : Colors.grey.shade400,
+                                width: 2,
                               ),
                             ),
-                            child: const Text("Schedule"),
+                            child: isSelected
+                                ? const Icon(
+                                    Icons.check,
+                                    size: 16,
+                                    color: Colors.white,
+                                  )
+                                : null,
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ],
+                  );
+                }),
+
+                const SizedBox(height: 10),
+
+                // =================================================
+                // FARE + DELIVERY TIME
+                // =================================================
+
+                // Row(
+                //   children: [
+
+                //     Expanded(
+                //       child: _summaryCard(
+                //         icon: Icons.payments_outlined,
+                //         title: "Estimated Fare",
+                //         value:
+                //             "KES ${totalPrice.toStringAsFixed(0)}",
+                //         iconColor:
+                //             const Color(0xFF015ACE),
+                //       ),
+                //     ),
+
+                //     const SizedBox(width: 12),
+
+                //     // Expanded(
+                //     //   child: GestureDetector(
+                //     //     onTap: _selectDeliveryDateTime,
+                //     //     child: _summaryCard(
+                //     //       icon:
+                //     //           Icons.calendar_today_outlined,
+                //     //       title: "Delivery",
+                //     //       value:
+                //     //           selectedDate != null &&
+                //     //                   deliveryTime != null
+                //     //               ? DateFormat(
+                //     //                   "dd MMM, hh:mm a",
+                //     //                 ).format(
+                //     //                   DateTime(
+                //     //                     selectedDate!.year,
+                //     //                     selectedDate!.month,
+                //     //                     selectedDate!.day,
+                //     //                     deliveryTime!.hour,
+                //     //                     deliveryTime!.minute,
+                //     //                   ),
+                //     //                 )
+                //     //               : "Select time",
+                //     //       iconColor:
+                //     //           const Color(0xFFFFD000),
+                //     //     ),
+                //     //   ),
+                //     // ),
+                //   ],
+                // ),
+              ],
+            ),
+          ),
+
+          // =====================================================
+          // FIXED BOTTOM AREA
+          // =====================================================
+
+          Container(
+            padding: const EdgeInsets.fromLTRB(
+              20,
+              12,
+              20,
+              16,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(.08),
+                  blurRadius: 10,
+                  offset: const Offset(0, -3),
                 ),
+              ],
+            ),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+
+                  // =================================================
+                  // PAYMENT METHOD
+                  // =================================================
+
+                  GestureDetector(
+                    onTap: _showPaymentMethods,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF7F8FA),
+                        borderRadius:
+                            BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.grey.shade200,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color:
+                                  const Color(0xFFEAF3FF),
+                              borderRadius:
+                                  BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.account_balance_wallet_outlined,
+                              color: Color(0xFF015ACE),
+                              size: 21,
+                            ),
+                          ),
+
+                          const SizedBox(width: 10),
+
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+
+                                Text(
+                                  "Payment Method",
+                                  style:
+                                      GoogleFonts.spaceGrotesk(
+                                    fontSize: 11,
+                                    color: Colors.black54,
+                                    fontWeight:
+                                        FontWeight.w600,
+                                  ),
+                                ),
+
+                                const SizedBox(height: 2),
+
+                                Text(
+                                  selectedPayment ??
+                                      "Select payment method",
+                                  style:
+                                      GoogleFonts.spaceGrotesk(
+                                    fontSize: 14,
+                                    fontWeight:
+                                        FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // =================================================
+                  // SCHEDULE + ORDER NOW
+                  // =================================================
+
+                  Row(
+                    children: [
+
+                      // // Schedule
+                      // GestureDetector(
+                      //   onTap: _scheduleOrder,
+                      //   child: Container(
+                      //     width: 55,
+                      //     height: 55,
+                      //     decoration: BoxDecoration(
+                      //       color:
+                      //           const Color(0xFFF0D000),
+                      //       borderRadius:
+                      //           BorderRadius.circular(10),
+                      //     ),
+                      //     alignment: Alignment.center,
+                      //     child: const Icon(
+                      //       Icons.calendar_month_rounded,
+                      //       color: Colors.white,
+                      //       size: 28,
+                      //     ),
+                      //   ),
+                      // ),
+
+                      // const SizedBox(width: 12),
+
+                      // Order Now
+                      // Expanded(
+                      //   child: ElevatedButton(
+                      //     onPressed:
+                      //         selectedSubcategory == null ||
+                      //                 selectedLatLng == null
+                      //             ? null
+                      //             : _orderNow,
+                      //     style:
+                      //         ElevatedButton.styleFrom(
+                      //       backgroundColor:
+                      //           const Color(0xFF015ACE),
+                      //       disabledBackgroundColor:
+                      //           Colors.grey.shade400,
+                      //       minimumSize:
+                      //           const Size(0, 55),
+                      //       shape:
+                      //           RoundedRectangleBorder(
+                      //         borderRadius:
+                      //             BorderRadius.circular(12),
+                      //       ),
+                      //     ),
+                      //     child: Text(
+                      //       selectedSubcategory != null
+                      //           ? "Order ${selectedSubcategory!.name}"
+                      //           : "Select Water Tank",
+                      //       style:
+                      //           GoogleFonts.spaceGrotesk(
+                      //         fontSize: 16,
+                      //         color: Colors.white,
+                      //         fontWeight:
+                      //             FontWeight.w700,
+                      //       ),
+                      //     ),
+                      //   ),
+                      // ),
+
+                      Expanded(
+  child: ElevatedButton(
+   onPressed: selectedSubcategory == null || selectedLatLng == null
+    ? null
+    : () => _orderNow(isScheduled: widget.isScheduled!),
+    style: ElevatedButton.styleFrom(
+      backgroundColor: const Color(0xFF015ACE),
+      disabledBackgroundColor: Colors.grey.shade400,
+      minimumSize: const Size(0, 55),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+    ),
+    child: Text(
+      selectedSubcategory == null
+          ? "Select Water Tank"
+          : widget.isScheduled!
+              ? "Schedule ${selectedSubcategory!.name}"
+              : "Order ${selectedSubcategory!.name}",
+      style: GoogleFonts.spaceGrotesk(
+        fontSize: 16,
+        color: Colors.white,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+  ),
+),
+                    ],
+                  ),
+                ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  },
+),
+
+            // ============================================================
+            // LOADING
+            // ============================================================
 
             if (_isLoading)
-              Container(
-                color: Colors.black.withOpacity(0.5),
-                child: const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                  //           ),
-                  //         ),
-                  //     ],
-                  //   ),
-                  // );
+              Positioned.fill(
+                child: Container(
+                  color:
+                      Colors.black.withOpacity(.35),
+                  child: const Center(
+                    child:
+                        CircularProgressIndicator(
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // MAP BUTTON
+  // ============================================================
+
+  Widget _mapButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(30),
+      elevation: 4,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(30),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Icon(
+            icon,
+            color: Colors.black87,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // SUMMARY CARD
+  // ============================================================
+
+  Widget _summaryCard({
+    required IconData icon,
+    required String title,
+    required String value,
+    required Color iconColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F8FA),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: Colors.grey.shade200,
+        ),
+      ),
+      child: Row(
+        children: [
+
+          Icon(
+            icon,
+            color: iconColor,
+            size: 22,
+          ),
+
+          const SizedBox(width: 8),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+
+                Text(
+                  title,
+                  style:
+                      GoogleFonts.spaceGrotesk(
+                    fontSize: 10,
+                    color: Colors.black54,
+                    fontWeight:
+                        FontWeight.w600,
+                  ),
+                ),
+
+                const SizedBox(height: 3),
+
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow:
+                      TextOverflow.ellipsis,
+                  style:
+                      GoogleFonts.spaceGrotesk(
+                    fontSize: 13,
+                    fontWeight:
+                        FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

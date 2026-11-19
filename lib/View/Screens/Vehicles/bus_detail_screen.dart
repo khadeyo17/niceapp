@@ -38,7 +38,7 @@ class _BusDetailsScreenState extends State<BusDetailsScreen> {
     final busId = widget.bus['id'];
     final date = widget.travelDate.toIso8601String();
     final response = await http.get(
-      Uri.parse('$baseUrl/rides/$busId/seats?travelDate=$date'),
+      Uri.parse('$baseUrl/passengerrides/$busId/seats?travelDate=$date'),
     );
 
     if (response.statusCode == 200) {
@@ -59,7 +59,7 @@ class _BusDetailsScreenState extends State<BusDetailsScreen> {
 
   // Future<void> completeBooking(String? token) async {
   //   final bookingResponse = await http.post(
-  //     Uri.parse('$baseUrl/rides/bus/book'),
+  //     Uri.parse('$baseUrl/passengerrides/bus/book'),
   //     headers: {'Content-Type': 'application/json'},
   //     body: json.encode({
   //       "busId": widget.bus["id"],
@@ -316,7 +316,7 @@ class _BusDetailsScreenState extends State<BusDetailsScreen> {
                         }
 
                         //   final bookingResponse = await http.post(
-                        //     Uri.parse('$baseUrl/rides/bus/book'),
+                        //     Uri.parse('$baseUrl/passengerrides/bus/book'),
                         //     headers: {'Content-Type': 'application/json'},
                         //     body: json.encode({
                         //       "busId": widget.bus["id"],
@@ -352,7 +352,7 @@ class _BusDetailsScreenState extends State<BusDetailsScreen> {
                         // },
 
                         final bookingResponse = await http.post(
-                          Uri.parse('$baseUrl/rides/bus/book'),
+                          Uri.parse('$baseUrl/passengerrides/bus/book'),
                           headers: {'Content-Type': 'application/json'},
                           body: json.encode({
                             "busId": widget.bus["id"],
@@ -488,7 +488,7 @@ class _BusDetailsScreenState extends State<BusDetailsScreen> {
 //     final date = widget.travelDate.toIso8601String();
 
 //     final response = await http.get(
-//       Uri.parse('$baseUrl/rides/$busId/seats?travelDate=$date'),
+//       Uri.parse('$baseUrl/passengerrides/$busId/seats?travelDate=$date'),
 //     );
 
 //     if (response.statusCode == 200) {

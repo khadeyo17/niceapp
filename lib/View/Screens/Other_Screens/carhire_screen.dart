@@ -512,7 +512,7 @@ class _CarHireScreenState extends State<CarHireScreen> {
       setState(() => _isLoading = true);
 
       final response = await http.post(
-        Uri.parse('$baseUrl/rides/exhauster/book'),
+        Uri.parse('$baseUrl/passengerrides/exhauster/book'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(requestBody),
       );
@@ -718,7 +718,7 @@ class _CarHireScreenState extends State<CarHireScreen> {
 // //       await Future.delayed(pollingInterval);
 
 // //       final response = await http.get(
-// //         Uri.parse('$baseUrl/rides/passenger/current/$firebaseId'),
+// //         Uri.parse('$baseUrl/passengerrides/passenger/current/$firebaseId'),
 // //       );
 
 // //       if (response.statusCode == 200) {
@@ -1018,7 +1018,7 @@ class _CarHireScreenState extends State<CarHireScreen> {
 // //                         setState(() => _isLoading = true);
 
 // //                         final response = await http.post(
-// //                           Uri.parse('$baseUrl/rides/exhauster/book'),
+// //                           Uri.parse('$baseUrl/passengerrides/exhauster/book'),
 // //                           headers: {'Content-Type': 'application/json'},
 // //                           body: jsonEncode(requestBody),
 // //                         );
@@ -1583,7 +1583,7 @@ class _CarHireScreenState extends State<CarHireScreen> {
 //     try {
 //       setState(() => _isLoading = true);
 //       final response = await http.post(
-//         Uri.parse('$baseUrl/rides/exhauster/book'),
+//         Uri.parse('$baseUrl/passengerrides/exhauster/book'),
 //         headers: {'Content-Type': 'application/json'},
 //         body: jsonEncode(requestBody),
 //       );

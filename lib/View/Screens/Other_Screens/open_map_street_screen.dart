@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+//import 'package:latlong2/latlong.dart';
 
 class OpenStreetMapScreen extends StatelessWidget {
   @override
@@ -9,8 +9,8 @@ class OpenStreetMapScreen extends StatelessWidget {
       appBar: AppBar(title: Text("OpenStreetMap Example")),
       body: FlutterMap(
         options: MapOptions(
-          center: LatLng(1.2921, 36.8219), // Nairobi
-          zoom: 13.0,
+          // onTap: LatLng(1.2921, 36.8219), // Nairobi
+          // zoom: 13.0,
         ),
         children: [
           TileLayer(

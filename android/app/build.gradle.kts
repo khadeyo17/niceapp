@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -7,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.example.niceapp"
-    compileSdk = 35
+    compileSdk = 36
     //compileSdk = 34//flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"//flutter.ndkVersion
     //minSdkVersion: 23 
@@ -15,8 +17,8 @@ android {
 
     compileOptions {
     isCoreLibraryDesugaringEnabled = true
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
     }
     dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
@@ -26,12 +28,18 @@ android {
     }
 
 
-    kotlinOptions {
-        jvmTarget ="17" //JavaVersion.VERSION_17.toString()
+   // kotlinOptions {
+   //     jvmTarget ="21" //JavaVersion.VERSION_21.toString()
+   // }
+
+   kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_21
     }
+}
     java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(17))
+        languageVersion.set(JavaLanguageVersion.of(21))
     }
     // buildFeatures {
       //  buildConfig = true // ✅ Enables custom BuildConfig fields
@@ -40,7 +48,7 @@ android {
 
   signingConfigs {
         create("release") {
-            storeFile = file("C:\\Users\\Ibra\\release-key.jks")
+            storeFile = file("D:\\Finovec\\Keys\\release-key.jks")
             storePassword = "ba4nyibA,"
             keyAlias = "vicsacs"
             keyPassword = "ba4nyibA,"
@@ -52,16 +60,13 @@ android {
         applicationId = "com.example.niceapp"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 23//flutter.minSdkVersion
+        minSdk = flutter.minSdkVersion//flutter.minSdkVersion
         targetSdk = 34//flutter.targetSdkVersion
         versionCode = 1//flutter.versionCode
         versionName = "1.0"//flutter.versionName
         multiDexEnabled=true
 
-
-    //buildConfigField("String", "MAPBOX_ACCESS_TOKEN", "\"${project.findProperty("MAPBOX_DOWNLOADS_TOKEN") ?: ""}\"")
-    //manifestPlaceholders["MAPBOX_ACCESS_TOKEN"] = project.findProperty("MAPBOX_DOWNLOADS_TOKEN") ?: ""
-    }
+  }
 
     buildTypes {
     getByName("release") {

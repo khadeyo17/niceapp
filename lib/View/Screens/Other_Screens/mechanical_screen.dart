@@ -260,7 +260,7 @@ class _MechanicalScreenState extends State<MechanicalScreen> {
       await Future.delayed(pollingInterval);
 
       final response = await http.get(
-        Uri.parse('$baseUrl/rides/passenger/current/$firebaseId'),
+        Uri.parse('$baseUrl/passengerrides/passenger/current/$firebaseId'),
       );
 
       if (response.statusCode == 200) {
@@ -467,7 +467,7 @@ class _MechanicalScreenState extends State<MechanicalScreen> {
                       //   setState(() => _isLoading = true);
 
                       //   final response = await http.post(
-                      //     Uri.parse('$baseUrl/rides/exhauster/book'),
+                      //     Uri.parse('$baseUrl/passengerrides/exhauster/book'),
                       //     headers: {'Content-Type': 'application/json'},
                       //     body: jsonEncode(requestBody),
                       //   );

@@ -131,12 +131,23 @@ class DirectionPolylines {
         ref.read(homeScreenDropOffLocationProvider)!.locationLongitude!,
       );
 
+      //google map
+
       String url =
           "https://maps.googleapis.com/maps/api/directions/json?origin=${pickUpDestination.latitude},${pickUpDestination.longitude}&destination=${dropOffDestination.latitude},${dropOffDestination.longitude}&key=$mapKey";
+// String url =
+//     "https://api.mapbox.com/directions/v5/mapbox/driving/"
+//     "${pickUpDestination.longitude},${pickUpDestination.latitude};"
+//     "${dropOffDestination.longitude},${dropOffDestination.latitude}"
+//     "?geometries=polyline"
+//     "&overview=full"
+//     "&access_token=$mapboxAccessToken";
 
       Response res = await Dio().get(url);
 
       if (res.statusCode == 200) {
+      
+      // google
         DirectionPolylineDetails model = DirectionPolylineDetails(
           epoints: res.data["routes"][0]["overview_polyline"]["points"],
           distanceText: res.data["routes"][0]["legs"][0]["distance"]["text"],
@@ -144,6 +155,20 @@ class DirectionPolylines {
           durationText: res.data["routes"][0]["legs"][0]["duration"]["text"],
           durationValue: res.data["routes"][0]["legs"][0]["duration"]["value"],
         );
+
+
+//mbox
+//       final route = res.data["routes"][0];
+
+// DirectionPolylineDetails model = DirectionPolylineDetails(
+//   epoints: route["geometry"],
+//   distanceText:
+//       "${(route["distance"] / 1000).toStringAsFixed(1)} km",
+//   distanceValue: route["distance"].toDouble(),
+//   durationText:
+//       "${(route["duration"] / 60).round()} mins",
+//   durationValue: route["duration"].toDouble(),
+// );
 
         return model;
       } else {

@@ -56,7 +56,7 @@ class _BusBookingScreenState extends State<BusBookingScreen> {
 
   Future<void> fetchLocations() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/rides/routes'));
+      final response = await http.get(Uri.parse('$baseUrl/passengerrides/routes'));
       if (response.statusCode == 200) {
         final List<dynamic> jsonBody = json.decode(response.body);
         setState(() {
@@ -86,7 +86,7 @@ class _BusBookingScreenState extends State<BusBookingScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse("$baseUrl/rides/buses/search"),
+        Uri.parse("$baseUrl/passengerrides/buses/search"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(request.toJson()),
       );
@@ -131,7 +131,7 @@ class _BusBookingScreenState extends State<BusBookingScreen> {
 
     final token = await FirebaseAuth.instance.currentUser?.getIdToken();
     final response = await http.post(
-      Uri.parse('$baseUrl/rides/bookings'),
+      Uri.parse('$baseUrl/passengerrides/bookings'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'busId': selectedBusId,
@@ -464,7 +464,7 @@ class _BusBookingScreenState extends State<BusBookingScreen> {
                                 final busId = bus['id'];
                                 final response = await http.get(
                                   Uri.parse(
-                                    '$baseUrl/rides/$busId/seats?travelDate=${selectedDate!.toIso8601String()}',
+                                    '$baseUrl/passengerrides/$busId/seats?travelDate=${selectedDate!.toIso8601String()}',
                                   ),
                                 );
                                 if (response.statusCode == 200) {
@@ -630,7 +630,7 @@ class _BusBookingScreenState extends State<BusBookingScreen> {
 //   }
 
 //   Future<void> fetchLocations() async {
-//     final response = await http.get(Uri.parse('$baseUrl/rides/routes'));
+//     final response = await http.get(Uri.parse('$baseUrl/passengerrides/routes'));
 
 //     if (response.statusCode == 200) {
 //       final List<dynamic> jsonBody = json.decode(response.body);
@@ -659,7 +659,7 @@ class _BusBookingScreenState extends State<BusBookingScreen> {
 
 //     try {
 //       final response = await http.post(
-//         Uri.parse("$baseUrl/rides/buses/search"),
+//         Uri.parse("$baseUrl/passengerrides/buses/search"),
 //         headers: {"Content-Type": "application/json"},
 //         body: jsonEncode(request.toJson()),
 //       );
@@ -711,7 +711,7 @@ class _BusBookingScreenState extends State<BusBookingScreen> {
 
 //     final token = await FirebaseAuth.instance.currentUser?.getIdToken();
 //     final response = await http.post(
-//       Uri.parse('$baseUrl/rides/bookings'),
+//       Uri.parse('$baseUrl/passengerrides/bookings'),
 //       headers: {'Content-Type': 'application/json'},
 //       body: jsonEncode({
 //         'busId': selectedBusId,
@@ -950,7 +950,7 @@ class _BusBookingScreenState extends State<BusBookingScreen> {
 //                                 final busId = bus['id'];
 //                                 final response = await http.get(
 //                                   Uri.parse(
-//                                     '$baseUrl/rides/$busId/seats?travelDate=${selectedDate!.toIso8601String()}',
+//                                     '$baseUrl/passengerrides/$busId/seats?travelDate=${selectedDate!.toIso8601String()}',
 //                                   ),
 //                                 );
 //                                 if (response.statusCode == 200) {

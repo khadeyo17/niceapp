@@ -28,8 +28,10 @@
         <!-- Google Maps API Key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyDJJzxBH5TbUhDoiVdQN5Xw0QVwDNXBfcY"/>
+            android:value="AIzaSyCg-0F4qoLzWRS0CF6Qpr-dX5EkTnZ1yaA"/>
 
+       
+       
         <activity
             android:name="com.example.niceapp.MainActivity"
             android:exported="true"
@@ -38,8 +40,6 @@
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
-            android:name="com.mapbox.maps.MapboxActivity"
-            android:theme="@style/Theme.AppCompat.NoActionBar" />
 
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"

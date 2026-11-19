@@ -235,7 +235,7 @@ class SplashLogics {
 
     try {
       final response = await http.get(
-        Uri.parse("$baseUrl/auth/check-user"),
+        Uri.parse("$baseUrl/passengerauth/check-user"),
         headers: {
           HttpHeaders.contentTypeHeader: 'application/json',
           HttpHeaders.authorizationHeader: 'Bearer $token', // ✅ Use token here
@@ -264,7 +264,7 @@ class SplashLogics {
 
         if (hasBackendData) {
           await http.post(
-            Uri.parse('$baseUrl/auth/update-fcm-token'),
+            Uri.parse('$baseUrl/passengerauth/update-fcm-token'),
             headers: {
               'Content-Type': 'application/json',
               'Authorization': 'Bearer $token',
@@ -285,7 +285,7 @@ class SplashLogics {
     //     try {
     //       // Run backend check and Firestore check in parallel
     //       final response = http.get(
-    //          Uri.parse("$baseUrl/auth/check-user"),
+    //          Uri.parse("$baseUrl/passengerauth/check-user"),
     //         headers: {
     //           HttpHeaders.contentTypeHeader: 'application/json',
     //           HttpHeaders.authorizationHeader: 'Bearer $token', // ✅ Use token here
@@ -321,7 +321,7 @@ class SplashLogics {
 
     //         if (hasBackendData) {
     //           await http.post(
-    //             Uri.parse('$baseUrl/auth/update-fcm-token'),
+    //             Uri.parse('$baseUrl/passengerauth/update-fcm-token'),
     //             headers: {
     //               'Content-Type': 'application/json',
     //               'Authorization': 'Bearer $token',
@@ -375,7 +375,7 @@ class SplashLogics {
     //         final token = await user.getIdToken();
     //         final fcmToken = await FirebaseMessaging.instance.getToken();
     //         http.post(
-    //           Uri.parse('$baseUrl/auth/update-fcm-token'),
+    //           Uri.parse('$baseUrl/passengerauth/update-fcm-token'),
     //           headers: {
     //             'Content-Type': 'application/json',
     //             'Authorization': 'Bearer $token',

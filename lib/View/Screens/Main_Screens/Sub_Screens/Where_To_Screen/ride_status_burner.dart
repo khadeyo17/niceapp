@@ -88,7 +88,7 @@ class _RideStatusBannerState extends ConsumerState<RideStatusBanner>
   //         //       mobile: rideInfo.mobile,
   //         //     ),
 
-  //         final url = '$baseUrl/rides/myrides/$realRideId';
+  //         final url = '$baseUrl/passengerrides/myrides/$realRideId';
   //           final response = await http.get(Uri.parse(url));
 
   //           if (response.statusCode == 200) {
@@ -155,7 +155,7 @@ class _RideStatusBannerState extends ConsumerState<RideStatusBanner>
     if (rideInfo.status == RideStatus.assigned) {
       try {
         final realRideId = rideInfo.rideId;
-        final url = '$baseUrl/rides/myrides/$realRideId';
+        final url = '$baseUrl/passengerrides/myrides/$realRideId';
         final response = await http.get(Uri.parse(url));
 
         if (response.statusCode == 200) {

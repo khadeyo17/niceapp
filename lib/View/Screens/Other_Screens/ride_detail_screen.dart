@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 //import 'package:printing/printing.dart';
+//import 'package:printing/printing.dart';
 
 class RideDetailsScreen extends StatefulWidget {
   final RideHistory ride;
@@ -30,20 +31,21 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
   @override
   void initState() {
     super.initState();
-    final pickup = LatLng(
-      widget.ride.pickupLatitude,
-      widget.ride.pickupLongitude,
-    );
-    final destination = LatLng(
-      widget.ride.destinationLatitude,
-      widget.ride.destinationLongitude,
-    );
-    updateRoute(pickup, destination);
-    //updateRoute(pickup, destination); // keep distance logic
-    loadPolyline(pickup, destination);
-    //fetchRoute();
+  //   final pickup = LatLng(
+  //     widget.ride.pickupLatitude,
+  //     widget.ride.pickupLongitude,
+  //   );
+  //   final destination = LatLng(
+  //     widget.ride.destinationLatitude,
+  //     widget.ride.destinationLongitude,
+  //   );
+  //  // updateRoute(pickup, destination);
+  //   //updateRoute(pickup, destination); // keep distance logic
+  //   loadPolyline(pickup, destination);
+  //   //fetchRoute();
   }
 
+//google
   Future<void> loadPolyline(LatLng origin, LatLng destination) async {
     final url =
         'https://maps.googleapis.com/maps/api/directions/json?'
@@ -63,6 +65,7 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
       }
     }
   }
+
 
   Future<void> generateAndPrintReceipt() async {
     final pdf = pw.Document();
@@ -276,12 +279,14 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
         },
       ),
     );
+  // final pdfBytes = await pdf.save();
 
-    // await Printing.layoutPdf(
-    //   onLayout: (PdfPageFormat format) async => pdf.save(),
-    // );
+  //   await Printing.layoutPdf(
+  //     onLayout: (PdfPageFormat format) async => pdfBytes,
+  //   );
   }
 
+//google
   Future<List<LatLng>> fetchGoogleRoute(
     LatLng origin,
     LatLng destination,
@@ -456,41 +461,155 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
           //     zoomControlsEnabled: false,
           //   ),
           // ),
-          Expanded(
-            flex: 1, // 🔥 reduced from 2 → makes it ~1/4 of screen
-            child: ClipRRect(
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(20),
-                bottomRight: Radius.circular(20),
+
+          //google
+          // Expanded(
+          //   flex: 1, // 🔥 reduced from 2 → makes it ~1/4 of screen
+          //   child: ClipRRect(
+          //     borderRadius: const BorderRadius.only(
+          //       bottomLeft: Radius.circular(20),
+          //       bottomRight: Radius.circular(20),
+          //     ),
+          //     child: Image.network(
+          //       encodedPolyline == null
+          //           ? "https://maps.googleapis.com/maps/api/staticmap"
+          //               "?size=600x300"
+          //               "&markers=color:green|${pickup.latitude},${pickup.longitude}"
+          //               "&markers=color:red|${destination.latitude},${destination.longitude}"
+          //               "&key=$mapKey"
+          //           : "https://maps.googleapis.com/maps/api/staticmap"
+          //               "?size=600x300"
+          //               "&markers=color:green|${pickup.latitude},${pickup.longitude}"
+          //               "&markers=color:red|${destination.latitude},${destination.longitude}"
+          //               "&path=color:0x0000ff|weight:5|enc:$encodedPolyline"
+          //               "&key=$mapKey",
+          //       fit: BoxFit.cover,
+          //       width: double.infinity,
+          //       loadingBuilder: (_, child, progress) {
+          //         if (progress == null) return child;
+          //         return const Center(child: CircularProgressIndicator());
+          //       },
+          //       errorBuilder: (_, __, ___) {
+          //         return Container(
+          //           color: Colors.grey[300],
+          //           child: const Center(child: Icon(Icons.map, size: 50)),
+          //         );
+          //       },
+          //     ),
+          //   ),
+          // ),
+Expanded(
+  flex: 1,
+  child: ClipRRect(
+    borderRadius: const BorderRadius.only(
+      bottomLeft: Radius.circular(20),
+      bottomRight: Radius.circular(20),
+    ),
+    child: Builder(
+      builder: (context) {
+        final Map<String, String> queryParameters = {
+          'size': '600x300',
+          'scale': '2',
+          'maptype': 'roadmap',
+          'markers':
+              'color:green|${pickup.latitude},${pickup.longitude}',
+        };
+
+        // Add destination marker.
+        queryParameters['markers'] =
+            '${queryParameters['markers']}'
+            '&markers=color:red|${destination.latitude},${destination.longitude}';
+
+        // Add route polyline when available.
+        if (encodedPolyline != null && encodedPolyline!.isNotEmpty) {
+          queryParameters['path'] =
+              'color:0xFF015ACE|weight:5|enc:$encodedPolyline';
+        }
+
+        final Uri staticMapUri = Uri.https(
+          'maps.googleapis.com',
+          '/maps/api/staticmap',
+          {
+            ...queryParameters,
+            'key': mapKey,
+          },
+        );
+
+        return Image.network(
+          staticMapUri.toString(),
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+
+            return const Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFF015ACE),
               ),
-              child: Image.network(
-                encodedPolyline == null
-                    ? "https://maps.googleapis.com/maps/api/staticmap"
-                        "?size=600x300"
-                        "&markers=color:green|${pickup.latitude},${pickup.longitude}"
-                        "&markers=color:red|${destination.latitude},${destination.longitude}"
-                        "&key=$mapKey"
-                    : "https://maps.googleapis.com/maps/api/staticmap"
-                        "?size=600x300"
-                        "&markers=color:green|${pickup.latitude},${pickup.longitude}"
-                        "&markers=color:red|${destination.latitude},${destination.longitude}"
-                        "&path=color:0x0000ff|weight:5|enc:$encodedPolyline"
-                        "&key=$mapKey",
-                fit: BoxFit.cover,
-                width: double.infinity,
-                loadingBuilder: (_, child, progress) {
-                  if (progress == null) return child;
-                  return const Center(child: CircularProgressIndicator());
-                },
-                errorBuilder: (_, __, ___) {
-                  return Container(
-                    color: Colors.grey[300],
-                    child: const Center(child: Icon(Icons.map, size: 50)),
-                  );
-                },
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            debugPrint('Static map loading error: $error');
+
+            return Container(
+              color: Colors.grey[200],
+              child: const Center(
+                child: Icon(
+                  Icons.map_outlined,
+                  size: 50,
+                  color: Color(0xFF015ACE),
+                ),
               ),
-            ),
-          ),
+            );
+          },
+        );
+      },
+    ),
+  ),
+),
+//mbox
+//           Expanded(
+//   flex: 1,
+//   child: ClipRRect(
+//     borderRadius: const BorderRadius.only(
+//       bottomLeft: Radius.circular(20),
+//       bottomRight: Radius.circular(20),
+//     ),
+//     child: Image.network(
+//       encodedPolyline == null
+//           ? "https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/"
+//               "pin-s-a+00ff00(${pickup.longitude},${pickup.latitude}),"
+//               "pin-s-b+ff0000(${destination.longitude},${destination.latitude})/"
+//               "auto/600x300"
+//               "?padding=50"
+//               "&access_token=$mapboxAccessToken"
+//           : "https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/"
+//               "path-5+0000ff(${Uri.encodeComponent(encodedPolyline!)})"
+//               ",pin-s-a+00ff00(${pickup.longitude},${pickup.latitude})"
+//               ",pin-s-b+ff0000(${destination.longitude},${destination.latitude})/"
+//               "auto/600x300"
+//               "?padding=50"
+//               "&access_token=$mapboxAccessToken",
+//       fit: BoxFit.cover,
+//       width: double.infinity,
+//       loadingBuilder: (_, child, progress) {
+//         if (progress == null) return child;
+//         return const Center(
+//           child: CircularProgressIndicator(),
+//         );
+//       },
+//       errorBuilder: (_, __, ___) {
+//         return Container(
+//           color: Colors.grey.shade300,
+//           child: const Center(
+//             child: Icon(Icons.map, size: 50),
+//           ),
+//         );
+//       },
+//     ),
+//   ),
+// ),
 
           // Ride Info Section - same as your existing code, just UI widgets
           Expanded(
@@ -617,7 +736,7 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
                         Expanded(
                           child: ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
+                              backgroundColor: const Color(0xFF015ACE),
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
@@ -633,7 +752,7 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
                         Expanded(
                           child: ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
+                               backgroundColor: const Color(0xFF015ACE),
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),

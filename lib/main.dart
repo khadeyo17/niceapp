@@ -2,6 +2,7 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/ride_status_burner.dart';
@@ -123,44 +124,117 @@ void main() async {
   setupPushNotifications();
 }
 
+// class MyApp extends ConsumerWidget {
+//   const MyApp({super.key});
+
+//   @override
+//   Widget build(BuildContext context, WidgetRef ref) {
+    
+//     // return StreamBuilder<User?>(
+//     //   stream: FirebaseAuth.instance.authStateChanges(),
+//     //   builder: (context, snapshot) {
+//     //     final userId = snapshot.data?.uid;
+
+//     //     return MaterialApp.router(
+//     //       debugShowCheckedModeBanner: false,
+//     //       routerConfig: router,
+//     //       builder: (context, child) {
+//     //         // This context is under GoRouter
+//     //         return Stack(
+//     //           children: [
+//     //             child!,
+//     //             if (userId != null)
+//     //               Builder(
+//     //                 builder: (context) {
+//     //                   // Now this context is definitely under GoRouter
+//     //                   return RideStatusBanner(userId: userId);
+//     //                 },
+//     //               ),
+//     //           ],
+//     //         );
+//     //       },
+//     //     );
+//     //   },
+//     // );
+
+    
+//     return MaterialApp.router(
+//       debugShowCheckedModeBanner: false,
+//       routerConfig: router,
+//       //navigatorKey: navigatorKey,
+//       builder: (context, child) {
+//         // This context is under GoRouter
+//         return AuthAndBannerWrapper(child: child!);
+//       },
+//     );
+//   }
+// }
+
+
 class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // return StreamBuilder<User?>(
-    //   stream: FirebaseAuth.instance.authStateChanges(),
-    //   builder: (context, snapshot) {
-    //     final userId = snapshot.data?.uid;
-
-    //     return MaterialApp.router(
-    //       debugShowCheckedModeBanner: false,
-    //       routerConfig: router,
-    //       builder: (context, child) {
-    //         // This context is under GoRouter
-    //         return Stack(
-    //           children: [
-    //             child!,
-    //             if (userId != null)
-    //               Builder(
-    //                 builder: (context) {
-    //                   // Now this context is definitely under GoRouter
-    //                   return RideStatusBanner(userId: userId);
-    //                 },
-    //               ),
-    //           ],
-    //         );
-    //       },
-    //     );
-    //   },
-    // );
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       routerConfig: router,
-      //navigatorKey: navigatorKey,
+
+      theme: ThemeData(
+  useMaterial3: true,
+
+  textTheme: GoogleFonts.nunitoSansTextTheme().copyWith(
+    displayLarge: GoogleFonts.spaceGrotesk(
+      fontWeight: FontWeight.w700,
+    ),
+    displayMedium: GoogleFonts.spaceGrotesk(
+      fontWeight: FontWeight.w700,
+    ),
+    displaySmall: GoogleFonts.spaceGrotesk(
+      fontWeight: FontWeight.w700,
+    ),
+    headlineLarge: GoogleFonts.spaceGrotesk(
+      fontWeight: FontWeight.w700,
+    ),
+    headlineMedium: GoogleFonts.spaceGrotesk(
+      fontWeight: FontWeight.w700,
+    ),
+    headlineSmall: GoogleFonts.spaceGrotesk(
+      fontWeight: FontWeight.w700,
+    ),
+    titleLarge: GoogleFonts.spaceGrotesk(
+      fontWeight: FontWeight.w700,
+    ),
+    titleMedium: GoogleFonts.spaceGrotesk(
+      fontWeight: FontWeight.w600,
+    ),
+    titleSmall: GoogleFonts.spaceGrotesk(
+      fontWeight: FontWeight.w600,
+    ),
+  ),
+
+  appBarTheme: AppBarTheme(
+    titleTextStyle: GoogleFonts.spaceGrotesk(
+      fontSize: 18,
+      fontWeight: FontWeight.w700,
+      color: Colors.black,
+    ),
+  ),
+
+  elevatedButtonTheme: ElevatedButtonThemeData(
+    style: ElevatedButton.styleFrom(
+      textStyle: GoogleFonts.spaceGrotesk(
+        fontSize: 15,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+  ),
+),
+
       builder: (context, child) {
-        // This context is under GoRouter
-        return AuthAndBannerWrapper(child: child!);
+        return AuthAndBannerWrapper(
+          child: child!,
+        );
       },
     );
   }

@@ -5,7 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl_phone_number_input/intl_phone_number_input.dart';
 import 'package:niceapp/Container/Repositories/auth_repo.dart';
 import 'package:niceapp/Container/utils/keys.dart';
 import 'package:niceapp/View/Routes/routes.dart';
@@ -24,22 +26,53 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   String selectedMethod = 'sms';
   bool isLoading = false;
 
-  final List<String> countryCodes = ['+254', '+256', '+255'];
+
+
+PhoneNumber phoneNumber = PhoneNumber(isoCode: 'KE');
+String completePhone = "";
+
+
   final List<String> otpMethods = ['sms', 'whatsapp'];
 
-  String? validatePhone(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Phone number is required';
-    }
-    final digitsOnly = value.replaceAll(RegExp(r'\D'), '');
-    if (digitsOnly.length != 9) {
-      return 'Phone number must be 9 digits (e.g. 712345678)';
-    }
-    if (!RegExp(r'^\d+$').hasMatch(digitsOnly)) {
-      return 'Phone number must contain only digits';
-    }
-    return null;
-  }
+//   String? validatePhone(String? value) {
+//   if (value == null || value.trim().isEmpty) {
+//     return 'Phone number is required';
+//   }
+
+//   final digitsOnly = value.replaceAll(RegExp(r'\D'), '');
+
+//   if (!RegExp(r'^\d+$').hasMatch(digitsOnly)) {
+//     return 'Phone number must contain only digits';
+//   }
+
+//   final expectedLength = countryPhoneLengths[selectedCode];
+
+//   if (expectedLength != null && digitsOnly.length != expectedLength) {
+//     return 'Phone number must be $expectedLength digits';
+//   }
+
+//   // Accept countries not in the map provided they are 6-15 digits
+//   if (expectedLength == null &&
+//       (digitsOnly.length < 6 || digitsOnly.length > 15)) {
+//     return 'Enter a valid phone number';
+//   }
+
+//   return null;
+// }
+
+  // String? validatePhone(String? value) {
+  //   if (value == null || value.isEmpty) {
+  //     return 'Phone number is required';
+  //   }
+  //   final digitsOnly = value.replaceAll(RegExp(r'\D'), '');
+  //   if (digitsOnly.length != 9) {
+  //     return 'Phone number must be 9 digits (e.g. 712345678)';
+  //   }
+  //   if (!RegExp(r'^\d+$').hasMatch(digitsOnly)) {
+  //     return 'Phone number must contain only digits';
+  //   }
+  //   return null;
+  // }
 
   @override
   void initState() {
@@ -53,93 +86,42 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
   }
 
-  Future<void> sendOTP() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => isLoading = true);
 
-      String cleanedPhone = phoneController.text.trim().replaceAll(
-        RegExp(r'\D'),
-        '',
-      );
-      if (cleanedPhone.startsWith('0')) {
-        cleanedPhone = cleanedPhone.substring(1);
-      }
 
-      String fullPhone = '$selectedCode$cleanedPhone';
-      String apiPhone = fullPhone;
-      if (selectedMethod == 'whatsapp') {
-        apiPhone = fullPhone;
-        // 'whatsapp:$fullPhone';
-      }
-
-      String? otp;
-      try {
-        var verificationId = await ref
-            .read(globalAuthRepoProvider)
-            .startPhoneVerification(
-              phone: fullPhone,
-              method: selectedMethod,
-              context: context,
-            );
-
-        if (selectedMethod == 'whatsapp') {
-          final response = await http.post(
-            Uri.parse("$baseUrl/auth/SendWhatsappOTP"),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'phone': apiPhone, 'method': selectedMethod}),
-          );
-
-          if (response.statusCode != 200) {
-            throw Exception('Failed to send WhatsApp OTP: ${response.body}');
-          }
-
-          final json = jsonDecode(response.body);
-          verificationId = json['sid'];
-          otp = json['otp'];
-        }
-
-        setState(() => isLoading = false);
-
-        if (verificationId != null && mounted) {
-          context.goNamed(
-            Routes().otp,
-            extra: {
-              'verificationId': verificationId,
-              'phoneNumber': fullPhone,
-              'method': selectedMethod,
-              'otp': otp, // Optional
-            },
-          );
-        }
-      } catch (e) {
-        setState(() => isLoading = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
-      }
-    }
-  }
 
   // Future<void> sendOTP() async {
   //   if (_formKey.currentState!.validate()) {
   //     setState(() => isLoading = true);
+  
+  // if (completePhone.isEmpty) {
+  //   ScaffoldMessenger.of(context).showSnackBar(
+  //     const SnackBar(
+  //       content: Text("Please enter a valid phone number"),
+  //     ),
+  //   );
+  //   return;
+  // }
+  //     // String cleanedPhone = phoneController.text.trim().replaceAll(
+  //     //   RegExp(r'\D'),
+  //     //   '',
+  //     // );
+  //     // if (cleanedPhone.startsWith('0')) {
+  //     //   cleanedPhone = cleanedPhone.substring(1);
+  //     // }
 
-  //     String cleanedPhone = phoneController.text.trim().replaceAll(
-  //       RegExp(r'\D'),
-  //       '',
-  //     );
-  //     if (cleanedPhone.startsWith('0')) {
-  //       cleanedPhone = cleanedPhone.substring(1);
-  //     }
+  //     // String fullPhone = '$selectedCode$cleanedPhone';
+  //     // String apiPhone = fullPhone;
 
-  //     String fullPhone = '$selectedCode$cleanedPhone';
+  //      String fullPhone = phoneNumber.phoneNumber ?? "";
+  //      String apiPhone = fullPhone;
 
-  //     // Prefix with whatsapp: only if method is WhatsApp
+
   //     if (selectedMethod == 'whatsapp') {
-  //       fullPhone = 'whatsapp:$fullPhone';
+  //       apiPhone = fullPhone;
+  //       // 'whatsapp:$fullPhone';
   //     }
-  //     String? otp;
 
+  //     String? otp;
   //     try {
   //       var verificationId = await ref
   //           .read(globalAuthRepoProvider)
@@ -148,15 +130,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   //             method: selectedMethod,
   //             context: context,
   //           );
+
   //       if (selectedMethod == 'whatsapp') {
   //         final response = await http.post(
-  //           Uri.parse("$baseUrl/auth/SendWhatsappOTP"),
+  //           Uri.parse("$baseUrl/passengerauth/SendWhatsappOTP"),
   //           headers: {'Content-Type': 'application/json'},
-  //           body: jsonEncode({'phone': fullPhone, 'method': selectedMethod}),
+  //           body: jsonEncode({'phone': apiPhone, 'method': selectedMethod}),
   //         );
 
+  //         if (response.statusCode != 200) {
+  //           throw Exception('Failed to send WhatsApp OTP: ${response.body}');
+  //         }
+
   //         final json = jsonDecode(response.body);
-  //         verificationId = json['sid']; // from Twilio
+  //         verificationId = json['sid'];
   //         otp = json['otp'];
   //       }
 
@@ -168,7 +155,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   //           extra: {
   //             'verificationId': verificationId,
   //             'phoneNumber': fullPhone,
-  //             'otp': otp, // Optional: show or store for test/debug
+  //             'method': selectedMethod,
+  //             'otp': otp, // Optional
   //           },
   //         );
   //       }
@@ -180,205 +168,111 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   //     }
   //   }
   // }
+Future<void> sendOTP() async {
+  if (!_formKey.currentState!.validate()) return;
 
-  // Future<void> sendOTP() async {
-  //   if (_formKey.currentState!.validate()) {
-  //     setState(() => isLoading = true);
+  if (completePhone.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Please enter a valid phone number"),
+      ),
+    );
+    return;
+  }
 
-  //     String cleanedPhone = phoneController.text.trim().replaceAll(
-  //       RegExp(r'\D'),
-  //       '',
-  //     );
-  //     if (cleanedPhone.startsWith('0')) {
-  //       cleanedPhone = cleanedPhone.substring(1);
-  //     }
+  setState(() => isLoading = true);
 
-  //     String fullPhone = '$selectedCode$cleanedPhone';
+  //final String fullPhone = completePhone;
+  String fullPhone = phoneNumber.phoneNumber ?? "";
+  String apiPhone = fullPhone;
 
-  //     // if (selectedMethod == 'whatsapp') {
-  //     //   ScaffoldMessenger.of(context).showSnackBar(
-  //     //     const SnackBar(
-  //     //       content: Text("WhatsApp OTP not supported yet. Defaulting to SMS."),
-  //     //     ),
-  //     //   );
-  //     //   setState(() => selectedMethod = 'sms');
-  //     // }
+  String? otp;
 
-  //     if (selectedMethod == 'whatsapp') {
-  //       fullPhone = 'whatsapp:$fullPhone';
-  //     }
+  try {
+    var verificationId = await ref
+        .read(globalAuthRepoProvider)
+        .startPhoneVerification(
+          phone: fullPhone,
+          method: selectedMethod,
+          context: context,
+        );
 
-  //     try {
-  //       final verificationId = await ref
-  //           .read(globalAuthRepoProvider)
-  //           .startPhoneVerification(
-  //             phone: fullPhone,
-  //             method: selectedMethod,
-  //             context: context,
-  //           );
+    if (selectedMethod == "whatsapp") {
+      final response = await http.post(
+        Uri.parse("$baseUrl/passengerauth/SendWhatsappOTP"),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode({
+          "phone": apiPhone,
+          "method": selectedMethod,
+        }),
+      );
 
-  //       setState(() => isLoading = false);
+      if (response.statusCode != 200) {
+        throw Exception(response.body);
+      }
 
-  //       if (verificationId != null && mounted) {
-  //         context.goNamed(
-  //           Routes().otp,
-  //           extra: {'verificationId': verificationId, 'phoneNumber': fullPhone},
-  //         );
-  //       }
-  //     } catch (e) {
-  //       setState(() => isLoading = false);
-  //       ScaffoldMessenger.of(
-  //         context,
-  //       ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
-  //     }
-  //   }
-  // }
+      final json = jsonDecode(response.body);
 
-  // @override
-  // Widget build(BuildContext context) {
-  //   final borderRadius = BorderRadius.circular(12);
-  //   final border = OutlineInputBorder(borderRadius: borderRadius);
+      verificationId = json["sid"];
+      otp = json["otp"];
+    }
 
-  //   return Scaffold(
-  //     appBar: AppBar(
-  //       title: const Text("Register"),
-  //       centerTitle: true,
-  //       backgroundColor: Colors.white,
-  //       //elevation: 1,
-  //       foregroundColor: Colors.black,
-  //     ),
-  //     backgroundColor: Colors.white,
-  //     body: SingleChildScrollView(
-  //       child: Container(
-  //         padding: const EdgeInsets.all(24),
-  //         color: Colors.white,
-  //         child: Form(
-  //           key: _formKey,
-  //           child: Column(
-  //             children: [
-  //               const SizedBox(height: 24),
-  //               const Icon(
-  //                 Icons.phone_android_outlined,
-  //                 size: 60,
-  //                 color: Colors.grey,
-  //               ),
-  //               const SizedBox(height: 16),
-  //               const Text(
-  //                 "Enter your phone number",
-  //                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-  //                 textAlign: TextAlign.center,
-  //               ),
-  //               const SizedBox(height: 24),
-  //               Row(
-  //                 children: [
-  //                   Expanded(
-  //                     flex: 2,
-  //                     child: DropdownButtonFormField<String>(
-  //                       value: selectedCode,
-  //                       decoration: InputDecoration(
-  //                         labelText: 'Code',
-  //                         border: border,
-  //                         contentPadding: const EdgeInsets.symmetric(
-  //                           horizontal: 12,
-  //                         ),
-  //                       ),
-  //                       items:
-  //                           countryCodes
-  //                               .map(
-  //                                 (code) => DropdownMenuItem(
-  //                                   value: code,
-  //                                   child: Text(code),
-  //                                 ),
-  //                               )
-  //                               .toList(),
-  //                       onChanged: (val) => setState(() => selectedCode = val!),
-  //                     ),
-  //                   ),
-  //                   const SizedBox(width: 12),
-  //                   Expanded(
-  //                     flex: 5,
-  //                     child: TextFormField(
-  //                       controller: phoneController,
-  //                       keyboardType: TextInputType.phone,
-  //                       decoration: InputDecoration(
-  //                         labelText: 'Phone Number',
-  //                         border: border,
-  //                         contentPadding: const EdgeInsets.symmetric(
-  //                           horizontal: 12,
-  //                         ),
-  //                       ),
-  //                       validator: validatePhone,
-  //                     ),
-  //                   ),
-  //                 ],
-  //               ),
-  //               const SizedBox(height: 20),
-  //               DropdownButtonFormField<String>(
-  //                 value: selectedMethod,
-  //                 decoration: InputDecoration(
-  //                   labelText: 'OTP Method',
-  //                   border: border,
-  //                   contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-  //                 ),
-  //                 items:
-  //                     otpMethods
-  //                         .map(
-  //                           (method) => DropdownMenuItem(
-  //                             value: method,
-  //                             child: Text(method.toUpperCase()),
-  //                           ),
-  //                         )
-  //                         .toList(),
-  //                 onChanged: (val) => setState(() => selectedMethod = val!),
-  //               ),
-  //               const SizedBox(height: 30),
-  //               SizedBox(
-  //                 width: double.infinity,
-  //                 child: ElevatedButton(
-  //                   onPressed: isLoading ? null : sendOTP,
-  //                   style: ElevatedButton.styleFrom(
-  //                     backgroundColor: Colors.grey[800],
-  //                     foregroundColor: Colors.white,
-  //                     padding: const EdgeInsets.symmetric(vertical: 16),
-  //                     shape: RoundedRectangleBorder(borderRadius: borderRadius),
-  //                   ),
-  //                   child:
-  //                       isLoading
-  //                           ? const SizedBox(
-  //                             width: 20,
-  //                             height: 20,
-  //                             child: CircularProgressIndicator(
-  //                               strokeWidth: 2,
-  //                               color: Colors.white,
-  //                             ),
-  //                           )
-  //                           : const Text(
-  //                             "Send OTP",
-  //                             style: TextStyle(fontSize: 16),
-  //                           ),
-  //                 ),
-  //               ),
-  //               const SizedBox(height: 20),
-  //             ],
-  //           ),
-  //         ),
-  //       ),
-  //     ),
-  //   );
-  // }
+    if (!mounted) return;
+
+    context.goNamed(
+      Routes().otp,
+      extra: {
+        "verificationId": verificationId,
+        "phoneNumber": fullPhone,
+        "method": selectedMethod,
+        "otp": otp,
+      },
+    );
+  } catch (e) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(e.toString()),
+      ),
+    );
+  } finally {
+    if (mounted) {
+      setState(() => isLoading = false);
+    }
+  }
+}
+  
   @override
   Widget build(BuildContext context) {
+
+
+    
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        foregroundColor: Colors.black,
-        title: const Text("Register"),
-        centerTitle: true,
-      ),
+  backgroundColor: Colors.white,
+  elevation: 0,
+  foregroundColor: Colors.black,
+  centerTitle: true,
+  title: Text(
+    "Register",
+    style: GoogleFonts.spaceGrotesk(
+      fontSize: 20,
+      fontWeight: FontWeight.w700,
+      color: Colors.black,
+    ),
+  ),
+),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        //padding: const EdgeInsets.all(20),
+padding: EdgeInsets.symmetric(
+  horizontal: MediaQuery.of(context).size.width < 360 ? 12 : 20,
+  vertical: 20,
+),
+
         child: Form(
           key: _formKey,
           child: Column(
@@ -386,137 +280,47 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             children: [
               const SizedBox(height: 10),
 
-              // 🔥 HEADER
-              // Center(
-              //   child: Column(
-              //     children: [
-              //       Container(
-              //         padding: const EdgeInsets.all(16),
-              //         decoration: const BoxDecoration(
-              //           color: Colors.black,
-              //           shape: BoxShape.circle,
-              //         ),
-              //         child: const Icon(
-              //           Icons.phone_android,
-              //           color: Colors.white,
-              //           size: 28,
-              //         ),
-              //       ),
-              //       const SizedBox(height: 15),
-              //       const Text(
-              //         "Enter your phone number",
-              //         style: TextStyle(
-              //           fontSize: 20,
-              //           fontWeight: FontWeight.bold,
-              //         ),
-              //       ),
-              //       const SizedBox(height: 5),
-              //       Text(
-              //         "We’ll send you a verification code",
-              //         style: TextStyle(color: Colors.grey[600]),
-              //       ),
-              //     ],
-              //   ),
-              // ),
-              // Center(
-              //   child: Column(
-              //     children: [
-              //       // 🚗 CAR ICON CONTAINER
-              //       Container(
-              //         padding: const EdgeInsets.all(18),
-              //         decoration: BoxDecoration(
-              //           color: Colors.black,
-              //           shape: BoxShape.circle,
-              //           boxShadow: [
-              //             BoxShadow(
-              //               color: Colors.black.withOpacity(0.2),
-              //               blurRadius: 10,
-              //               offset: const Offset(0, 4),
-              //             ),
-              //           ],
-              //         ),
-              //         child: const Icon(
-              //           Icons.directions_car_filled,
-              //           color: Colors.white,
-              //           size: 32,
-              //         ),
-              //       ),
-
-              //       const SizedBox(height: 20),
-
-              //       // 👋 WELCOME TEXT
-              //       const Text(
-              //         "Welcome to AMINI",
-              //         style: TextStyle(
-              //           fontSize: 22,
-              //           fontWeight: FontWeight.bold,
-              //         ),
-              //       ),
-
-              //       const SizedBox(height: 6),
-
-              //       Text(
-              //         "Ride smarter, faster, and safer",
-              //         style: TextStyle(color: Colors.grey[600], fontSize: 14),
-              //       ),
-
-              //       const SizedBox(height: 20),
-
-              //       const Text(
-              //         "Enter your phone number",
-              //         style: TextStyle(
-              //           fontSize: 18,
-              //           fontWeight: FontWeight.w600,
-              //         ),
-              //         textAlign: TextAlign.center,
-              //       ),
-
-              //       const SizedBox(height: 5),
-
-              //       Text(
-              //         "We’ll send you a verification code",
-              //         style: TextStyle(color: Colors.grey[600]),
-              //       ),
-              //     ],
-              //   ),
-              // ),
+             
               _buildWelcomeCard(),
               const SizedBox(height: 25),
               // 🔹 CARD
               _buildCard(
                 child: Column(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: DropdownButtonFormField<String>(
-                            value: selectedCode,
-                            items:
-                                countryCodes.map((code) {
-                                  return DropdownMenuItem(
-                                    value: code,
-                                    child: Text(code),
-                                  );
-                                }).toList(),
-                            onChanged:
-                                (val) => setState(() => selectedCode = val!),
-                            decoration: _inputDecoration("Code"),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          flex: 5,
-                          child: TextFormField(
-                            controller: phoneController,
-                            keyboardType: TextInputType.phone,
-                            validator: validatePhone,
-                            decoration: _inputDecoration("Phone Number"),
-                          ),
-                        ),
-                      ],
-                    ),
+                  
+InternationalPhoneNumberInput(
+  initialValue: phoneNumber,
+  textFieldController: phoneController,
 
+  selectorConfig: const SelectorConfig(
+    selectorType: PhoneInputSelectorType.BOTTOM_SHEET,
+    showFlags: true,
+    useEmoji: true,
+    setSelectorButtonAsPrefixIcon: true,
+    leadingPadding: 8,
+  ),
+
+  onInputChanged: (PhoneNumber number) {
+    setState(() {
+      phoneNumber = number;
+      completePhone = number.phoneNumber ?? "";
+    });
+
+    debugPrint("ISO : ${number.isoCode}");
+    debugPrint("Dial: ${number.dialCode}");
+    debugPrint("Full: ${number.phoneNumber}");
+  },
+
+  onInputValidated: (bool value) {
+    debugPrint("Valid: $value");
+  },
+
+  keyboardType: TextInputType.phone,
+  formatInput: true,
+  autoValidateMode: AutovalidateMode.onUserInteraction,
+
+  inputDecoration: _inputDecoration("Phone Number"),
+),
                     const SizedBox(height: 20),
 
                     // 🔥 OTP METHOD (MODERN)
@@ -524,10 +328,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       alignment: Alignment.centerLeft,
                       child: Text(
                         "OTP Method",
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[700],
-                        ),
+
+ style: GoogleFonts.spaceGrotesk(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[700],
+          ),
+
+                        // style: TextStyle(
+                        //   fontWeight: FontWeight.w600,
+                        //   color: Colors.grey[700],
+                        // ),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -550,27 +361,27 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                   decoration: BoxDecoration(
                                     color:
                                         isSelected
-                                            ? Colors.blue
+                                            ? Color(0xFF015ACE)
                                             : Colors.grey[200],
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Center(
-                                    child: Text(
-                                      method.toUpperCase(),
-                                      style: TextStyle(
-                                        color:
-                                            isSelected
-                                                ? Colors.white
-                                                : Colors.black,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
+  child: Text(
+    method.toUpperCase(),
+    style: GoogleFonts.spaceGrotesk(
+      color: isSelected ? Colors.white : Colors.black,
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+    ),
+  ),
+),
                                 ),
                               ),
                             );
                           }).toList(),
                     ),
+
+
                   ],
                 ),
               ),
@@ -583,7 +394,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 child: ElevatedButton(
                   onPressed: isLoading ? null : sendOTP,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
+                    backgroundColor: Color(0xFF015ACE),
                     foregroundColor: Colors.white,
                     elevation: 4,
                     padding: const EdgeInsets.symmetric(vertical: 18),
@@ -601,13 +412,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               color: Colors.white,
                             ),
                           )
-                          : const Text(
-                            "Send OTP",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                         : Text(
+    "Send OTP",
+    style: GoogleFonts.spaceGrotesk(
+      fontSize: 16,
+      fontWeight: FontWeight.w700,
+    ),
+  ),
                 ),
               ),
 
@@ -618,7 +429,68 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       ),
     );
   }
+Widget _buildWelcomeText() {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      Text(
+        "Welcome to AMINI",
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
 
+      const SizedBox(height: 6),
+
+      Text(
+        "Ride smarter, travel faster.\nAll transport in one app.",
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: Colors.white70,
+          fontSize: 13,
+        ),
+      ),
+
+      const SizedBox(height: 12),
+
+      FittedBox(
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 8,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Text(
+            "Start your journey",
+            style: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+}
+Widget _buildWelcomeImage() {
+  return SizedBox(
+    width: 100,
+    height: 100,
+    child: Image.asset(
+      "assets/imgs/taxi.png",
+      fit: BoxFit.contain,
+    ),
+  );
+}
   Widget _buildCard({required Widget child}) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -627,7 +499,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.05),
+            color: Color(0xFF015ACE).withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -672,7 +544,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        color: Colors.blue,
+        color: Color(0xFF015ACE),
         //   gradient: const LinearGradient(
         //      colors: [
         //   Color(0xFF0D47A1), // Dark blue
@@ -684,7 +556,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         // ),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.2),
+            color:Colors.black,// Color(0xFF015ACE).withOpacity(0.2),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),
@@ -706,11 +578,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 6),
-                const Text(
-                  "Ride smarter, travel faster.\nAll transport in one app.",
-                  style: TextStyle(color: Colors.white70, fontSize: 13),
-                ),
+               const SizedBox(height: 6),
+Text(
+  "Ride smarter, travel faster.\nAll transport in one app.",
+  style: GoogleFonts.nunitoSans(
+    color: Colors.white70,
+    fontSize: 13,
+    height: 1.4,
+    fontWeight: FontWeight.w500,
+  ),
+),
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -721,14 +598,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Text(
-                    "Start your journey",
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
+                  child: Text(
+  "Start your journey",
+  style: GoogleFonts.spaceGrotesk(
+    color: Colors.black,
+    fontWeight: FontWeight.w700,
+    fontSize: 12,
+  ),
+),
                 ),
               ],
             ),
@@ -738,13 +615,64 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           SizedBox(
             width: 110,
             height: 110,
-            child: Image.asset("assets/imgs/Sedan2.png", fit: BoxFit.contain),
+            child: Image.asset("assets/imgs/taxi.png", fit: BoxFit.contain),
           ),
         ],
       ),
     );
   }
 }
+//                     LayoutBuilder(
+//   builder: (context, constraints) {
+//     if (constraints.maxWidth < 360) {
+//       return Column(
+//         children: [
+//           _buildWelcomeText(),
+//           const SizedBox(height: 20),
+//           _buildWelcomeImage(),
+//         ],
+//       );
+//     }
+
+//     return Row(
+//       children: [
+//         Expanded(child: _buildWelcomeText()),
+//         const SizedBox(width: 10),
+//         _buildWelcomeImage(),
+//       ],
+//     );
+//   },
+// )
+  // Row(
+                    //   children: [
+                    //     Expanded(
+                    //       flex: 2,
+                    //       child: DropdownButtonFormField<String>(
+                    //         value: selectedCode,
+                    //         items:
+                    //             countryCodes.map((code) {
+                    //               return DropdownMenuItem(
+                    //                 value: code,
+                    //                 child: Text(code),
+                    //               );
+                    //             }).toList(),
+                    //         onChanged:
+                    //             (val) => setState(() => selectedCode = val!),
+                    //         decoration: _inputDecoration("Code"),
+                    //       ),
+                    //     ),
+                    //     const SizedBox(width: 10),
+                    //     Expanded(
+                    //       flex: 5,
+                    //       child: TextFormField(
+                    //         controller: phoneController,
+                    //         keyboardType: TextInputType.phone,
+                    //         validator: validatePhone,
+                    //         decoration: _inputDecoration("Phone Number"),
+                    //       ),
+                    //     ),
+                    //   ],
+                    // ),
 
 
 // import 'package:flutter/material.dart';
@@ -1935,3 +1863,58 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 //     );
 //   }
 // }
+
+//   final Map<String, int> countryPhoneLengths = {
+//   '+254': 9,   // Kenya
+//   '+255': 9,   // Tanzania
+//   '+256': 9,   // Uganda
+//   '+250': 9,   // Rwanda
+//   '+257': 8,   // Burundi
+//   '+211': 9,   // South Sudan
+//   '+251': 9,   // Ethiopia
+//   '+27': 9,    // South Africa
+//   '+234': 10,  // Nigeria
+//   '+233': 9,   // Ghana
+//   '+20': 10,   // Egypt
+//   '+1': 10,    // USA/Canada
+//   '+44': 10,   // UK (common mobile)
+//   '+33': 9,    // France
+//   '+49': 10,   // Germany (common)
+//   '+39': 10,   // Italy (common)
+//   '+34': 9,    // Spain
+//   '+91': 10,   // India
+//   '+971': 9,   // UAE
+//   '+966': 9,   // Saudi Arabia
+//   '+86': 11,   // China
+//   '+81': 10,   // Japan
+//   '+61': 9,    // Australia
+// };
+
+//   //final List<String> countryCodes = ['+254', '+256', '+255'];
+
+//   final List<String> countryCodes = [
+//   '+254', // Kenya
+//   '+255', // Tanzania
+//   '+256', // Uganda
+//   '+250', // Rwanda
+//   '+257', // Burundi
+//   '+211', // South Sudan
+//   '+251', // Ethiopia
+//   '+27',  // South Africa
+//   '+234', // Nigeria
+//   '+233', // Ghana
+//   '+20',  // Egypt
+//   '+1',   // USA/Canada
+//   '+44',  // UK
+//   '+33',  // France
+//   '+49',  // Germany
+//   '+39',  // Italy
+//   '+34',  // Spain
+//   '+91',  // India
+//   '+971', // UAE
+//   '+966', // Saudi Arabia
+//   '+86',  // China
+//   '+81',  // Japan
+//   '+61',  // Australia
+// ];
+  

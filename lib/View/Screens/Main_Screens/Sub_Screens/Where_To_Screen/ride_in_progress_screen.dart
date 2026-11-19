@@ -10,6 +10,7 @@ import 'package:niceapp/Container/utils/keys.dart';
 import 'package:niceapp/View/Screens/Other_Screens/transport_screen.dart';
 
 const String googleMapsKey = mapKey;
+//const String googleMapsKey = mapboxAccessToken;
 
 class RideInProgressLiveScreen extends StatefulWidget {
   final String rideId;

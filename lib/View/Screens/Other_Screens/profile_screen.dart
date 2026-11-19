@@ -3,12 +3,17 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:niceapp/Container/utils/keys.dart';
 import 'package:niceapp/View/Routes/routes.dart';
+import 'package:niceapp/View/Screens/Other_Screens/family_screen.dart';
+import 'package:niceapp/View/Screens/Other_Screens/help_screen.dart';
+import 'package:niceapp/View/Screens/Other_Screens/menu_profile.dart';
 import 'package:niceapp/View/Screens/Other_Screens/passenger_location_live.dart';
-import 'package:niceapp/View/Screens/Other_Screens/payment_option_screen.dart';
+import 'package:niceapp/View/Screens/Other_Screens/saved_places_screen.dart';
+import 'package:niceapp/View/Screens/Other_Screens/support_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/wallet_screen.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -47,7 +52,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final idToken = await user.getIdToken();
 
       final profileRes = await http.get(
-        Uri.parse('$baseUrl/auth/profile'),
+        Uri.parse('$baseUrl/passengerauth/profile'),
         headers: {
           "Authorization": "Bearer $idToken",
           "Content-Type": "application/json",
@@ -87,7 +92,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
 
       final response = await http.put(
-        Uri.parse("$baseUrl/auth/update-profile"),
+        Uri.parse("$baseUrl/passengerauth/update-profile"),
         headers: {
           "Authorization": "Bearer $idToken",
           "Content-Type": "application/json",
@@ -175,7 +180,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('$baseUrl/auth/upload-profile-photo'),
+        Uri.parse('$baseUrl/passengerauth/upload-profile-photo'),
       );
 
       request.headers['Authorization'] = 'Bearer $idToken';
@@ -216,115 +221,395 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        title: const Text(
-          "My Profile",
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+ @override
+Widget build(BuildContext context) {
+  return Scaffold(
+    backgroundColor: const Color(0xFFF9F9F9),
+
+    appBar: AppBar(
+      elevation: 0,
+      backgroundColor: Colors.white,
+      foregroundColor: Colors.black,
+      title: Text(
+        "My Profile",
+        style: GoogleFonts.spaceGrotesk(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: Colors.black,
         ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(
-              isEditing ? Icons.cancel : Icons.edit,
-              color: Colors.black,
-            ),
-            onPressed: () => setState(() => isEditing = !isEditing),
-          ),
-        ],
       ),
-      body:
-          isLoading
-              ? const Center(
-                child: CircularProgressIndicator(color: Colors.blue),
-              ) // _buildSkeleton() //const Center(child: CircularProgressIndicator())
-              : SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 20),
-                    GestureDetector(
-                      onTap: _showImageSourceActionSheet,
-                      child: Stack(
-                        alignment: Alignment.bottomRight,
-                        children: [
-                          CircleAvatar(
-                            radius: 55,
-                            //backgroundColor: Colors.white,
-                            backgroundImage:
-                                _profileImage != null
-                                    ? FileImage(_profileImage!)
-                                    : (_profileImageUrl != null
-                                            ? NetworkImage(_profileImageUrl!)
-                                            : const NetworkImage(
+      centerTitle: true,
+    ),
+
+    body: isLoading
+        ? const Center(
+            child: CircularProgressIndicator(
+              color: Color(0xFF015ACE),
+            ),
+          )
+        : SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+
+                /// ==============================
+                /// PROFILE HEADER
+                /// ==============================
+                Text(
+                  "My Profile",
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black,
+                  ),
+                ),
+
+                const SizedBox(height: 6),
+
+                Text(
+                  "Manage your account and preferences",
+                  style: GoogleFonts.nunitoSans(
+                    fontSize: 14,
+                    color: Colors.black54,
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                /// ==============================
+                /// USER INFORMATION
+                /// ==============================
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: Colors.grey.shade200,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+
+                      /// NAME
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _nameController.text.isEmpty
+                                  ? "Loading..."
+                                  : _nameController.text,
+                              style: GoogleFonts.spaceGrotesk(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black,
+                              ),
+                            ),
+
+                            const SizedBox(height: 5),
+
+                            Text(
+                              _phoneController.text,
+                              style: GoogleFonts.nunitoSans(
+                                fontSize: 14,
+                                color: Colors.black54,
+                              ),
+                            ),
+
+                            if (_emailController.text.isNotEmpty) ...[
+                              const SizedBox(height: 3),
+                              Text(
+                                _emailController.text,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.nunitoSans(
+                                  fontSize: 13,
+                                  color: Colors.black45,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(width: 15),
+
+                      /// PROFILE IMAGE
+                      GestureDetector(
+                        onTap: _showImageSourceActionSheet,
+                        child: Stack(
+                          alignment: Alignment.bottomRight,
+                          children: [
+                            CircleAvatar(
+                              radius: 42,
+                              backgroundColor:
+                                  const Color(0xFFF0F0F0),
+                              backgroundImage:
+                                  _profileImage != null
+                                      ? FileImage(_profileImage!)
+                                      : (_profileImageUrl != null
+                                          ? NetworkImage(
+                                              _profileImageUrl!,
+                                            )
+                                          : const NetworkImage(
                                               'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
-                                            ))
-                                        as ImageProvider,
-                          ),
-                          Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
+                                            )) as ImageProvider,
                             ),
-                            padding: const EdgeInsets.all(6),
-                            child: const Icon(
-                              Icons.camera_alt,
-                              color: Colors.black,
-                              size: 22,
+
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF015ACE),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt_outlined,
+                                color: Colors.white,
+                                size: 17,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    Text(
-                      _nameController.text.isEmpty
-                          ? "Loading..."
-                          : _nameController.text,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 25),
-                    _buildField("Phone", _phoneController, enabled: false),
-                    const SizedBox(height: 15),
-                    _buildField("Email", _emailController, enabled: isEditing),
-                    const SizedBox(height: 30),
-                    if (isEditing)
-                      _buildButton(
-                        onPressed: updateUserProfile,
-                        label: "Save Profile",
-                        icon: Icons.save,
-                        color: Colors.blue,
-                      ),
-                    if (!isEditing) ...[
-                      _buildButton(
-                        onPressed: openWallet,
-                        label: "Wallet",
-                        icon: Icons.account_balance_wallet_outlined,
-                        color: Colors.blue,
-                      ),
-                      const SizedBox(height: 15),
-                      _buildButton(
-                        onPressed: logout,
-                        label: "Logout",
-                        icon: Icons.logout,
-                        color: Colors.blue,
+                          ],
+                        ),
                       ),
                     ],
+                  ),
+                ),
+
+                const SizedBox(height: 30),
+
+                /// ==============================
+                /// ACCOUNT
+                /// ==============================
+                Text(
+                  "Account",
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black,
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                _buildMenuItem(
+                  icon: Icons.person_outline,
+                  title: "Profile",
+                  subtitle: "View and edit your personal information",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const MenuProfileScreen(),
+                      ),
+                    );
+                  },
+                ),
+
+                _buildMenuItem(
+                  icon: Icons.account_balance_wallet_outlined,
+                  title: "Payment",
+                  subtitle: "Manage your wallet and payment methods",
+                  onTap: openWallet,
+                ),
+
+                const SizedBox(height: 25),
+
+                /// ==============================
+                /// SUPPORT & SERVICES
+                /// ==============================
+                Text(
+                  "Support & Services",
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black,
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                _buildMenuItem(
+                  icon: Icons.support_agent_outlined,
+                  title: "Support",
+                  subtitle: "Get help with a trip or contact support",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SupportScreen(),
+                      ),
+                    );
+                  },
+                ),
+
+                _buildMenuItem(
+                  icon: Icons.help_outline,
+                  title: "Help",
+                  subtitle: "Find answers to frequently asked questions",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const HelpScreen(),
+                      ),
+                    );
+                  },
+                ),
+
+                _buildMenuItem(
+                  icon: Icons.bookmark_outline,
+                  title: "Saved Places",
+                  subtitle: "Manage your saved pickup and destination places",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SavedPlacesScreen(),
+                      ),
+                    );
+                  },
+                ),
+
+                _buildMenuItem(
+                  icon: Icons.people_outline,
+                  title: "Family",
+                  subtitle: "Manage family members and shared rides",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const FamilyScreen(),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 30),
+
+                /// ==============================
+                /// LOGOUT
+                /// ==============================
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: logout,
+                    icon: const Icon(
+                      Icons.logout,
+                      color: Colors.red,
+                    ),
+                    label: Text(
+                      "Logout",
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.red,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 15,
+                      ),
+                      side: BorderSide(
+                        color: Colors.red.shade200,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+  );
+}
+Widget _buildMenuItem({
+  required IconData icon,
+  required String title,
+  required String subtitle,
+  required VoidCallback onTap,
+}) {
+  return Container(
+    margin: const EdgeInsets.only(bottom: 10),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF1F2F4),
+      borderRadius: BorderRadius.circular(15),
+    ),
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(15),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 15,
+            vertical: 14,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: const Color(0xFF015ACE),
+                  size: 23,
+                ),
+              ),
+
+              const SizedBox(width: 14),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+
+                    const SizedBox(height: 3),
+
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.nunitoSans(
+                        fontSize: 12.5,
+                        color: Colors.black54,
+                      ),
+                    ),
                   ],
                 ),
               ),
-    );
-  }
+
+              const SizedBox(width: 8),
+
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.black38,
+                size: 24,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
 
   Widget _buildSkeleton() {
     return Shimmer.fromColors(
@@ -447,7 +732,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 //       final idToken = await user.getIdToken();
 
 //       final profileRes = await http.get(
-//         Uri.parse('$baseUrl/auth/profile'),
+//         Uri.parse('$baseUrl/passengerauth/profile'),
 //         headers: {
 //           "Authorization": "Bearer $idToken",
 //           "Content-Type": "application/json",
@@ -483,7 +768,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 //       });
 
 //       final response = await http.put(
-//         Uri.parse("$baseUrl/auth/update-profile"),
+//         Uri.parse("$baseUrl/passengerauth/update-profile"),
 //         headers: {
 //           "Authorization": "Bearer $idToken",
 //           "Content-Type": "application/json",
@@ -571,7 +856,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
 //       final request = http.MultipartRequest(
 //         'POST',
-//         Uri.parse('$baseUrl/auth/upload-profile-photo'),
+//         Uri.parse('$baseUrl/passengerauth/upload-profile-photo'),
 //       );
 
 //       request.headers['Authorization'] = 'Bearer $idToken';
@@ -817,7 +1102,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 // // //       final idToken = await user.getIdToken();
 
 // // //       final profileRes = await http.get(
-// // //         Uri.parse('$baseUrl/auth/profile'),
+// // //         Uri.parse('$baseUrl/passengerauth/profile'),
 // // //         headers: {
 // // //           "Authorization": "Bearer $idToken",
 // // //           "Content-Type": "application/json",
@@ -852,7 +1137,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 // // //       });
 
 // // //       final response = await http.put(
-// // //         Uri.parse("$baseUrl/auth/update-profile"),
+// // //         Uri.parse("$baseUrl/passengerauth/update-profile"),
 // // //         headers: {
 // // //           "Authorization": "Bearer $idToken",
 // // //           "Content-Type": "application/json",
@@ -1176,7 +1461,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 // //       final idToken = await user.getIdToken();
 
 // //       final profileRes = await http.get(
-// //         Uri.parse('$baseUrl/auth/profile'),
+// //         Uri.parse('$baseUrl/passengerauth/profile'),
 // //         headers: {
 // //           "Authorization": "Bearer $idToken",
 // //           "Content-Type": "application/json",
@@ -1211,7 +1496,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 // //       });
 
 // //       final response = await http.put(
-// //         Uri.parse("$baseUrl/auth/update-profile"),
+// //         Uri.parse("$baseUrl/passengerauth/update-profile"),
 // //         headers: {
 // //           "Authorization": "Bearer $idToken",
 // //           "Content-Type": "application/json",
@@ -1442,7 +1727,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 // // // //       //email = user.email ?? "";
 
 // // // //       final profileRes = await http.get(
-// // // //         Uri.parse('$baseUrl/auth/profile'),
+// // // //         Uri.parse('$baseUrl/passengerauth/profile'),
 // // // //         headers: {
 // // // //           "Authorization": "Bearer $idToken",
 // // // //           "Content-Type": "application/json",
@@ -1480,7 +1765,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 // // // //       });
 
 // // // //       final response = await http.put(
-// // // //         Uri.parse("$baseUrl/auth/update-profile"),
+// // // //         Uri.parse("$baseUrl/passengerauth/update-profile"),
 // // // //         headers: {
 // // // //           "Authorization": "Bearer $idToken", // ✅ Add token if needed
 // // // //           "Content-Type": "application/json",

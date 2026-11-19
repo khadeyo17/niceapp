@@ -227,7 +227,7 @@ class _MoversScreenScreenState extends State<MoversScreen>
 
     try {
       final idToken = await user.getIdToken();
-      final url = '$baseUrl/rides/movers/request';
+      final url = '$baseUrl/passengerrides/movers/request';
 
       final body = {
         "firebaseIdToken": idToken, // ✅ use real token
@@ -314,7 +314,7 @@ class _MoversScreenScreenState extends State<MoversScreen>
             final realRideId = requestData['rideId'];
 
             // 2. Now check backend ride
-            final url = '$baseUrl/rides/myrides/$realRideId';
+            final url = '$baseUrl/passengerrides/myrides/$realRideId';
             final response = await http.get(Uri.parse(url));
 
             if (response.statusCode == 200) {
@@ -565,6 +565,7 @@ class _MoversScreenScreenState extends State<MoversScreen>
                                     },
                                     driverLinkedStream:
                                         _driverLinkedController.stream,
+                                        category: widget.category,
                                   ),
                             ),
                           );
@@ -841,7 +842,7 @@ class _MoversScreenScreenState extends State<MoversScreen>
 
 //     try {
 //       final idToken = await user.getIdToken();
-//       final url = '$baseUrl/rides/movers/request';
+//       final url = '$baseUrl/passengerrides/movers/request';
 
 //       final body = {
 //         "firebaseIdToken": idToken, // ✅ use real token
@@ -928,7 +929,7 @@ class _MoversScreenScreenState extends State<MoversScreen>
 //             final realRideId = requestData['rideId'];
 
 //             // 2. Now check backend ride
-//             final url = '$baseUrl/rides/myrides/$realRideId';
+//             final url = '$baseUrl/passengerrides/myrides/$realRideId';
 //             final response = await http.get(Uri.parse(url));
 
 //             if (response.statusCode == 200) {
@@ -1019,7 +1020,7 @@ class _MoversScreenScreenState extends State<MoversScreen>
 //   //         if (requestData['rideId'] != null) {
 //   //           final realRideId = requestData['rideId'];
 
-//   //           final url = '$baseUrl/rides/myrides/$realRideId';
+//   //           final url = '$baseUrl/passengerrides/myrides/$realRideId';
 //   //           final response = await http.get(Uri.parse(url));
 
 //   //           if (response.statusCode == 200) {
@@ -1505,7 +1506,7 @@ class _MoversScreenScreenState extends State<MoversScreen>
 
 // //     try {
 // //       final idToken = await user.getIdToken();
-// //       final url = '$baseUrl/rides/movers/request';
+// //       final url = '$baseUrl/passengerrides/movers/request';
 
 // //       final pickupLat = pickupLatLng!.latitude;
 // //       final pickupLng = pickupLatLng!.longitude;
@@ -1606,7 +1607,7 @@ class _MoversScreenScreenState extends State<MoversScreen>
 // //             final realRideId = requestData['rideId'];
 
 // //             // 2. Now check backend ride
-// //             final url = '$baseUrl/rides/myrides/$realRideId';
+// //             final url = '$baseUrl/passengerrides/myrides/$realRideId';
 // //             final response = await http.get(Uri.parse(url));
 
 // //             if (response.statusCode == 200) {
@@ -1978,7 +1979,7 @@ class _MoversScreenScreenState extends State<MoversScreen>
 // // //     try {
 // // //       // final response = await http.get(
 // // //       //   Uri.parse(
-// // //       //     "$baseUrl/rides/movers/available?pickupLat=${pickupLocation!.latitude}&pickupLng=${pickupLocation!.longitude}&dropLat=${dropLocation!.latitude}&dropLng=${dropLocation!.longitude}&subCategoryId=$selectedSubCategoryId",
+// // //       //     "$baseUrl/passengerrides/movers/available?pickupLat=${pickupLocation!.latitude}&pickupLng=${pickupLocation!.longitude}&dropLat=${dropLocation!.latitude}&dropLng=${dropLocation!.longitude}&subCategoryId=$selectedSubCategoryId",
 // // //       //   ),
 // // //       //   headers: {'Content-Type': 'application/json'},
 // // //       // );
@@ -2004,7 +2005,7 @@ class _MoversScreenScreenState extends State<MoversScreen>
 // // //       };
 
 // // //       final uri = Uri.parse(
-// // //         "$baseUrl/rides/movers/available",
+// // //         "$baseUrl/passengerrides/movers/available",
 // // //       ).replace(queryParameters: queryParams);
 // // //     } catch (e) {
 // // //       _showError("Error: $e");
@@ -2014,7 +2015,7 @@ class _MoversScreenScreenState extends State<MoversScreen>
 // // //   Future<void> fetchSubCategories() async {
 // // //     try {
 // // //       final response = await http.get(
-// // //         Uri.parse('$baseUrl/rides/subcategories?categoryType=movers'),
+// // //         Uri.parse('$baseUrl/passengerrides/subcategories?categoryType=movers'),
 // // //         headers: {'Content-Type': 'application/json'},
 // // //       );
 
@@ -2065,7 +2066,7 @@ class _MoversScreenScreenState extends State<MoversScreen>
 
 // // //     try {
 // // //       final response = await http.post(
-// // //         Uri.parse("$baseUrl/rides/movers/book"),
+// // //         Uri.parse("$baseUrl/passengerrides/movers/book"),
 // // //         headers: {"Content-Type": "application/json"},
 // // //         body: jsonEncode(payload),
 // // //       );
@@ -2105,7 +2106,7 @@ class _MoversScreenScreenState extends State<MoversScreen>
 
 // // //   //   try {
 // // //   //     final response = await http.post(
-// // //   //       Uri.parse("$baseUrl/rides/movers/book"),
+// // //   //       Uri.parse("$baseUrl/passengerrides/movers/book"),
 // // //   //       headers: {"Content-Type": "application/json"},
 // // //   //       body: jsonEncode(payload),
 // // //   //     );

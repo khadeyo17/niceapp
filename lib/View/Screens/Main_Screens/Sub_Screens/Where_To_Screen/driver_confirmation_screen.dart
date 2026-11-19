@@ -332,7 +332,7 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
   Future<List<String>> fetchCancellationReasons() async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/rides/cancellation/reasons'),
+        Uri.parse('$baseUrl/passengerrides/cancellation/reasons'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -358,7 +358,7 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
 
   // Future<void> cancelRide(String rideId, String reason) async {
   //   final response = await http.post(
-  //     Uri.parse('$baseUrl/rides/cancel'),
+  //     Uri.parse('$baseUrl/passengerrides/cancel'),
   //     headers: {'Content-Type': 'application/json'},
   //     body: jsonEncode({'rideId': rideId, 'reason': reason}),
   //   );
@@ -379,7 +379,7 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
   Future<void> cancelRide(String rideId, String reason) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/rides/cancel'),
+        Uri.parse('$baseUrl/passengerrides/cancel'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'rideId': rideId, 'reason': reason}),
       );
@@ -440,7 +440,7 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
 
   Future<void> reassignDriver(String rideId, String reason) async {
     final response = await http.post(
-      Uri.parse('$baseUrl/rides/cancel-reassign'),
+      Uri.parse('$baseUrl/passengerrides/cancel-reassign'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'rideId': rideId, 'reason': reason}),
     );
@@ -450,6 +450,7 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
     }
   }
 
+//google
   Future<String> _getPlaceName(LatLng latLng) async {
     final url =
         'https://maps.googleapis.com/maps/api/geocode/json?latlng=${latLng.latitude},${latLng.longitude}&key=$mapKey';
@@ -464,6 +465,11 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
     }
     return "Unknown location";
   }
+
+  
+
+
+//google
 
   Future<void> _fetchGoogleRoute() async {
     if (_driverLocation == null) return;
@@ -506,6 +512,84 @@ class _DriverConfirmationScreenState extends State<DriverConfirmationScreen> {
       }
     }
   }
+
+
+//mbox
+//   Future<String> _getPlaceName(LatLng latLng) async {
+//   final url = Uri.parse(
+//     'https://api.mapbox.com/geocoding/v5/mapbox.places/'
+//     '${latLng.longitude},${latLng.latitude}.json'
+//     '?access_token=$mapboxAccessToken',
+//   );
+
+//   final response = await http.get(url);
+
+//   if (response.statusCode == 200) {
+//     final data = jsonDecode(response.body);
+
+//     if (data["features"] != null && data["features"].isNotEmpty) {
+//       return data["features"][0]["place_name"];
+//     }
+//   }
+
+//   return "Unknown location";
+// }
+
+
+//   Future<void> _fetchRoute() async {
+//   if (_driverLocation == null) return;
+
+//   if (widget.destination != null) {
+//     _pickdestination = widget.destination;
+//   } else if (widget.pickup != null) {
+//     _pickdestination = widget.pickup;
+//   }
+
+//   final url = Uri.parse(
+//     'https://api.mapbox.com/directions/v5/mapbox/driving/'
+//     '${_driverLocation!.longitude},${_driverLocation!.latitude};'
+//     '${_pickdestination!.longitude},${_pickdestination!.latitude}'
+//     '?geometries=polyline'
+//     '&overview=full'
+//     '&steps=true'
+//     '&access_token=$mapboxAccessToken',
+//   );
+
+//   final response = await http.get(url);
+
+//   if (response.statusCode != 200) {
+//     debugPrint("Mapbox HTTP Error: ${response.statusCode}");
+//     return;
+//   }
+
+//   final data = jsonDecode(response.body);
+
+//   if (data["routes"] == null || data["routes"].isEmpty) {
+//     debugPrint("No route returned from Mapbox");
+//     return;
+//   }
+
+//   final route = data["routes"][0];
+
+//   _fullRoute = _decodePolyline(route["geometry"]);
+
+//   setState(() {
+//     _polylines = {
+//       Polyline(
+//         polylineId: const PolylineId("route"),
+//         color: Colors.blue,
+//         width: 5,
+//         points: _fullRoute,
+//       ),
+//     };
+
+//     driverDistanceKm =
+//         route["legs"][0]["distance"] / 1000.0;
+
+//     estimatedTimeMin =
+//         (route["legs"][0]["duration"] / 60).round();
+//   });
+// }
 
   void _listenToDriverLocation() {
     _driverLocRef = FirebaseDatabase.instance.ref(

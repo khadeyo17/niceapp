@@ -26,21 +26,41 @@ class PlaceDetailsRepo {
     try {
       //  ref.read(whereToLoadingProvider.notifier).update((state) => true);
 
+//google
       String url =
           "https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$mapKey";
 
       // String url =
       //     "https://maps.googleapis.com/maps/api/geocode/json?latlng=1.2921,36.8219&key=$mapKey";
 
+    //   String url =
+    // "https://api.mapbox.com/search/searchbox/v1/retrieve/"
+    // "$placeId"
+    // "?access_token=$mapboxAccessToken";
+
+
+
       Response res = await Dio().get(url);
 
       if (res.statusCode == 200) {
+
+        //google
         Direction placeDetails = Direction(
           locationName: res.data["result"]["name"],
           locationId: placeId,
           locationLatitude: res.data["result"]["geometry"]["location"]["lat"],
           locationLongitude: res.data["result"]["geometry"]["location"]["lng"],
         );
+
+//mbox
+//         final feature = res.data["features"][0];
+
+// Direction placeDetails = Direction(
+//   locationName: feature["properties"]["name"] ?? feature["properties"]["full_address"],
+//   locationId: placeId,
+//   locationLatitude: feature["geometry"]["coordinates"][1],
+//   locationLongitude: feature["geometry"]["coordinates"][0],
+// );
 
         ref
             .read(homeScreenDropOffLocationProvider.notifier)

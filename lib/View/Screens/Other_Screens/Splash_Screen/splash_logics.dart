@@ -100,7 +100,7 @@
 //     try {
 //       // Run backend check and Firestore check in parallel
 //       final backendFuture = http.get(
-//         Uri.parse('$baseUrl/auth/check-user/$uid'),
+//         Uri.parse('$baseUrl/passengerauth/check-user/$uid'),
 //         headers: {'Content-Type': 'application/json'},
 //       );
 //       final firestoreFuture =
@@ -133,7 +133,7 @@
 //         final token = await user.getIdToken();
 //         final fcmToken = await FirebaseMessaging.instance.getToken();
 //         http.post(
-//           Uri.parse('$baseUrl/auth/update-fcm-token'),
+//           Uri.parse('$baseUrl/passengerauth/update-fcm-token'),
 //           headers: {
 //             'Content-Type': 'application/json',
 //             'Authorization': 'Bearer $token',
@@ -207,7 +207,7 @@
 // // //       try {
 // // //         // 1️⃣ Check Backend
 // // //         final response = await http.get(
-// // //           Uri.parse('$baseUrl/auth/check-user/$uid'),
+// // //           Uri.parse('$baseUrl/passengerauth/check-user/$uid'),
 // // //           headers: {
 // // //             'Content-Type': 'application/json',
 // // //            // 'Authorization': 'Bearer $token',
@@ -244,7 +244,7 @@
 
 // // //           if (hasBackendData) {
 // // //             final response = await http.post(
-// // //               Uri.parse('$baseUrl/auth/update-fcm-token'),
+// // //               Uri.parse('$baseUrl/passengerauth/update-fcm-token'),
 // // //               headers: {
 // // //                 'Content-Type': 'application/json',
 // // //                 'Authorization': 'Bearer $token',
@@ -301,7 +301,7 @@
 // // //     if (user == null) return;
 
 // // //     final idToken = await user.getIdToken();
-// // //     final url = '$baseUrl/rides/passenger/current/${user.uid}';
+// // //     final url = '$baseUrl/passengerrides/passenger/current/${user.uid}';
 
 // // //     final response = await http.get(
 // // //       Uri.parse(url),
@@ -430,7 +430,7 @@
 // //     try {
 // //       // Run backend check and Firestore check in parallel
 // //       final backendFuture = http.get(
-// //         Uri.parse('$baseUrl/auth/check-user/$uid'),
+// //         Uri.parse('$baseUrl/passengerauth/check-user/$uid'),
 // //         headers: {'Content-Type': 'application/json'},
 // //       );
 
@@ -467,7 +467,7 @@
 // //         final fcmToken = await FirebaseMessaging.instance.getToken();
 
 // //         http.post(
-// //           Uri.parse('$baseUrl/auth/update-fcm-token'),
+// //           Uri.parse('$baseUrl/passengerauth/update-fcm-token'),
 // //           headers: {
 // //             'Content-Type': 'application/json',
 // //             'Authorization': 'Bearer $token',

@@ -3,9 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:niceapp/Container/utils/keys.dart';
@@ -13,22 +15,28 @@ import 'package:niceapp/View/Screens/Main_Screens/Home_Screen/home_screen.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/reverse_geocoding_service.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/schedule_ride_screen.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/Where_To_Screen/vehicle_category.dart';
+import 'package:niceapp/Services/location_service.dart';
 import 'package:niceapp/View/Screens/Main_Screens/Sub_Screens/location_providers.dart';
-import 'package:niceapp/View/Screens/Other_Screens/ambulance_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/cargo_transport.dart';
+import 'package:niceapp/View/Screens/Other_Screens/honey_sucker_screen.dart';
+import 'package:niceapp/View/Screens/Other_Screens/machinery.dart';
 import 'package:niceapp/View/Screens/Other_Screens/movers_screen.dart';
 import 'package:niceapp/View/Screens/Other_Screens/water_bower_screen.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:uuid/uuid.dart';
 
 class WhereToScreen extends ConsumerStatefulWidget {
   final VehicleCategory category;
   final bool? IsScheduled;
   final LatLng? initialPickupLocation;
+  final bool isLocationPicker;
+
   const WhereToScreen({
     super.key,
     required this.category,
     this.initialPickupLocation,
     this.IsScheduled,
+    this.isLocationPicker = false,
   });
   //const WhereToScreen({super.key});
 
@@ -47,6 +55,136 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
   List<TextEditingController> stopControllers = [];
   List<Map<String, dynamic>>? _cachedPlaces;
   int? _activeStopIndex;
+  final Uuid _uuid = const Uuid();
+
+//   bool get isPassenger =>
+//     widget.category == VehicleCategory.passenger;
+
+// bool get isExhauster =>
+//     widget.category == VehicleCategory.exhauster;
+
+// bool get isWaterBowser =>
+//     widget.category == VehicleCategory.waterBowser;
+
+// bool get isMachinery =>
+//     widget.category == VehicleCategory.machinery;
+
+// /// Categories where the current location should become pickup
+// bool get usesCurrentLocationAsPickup =>
+//     isPassenger || isExhauster;
+
+// /// Categories where the current location should become destination
+// bool get usesCurrentLocationAsDestination =>
+//     isWaterBowser || isMachinery;
+
+
+
+// bool get _usesCurrentLocationAsPickup {
+//   return widget.category == VehicleCategory.passenger ||
+//       widget.category == VehicleCategory.exhauster||
+//       widget.category == VehicleCategory.waterBowser||
+//       widget.category == VehicleCategory.machinery;
+// }
+
+// bool get _usesCurrentLocationAsDestination {
+//   return widget.category == VehicleCategory.waterBowser ||
+//       widget.category == VehicleCategory.machinery;
+// }
+
+bool get _usesCurrentLocationAsPickup {
+  return widget.category == VehicleCategory.passenger;
+}
+
+bool get _usesCurrentLocationAsDestination {
+  return widget.category == VehicleCategory.waterBowser ||
+      widget.category == VehicleCategory.machinery||widget.category == VehicleCategory.exhauster;
+
+}
+
+String get _pickupLabel {
+  switch (widget.category) {
+    case VehicleCategory.exhauster:
+      return "Collection Location";
+
+    case VehicleCategory.passenger:
+      return "Pickup Location";
+
+    default:
+      return "Pickup Location";
+  }
+}
+Future<Map<String, dynamic>?> _getPlaceDetails(String placeId) async {
+  try {
+    final url = Uri.parse(
+      "https://maps.googleapis.com/maps/api/place/details/json"
+      "?place_id=${Uri.encodeComponent(placeId)}"
+      "&fields=geometry,formatted_address,name"
+      "&key=$mapKey",
+    );
+
+    final response = await http
+        .get(url)
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode != 200) {
+      debugPrint("Place details HTTP error: ${response.statusCode}");
+      return null;
+    }
+
+    final data = json.decode(response.body);
+
+    if (data["status"] != "OK") {
+      debugPrint(
+        "Place details error: ${data["status"]} "
+        "${data["error_message"] ?? ""}",
+      );
+      return null;
+    }
+
+    final result = data["result"];
+
+    if (result == null ||
+        result["geometry"] == null ||
+        result["geometry"]["location"] == null) {
+      return null;
+    }
+
+    final location = result["geometry"]["location"];
+
+    return {
+      "placeId": placeId,
+      "name": result["name"] ?? "",
+      "address": result["formatted_address"] ?? "",
+      "lat": (location["lat"] as num).toDouble(),
+      "lng": (location["lng"] as num).toDouble(),
+    };
+  } catch (e) {
+    debugPrint("Place details error: $e");
+    return null;
+  }
+}
+String get _destinationLabel {
+  switch (widget.category) {
+    case VehicleCategory.waterBowser:
+      return "Delivery Location";
+
+    case VehicleCategory.machinery:
+      return "Site Location";
+
+    case VehicleCategory.passenger:
+      return "Destination";
+
+    case VehicleCategory.exhauster:
+      return "Disposal Location";
+
+    default:
+      return "Destination";
+  }
+}
+final LocationService _locationService = LocationService();
+
+
+String? _sessionToken;
 
   LatLng? CurrentLocation;
 
@@ -57,19 +195,41 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
   List<Map<String, dynamic>> _commonPlaces = [];
   bool isPlacesLoading = true;
 
+  // @override
+  // void initState() {
+  //   super.initState();
+
+  //   WidgetsBinding.instance.addPostFrameCallback((_) async {
+  //     await Future.wait([_fetchCurrentLocation(), loadNearbyPlaces()]);
+  //     //await _fetchCurrentLocation();
+  //     //await loadNearbyPlaces(); // ✅ ADD THIS
+  //   });
+
+  //   pickupController.addListener(_onSearchChanged);
+  //   destinationController.addListener(_onSearchChanged);
+  // }
+
   @override
-  void initState() {
-    super.initState();
+void initState() {
+  super.initState();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await Future.wait([_fetchCurrentLocation(), loadNearbyPlaces()]);
-      //await _fetchCurrentLocation();
-      //await loadNearbyPlaces(); // ✅ ADD THIS
-    });
+  pickupController.addListener(_onSearchChanged);
+  destinationController.addListener(_onSearchChanged);
 
-    pickupController.addListener(_onSearchChanged);
-    destinationController.addListener(_onSearchChanged);
-  }
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    await _fetchCurrentLocation();
+
+    if (!mounted) return;
+
+   // await _initializeLocationForCategory();
+
+    if (!mounted) return;
+
+    await loadNearbyPlaces();
+  });
+}
+
+
 
   @override
   void dispose() {
@@ -147,114 +307,165 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
     });
   }
 
-  Future<void> loadNearbyPlaces() async {
-    // ✅ 1. Use cache (instant load)
-    if (_cachedPlaces != null && _cachedPlaces!.isNotEmpty) {
-      if (!mounted) return;
-      setState(() {
-        _commonPlaces = List.from(_cachedPlaces!); // safe copy
-        isPlacesLoading = false;
-      });
-      return;
-    }
+Future<void> loadNearbyPlaces() async {
+  // 1. Use cache for instant loading
+  if (_cachedPlaces != null && _cachedPlaces!.isNotEmpty) {
+    if (!mounted) return;
 
-    try {
-      // ✅ 2. Use existing location if available
-      final lat = CurrentLocation?.latitude;
-      final lng = CurrentLocation?.longitude;
+    setState(() {
+      _commonPlaces = List.from(_cachedPlaces!);
+      isPlacesLoading = false;
+    });
+    return;
+  }
 
-      final position =
-          (lat != null && lng != null)
-              ? null
-              : await Geolocator.getCurrentPosition(
+  if (mounted) {
+    setState(() => isPlacesLoading = true);
+  }
+
+  try {
+    // 2. Reuse existing location if available
+    final lat = CurrentLocation?.latitude;
+    final lng = CurrentLocation?.longitude;
+
+    final position =
+        (lat != null && lng != null)
+            ? null
+            : await Geolocator.getCurrentPosition(
                 desiredAccuracy: LocationAccuracy.medium,
               );
 
-      final latitude = lat ?? position!.latitude;
-      final longitude = lng ?? position!.longitude;
+    if (!mounted) return;
 
-      final url =
-          "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-          "?location=$latitude,$longitude"
-          "&radius=3000"
-          "&type=point_of_interest"
-          "&key=$mapKey";
+    final latitude = lat ?? position!.latitude;
+    final longitude = lng ?? position!.longitude;
 
-      // ✅ 3. Timeout (prevents freezing)
-      final response = await http
-          .get(Uri.parse(url))
-          .timeout(const Duration(seconds: 5));
+    // 3. Places API (New) Nearby Search
+    final url = Uri.parse(
+      'https://places.googleapis.com/v1/places:searchNearby',
+    );
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': mapKey,
+        'X-Goog-FieldMask':
+            'places.id,'
+            'places.displayName,'
+            'places.formattedAddress,'
+            'places.location,'
+            'places.primaryType',
+      },
+      body: jsonEncode({
+        'maxResultCount': 5,
+        'rankPreference': 'DISTANCE',
+        'locationRestriction': {
+          'circle': {
+            'center': {
+              'latitude': latitude,
+              'longitude': longitude,
+            },
+            'radius': 3000.0,
+          },
+        },
+      }),
+    ).timeout(const Duration(seconds: 15));
 
-        // ✅ 4. Validate response
-        if (data["status"] == "OK" && data["results"] != null) {
-          final results = data["results"] as List;
+    if (!mounted) return;
 
-          final places =
-              results.take(5).map((place) {
-                return {
-                  "name": place["name"] ?? "Unknown",
-                  "address": place["vicinity"] ?? "",
-                  "lat": place["geometry"]["location"]["lat"],
-                  "lng": place["geometry"]["location"]["lng"],
-                  "icon": Icons.place,
-                };
-              }).toList();
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
 
-          // ✅ 5. Cache safely
-          _cachedPlaces = List.from(places);
+      final results = data['places'] as List? ?? [];
 
-          if (!mounted) return;
+      final places = results.map((place) {
+        return {
+          'place_id': place['id'] ?? '',
+          'name': place['displayName']?['text'] ?? 'Unknown',
+          'address': place['formattedAddress'] ?? '',
+          'lat': place['location']?['latitude'],
+          'lng': place['location']?['longitude'],
+          'icon': Icons.place,
+        };
+      }).toList();
 
-          setState(() {
-            _commonPlaces = places;
-            isPlacesLoading = false;
-          });
-        } else {
-          if (!mounted) return;
-          setState(() => isPlacesLoading = false);
-        }
-      } else {
-        if (!mounted) return;
-        setState(() => isPlacesLoading = false);
-      }
-    } catch (e) {
-      debugPrint("Nearby places error: $e");
+      // 4. Cache results
+      _cachedPlaces = List.from(places);
 
-      if (!mounted) return;
-      setState(() => isPlacesLoading = false);
+      setState(() {
+        _commonPlaces = places;
+        isPlacesLoading = false;
+      });
+    } else {
+      debugPrint(
+        'Nearby Places API Error: ${response.statusCode}',
+      );
+      debugPrint(response.body);
+
+      setState(() {
+        isPlacesLoading = false;
+      });
     }
+  } catch (e) {
+    debugPrint('Nearby places error: $e');
+
+    if (!mounted) return;
+
+    setState(() {
+      isPlacesLoading = false;
+    });
   }
+}
+
+  //google old
+
   // Future<void> loadNearbyPlaces() async {
+  //   // ✅ 1. Use cache (instant load)
   //   if (_cachedPlaces != null && _cachedPlaces!.isNotEmpty) {
+  //     if (!mounted) return;
   //     setState(() {
-  //       _commonPlaces = _cachedPlaces!;
+  //       _commonPlaces = List.from(_cachedPlaces!); // safe copy
   //       isPlacesLoading = false;
   //     });
   //     return;
   //   }
+
   //   try {
-  //     final position = await Geolocator.getCurrentPosition(
-  //       desiredAccuracy: LocationAccuracy.medium,
-  //     );
+  //     // ✅ 2. Use existing location if available
+  //     final lat = CurrentLocation?.latitude;
+  //     final lng = CurrentLocation?.longitude;
+
+  //     final position =
+  //         (lat != null && lng != null)
+  //             ? null
+  //             : await Geolocator.getCurrentPosition(
+  //               desiredAccuracy: LocationAccuracy.medium,
+  //             );
+
+  //     final latitude = lat ?? position!.latitude;
+  //     final longitude = lng ?? position!.longitude;
 
   //     final url =
   //         "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-  //         "?location=${position.latitude},${position.longitude}"
+  //         "?location=$latitude,$longitude"
   //         "&radius=3000"
   //         "&type=point_of_interest"
   //         "&key=$mapKey";
 
-  //     final response = await http.get(Uri.parse(url));
+  //     // ✅ 3. Timeout (prevents freezing)
+  //     final response = await http
+  //         .get(Uri.parse(url))
+  //         .timeout(const Duration(seconds: 5));
 
   //     if (response.statusCode == 200) {
   //       final data = json.decode(response.body);
-  //       final results = data["results"] as List;
 
-  //       setState(() {
-  //         _commonPlaces =
+  //       // ✅ 4. Validate response
+  //       if (data["status"] == "OK" && data["results"] != null) {
+  //         final results = data["results"] as List;
+
+  //         final places =
   //             results.take(5).map((place) {
   //               return {
   //                 "name": place["name"] ?? "Unknown",
@@ -264,90 +475,395 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
   //                 "icon": Icons.place,
   //               };
   //             }).toList();
-  //             _cachedPlaces = _commonPlaces;
 
-  //         isPlacesLoading = false;
-  //       });
+  //         // ✅ 5. Cache safely
+  //         _cachedPlaces = List.from(places);
+
+  //         if (!mounted) return;
+
+  //         setState(() {
+  //           _commonPlaces = places;
+  //           isPlacesLoading = false;
+  //         });
+  //       } else {
+  //         if (!mounted) return;
+  //         setState(() => isPlacesLoading = false);
+  //       }
   //     } else {
+  //       if (!mounted) return;
   //       setState(() => isPlacesLoading = false);
   //     }
   //   } catch (e) {
   //     debugPrint("Nearby places error: $e");
+
+  //     if (!mounted) return;
   //     setState(() => isPlacesLoading = false);
   //   }
   // }
 
-  Future<void> _fetchSuggestions(String query) async {
-    if (query.trim().isEmpty) return;
+
+  
+Future<void> _fetchSuggestions(String query) async {
+  if (query.trim().length < 2) {
+    if (!mounted) return;
 
     setState(() {
-      _isLoading = true;
       _suggestions.clear();
+      _isLoading = false;
     });
-
-    // final apiKey = "YOUR_GOOGLE_API_KEY"; // replace with your key
-    // final url = Uri.parse(
-    //   "https://maps.googleapis.com/maps/api/place/autocomplete/json"
-    //   "?input=$query"
-    //   "&key=$mapKey"
-    //   "&components=country:ke", // Optional: restrict to Kenya or your country
-    // );
-
-    final url = Uri.parse(
-      "https://maps.googleapis.com/maps/api/place/autocomplete/json"
-      "?input=${Uri.encodeComponent(query)}"
-      "&key=$mapKey"
-      "&components=country:ke",
-    );
-    final res = await http.get(url).timeout(const Duration(seconds: 10));
-    // final res = await http.get(url);
-    if (res.statusCode == 200) {
-      final data = json.decode(res.body);
-      if (data['status'] == 'OK') {
-        if (mounted) {
-          // setState(() {
-          //   _suggestions = List<Map<String, dynamic>>.from(data['predictions']);
-          //   _isLoading = false;
-          // });
-
-          //  final places =
-          //     results.take(5).map((place) {
-          //       return {
-          //         "name": place["name"] ?? "Unknown",
-          //         "address": place["vicinity"] ?? "",
-          //         "lat": place["geometry"]["location"]["lat"],
-          //         "lng": place["geometry"]["location"]["lng"],
-          //         "icon": Icons.place,
-          //       };
-          //     }).toList();
-          final predictions = data['predictions'] as List;
-
-          setState(() {
-            _suggestions =
-                predictions.map((place) {
-                  return {
-                    "place_id": place["place_id"],
-                    "description":
-                        place["description"], // full text: "Garden City, Thika Road, Nairobi"
-                    "main_text":
-                        place["structured_formatting"]?["main_text"] ?? "",
-                    "secondary_text":
-                        place["structured_formatting"]?["secondary_text"] ?? "",
-                    "icon": Icons.place,
-                  };
-                }).toList();
-            _isLoading = false;
-          });
-        }
-      } else {
-        // _showError(data['error_message'] ?? "No results found.");
-        setState(() => _isLoading = false);
-      }
-    } else {
-      _showError("Suggestion fetch failed");
-      setState(() => _isLoading = false);
-    }
+    return;
   }
+
+  setState(() {
+    _isLoading = true;
+    _suggestions.clear();
+  });
+
+  try {
+    final url = Uri.parse(
+      'https://places.googleapis.com/v1/places:autocomplete',
+    );
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': mapKey,
+        'X-Goog-FieldMask':
+            'suggestions.placePrediction.placeId,'
+            'suggestions.placePrediction.text.text,'
+            'suggestions.placePrediction.structuredFormat.mainText.text,'
+            'suggestions.placePrediction.structuredFormat.secondaryText.text',
+      },
+      body: jsonEncode({
+        'input': query.trim(),
+        'includedRegionCodes': ['ke'],
+        'languageCode': 'en',
+      }),
+    ).timeout(const Duration(seconds: 20));
+
+    if (!mounted) return;
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+
+      final suggestions =
+          data['suggestions'] as List? ?? [];
+
+      final results = suggestions
+          .where((item) => item['placePrediction'] != null)
+          .map((item) {
+        final prediction = item['placePrediction'];
+        final format = prediction['structuredFormat'] ?? {};
+
+        return {
+          'place_id': prediction['placeId'] ?? '',
+          'description': prediction['text']?['text'] ?? '',
+          'main_text': format['mainText']?['text'] ?? '',
+          'secondary_text':
+              format['secondaryText']?['text'] ?? '',
+          'icon': Icons.place,
+        };
+      }).toList();
+
+      setState(() {
+        _suggestions = results;
+        _isLoading = false;
+      });
+    } else {
+      debugPrint('Places API Error: ${response.statusCode}');
+      debugPrint(response.body);
+
+      setState(() {
+        _suggestions.clear();
+        _isLoading = false;
+      });
+    }
+  } catch (e) {
+    debugPrint('Suggestion fetch exception: $e');
+
+    if (!mounted) return;
+
+    setState(() {
+      _suggestions.clear();
+      _isLoading = false;
+    });
+  }
+}
+
+//google old
+  // Future<void> _fetchSuggestions(String query) async {
+  //   if (query.trim().isEmpty) return;
+
+  //   setState(() {
+  //     _isLoading = true;
+  //     _suggestions.clear();
+  //   });
+
+  //   // final apiKey = "YOUR_GOOGLE_API_KEY"; // replace with your key
+  //   // final url = Uri.parse(
+  //   //   "https://maps.googleapis.com/maps/api/place/autocomplete/json"
+  //   //   "?input=$query"
+  //   //   "&key=$mapKey"
+  //   //   "&components=country:ke", // Optional: restrict to Kenya or your country
+  //   // );
+
+  //   final url = Uri.parse(
+  //     "https://maps.googleapis.com/maps/api/place/autocomplete/json"
+  //     "?input=${Uri.encodeComponent(query)}"
+  //     "&key=$mapKey"
+  //     "&components=country:ke",
+  //   );
+  //   final res = await http.get(url).timeout(const Duration(seconds: 20));
+  //   // final res = await http.get(url);
+  //   if (res.statusCode == 200) {
+  //     final data = json.decode(res.body);
+  //     if (data['status'] == 'OK') {
+  //       if (mounted) {
+  //         // setState(() {
+  //         //   _suggestions = List<Map<String, dynamic>>.from(data['predictions']);
+  //         //   _isLoading = false;
+  //         // });
+
+  //         //  final places =
+  //         //     results.take(5).map((place) {
+  //         //       return {
+  //         //         "name": place["name"] ?? "Unknown",
+  //         //         "address": place["vicinity"] ?? "",
+  //         //         "lat": place["geometry"]["location"]["lat"],
+  //         //         "lng": place["geometry"]["location"]["lng"],
+  //         //         "icon": Icons.place,
+  //         //       };
+  //         //     }).toList();
+  //         final predictions = data['predictions'] as List;
+
+  //         setState(() {
+  //           _suggestions =
+  //               predictions.map((place) {
+  //                 return {
+  //                   "place_id": place["place_id"],
+  //                   "description":
+  //                       place["description"], // full text: "Garden City, Thika Road, Nairobi"
+  //                   "main_text":
+  //                       place["structured_formatting"]?["main_text"] ?? "",
+  //                   "secondary_text":
+  //                       place["structured_formatting"]?["secondary_text"] ?? "",
+  //                   "icon": Icons.place,
+  //                 };
+  //               }).toList();
+  //           _isLoading = false;
+  //         });
+  //       }
+  //     } else {
+  //       // _showError(data['error_message'] ?? "No results found.");
+  //       setState(() => _isLoading = false);
+  //     }
+  //   } else {
+  //     _showError("Suggestion fetch failed");
+  //     setState(() => _isLoading = false);
+  //   }
+  // }
+
+  //mbox
+// Future<void> _fetchSuggestions(String query) async {
+//   if (query.trim().isEmpty) return;
+
+//   setState(() {
+//     _isLoading = true;
+//     _suggestions.clear();
+//   });
+
+//   try {
+//     final url = Uri.parse(
+//       "https://api.mapbox.com/geocoding/v5/mapbox.places/"
+//       "${Uri.encodeComponent(query)}.json"
+//       "?autocomplete=true"
+//       "&limit=10"
+//       //"&country=KE"
+//       "&access_token=$mapboxAccessToken",
+//     );
+
+//     final res = await http.get(url);
+
+//     if (res.statusCode != 200) {
+//       _showError("Search failed");
+//       setState(() => _isLoading = false);
+//       return;
+//     }
+
+//     final data = jsonDecode(res.body);
+
+//     final features = data["features"] as List? ?? [];
+
+//     if (!mounted) return;
+
+//     setState(() {
+//       _suggestions = features.map((feature) {
+//         final coords = feature["center"];
+
+//         return {
+//           "lat": coords[1],
+//           "lng": coords[0],
+//           "name": feature["text"],
+//           "description": feature["place_name"],
+//           "icon": Icons.place,
+//         };
+//       }).toList();
+
+//       _isLoading = false;
+//     });
+//   } catch (e) {
+//     debugPrint(e.toString());
+
+//     if (!mounted) return;
+
+//     setState(() {
+//       _isLoading = false;
+//     });
+//   }
+// }
+//   Future<void> _fetchSuggestions(String query) async {
+//   if (query.trim().isEmpty) return;
+
+//   // Create one session token for this search session
+//   _sessionToken ??= _uuid.v4();
+
+//   setState(() {
+//     _isLoading = true;
+//     _suggestions.clear();
+//   });
+
+//   try {
+//     final url = Uri.parse(
+//       "https://api.mapbox.com/search/searchbox/v1/suggest"
+//       "?q=${Uri.encodeComponent(query)}"
+//       "&language=en"
+//       "&country=KE"
+//       "&limit=10"
+//       "&session_token=$_sessionToken"
+//       "&access_token=$mapboxAccessToken",
+//     );
+
+//     final res = await http.get(url).timeout(const Duration(seconds: 10));
+
+//     if (res.statusCode == 200) {
+//       final data = jsonDecode(res.body);
+
+//       if (data["suggestions"] != null) {
+//         final suggestions = data["suggestions"] as List;
+
+//         if (!mounted) return;
+
+//         setState(() {
+//           _suggestions = suggestions.map((place) {
+//             return {
+//               "mapbox_id": place["mapbox_id"],
+//               "main_text": place["name"] ?? "",
+//               "description": place["full_address"] ?? "",
+//               "secondary_text": place["place_formatted"] ?? "",
+//               "icon": Icons.place,
+//             };
+//           }).toList();
+
+//           _isLoading = false;
+//         });
+//       } else {
+//         if (!mounted) return;
+//         setState(() => _isLoading = false);
+//       }
+//     } else {
+//       debugPrint(res.body);
+
+//       _showError("Failed to fetch suggestions");
+
+//       if (!mounted) return;
+//       setState(() => _isLoading = false);
+//     }
+//   } catch (e) {
+//     _showError(e.toString());
+
+//     if (!mounted) return;
+//     setState(() => _isLoading = false);
+//   }
+// }
+
+//   Future<void> _fetchSuggestions(String query) async {
+//   if (query.trim().isEmpty) return;
+
+//   setState(() {
+//     _isLoading = true;
+//     _suggestions.clear();
+//   });
+
+//   try {
+
+//     String? _sessionToken;
+//    _sessionToken ??= _uuid.v4();
+//     final url = Uri.parse(
+//       "https://api.mapbox.com/search/searchbox/v1/suggest"
+//       "?q=${Uri.encodeComponent(query)}"
+//       "&language=en"
+//       "&country=KE"
+//       "&limit=10"
+//       "&session_token=$_sessionToken"
+//       "&access_token=$mapboxAccessToken",
+//     );
+
+//     final res = await http
+//         .get(url)
+//         .timeout(const Duration(seconds: 10));
+
+//     if (res.statusCode == 200) {
+//       final data = jsonDecode(res.body);
+
+//       if (data["suggestions"] != null) {
+//         final suggestions = data["suggestions"] as List;
+
+//         if (!mounted) return;
+
+//         setState(() {
+//           _suggestions =
+//               suggestions.map((place) {
+//                 return {
+//                   // Save the mapbox id
+//                   "mapbox_id": place["mapbox_id"],
+
+//                   // Main display text
+//                   "main_text": place["name"] ?? "",
+
+//                   // Full address
+//                   "description": place["full_address"] ?? "",
+
+//                   // Secondary text
+//                   "secondary_text":
+//                       place["place_formatted"] ?? "",
+
+//                   "icon": Icons.place,
+//                 };
+//               }).toList();
+
+//           _isLoading = false;
+//         });
+//       } else {
+//         if (!mounted) return;
+
+//         setState(() => _isLoading = false);
+//       }
+//     } else {
+//       _showError("Failed to fetch suggestions");
+
+//       if (!mounted) return;
+
+//       setState(() => _isLoading = false);
+//     }
+//   } catch (e) {
+//     _showError(e.toString());
+
+//     if (!mounted) return;
+
+//     setState(() => _isLoading = false);
+//   }
+// }
 
   // Future<void> _fetchCurrentLocation() async {
   //   try {
@@ -382,74 +898,610 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
   //     setState(() => pickupController.text = "Unable to fetch location");
   //   }
   // }
+/////working
+  // Future<void> _fetchCurrentLocation() async {
+  //   try {
+  //     // ✅ 1. Check service (fast)
+  //     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  //     // if (!serviceEnabled) {
+  //     //   if (!mounted) return;
+  //     //   setState(() => pickupController.text = "Location services disabled");
+  //     //   return;
+  //     // }
+  //     if (!serviceEnabled) {
+  //     if (!mounted) return;
 
-  Future<void> _fetchCurrentLocation() async {
-    try {
-      // ✅ 1. Check service (fast)
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        if (!mounted) return;
-        setState(() => pickupController.text = "Location services disabled");
-        return;
-      }
+  //     setState(() {
+  //       if (_usesCurrentLocationAsPickup) {
+  //         pickupController.text = "Location services disabled";
+  //       } else {
+  //         destinationController.text = "Location services disabled";
+  //       }
+  //     });
 
-      // ✅ 2. Check permission (no delay)
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          if (!mounted) return;
-          setState(() => pickupController.text = "Permission denied");
-          return;
+  //     return;
+  //   }
+
+  //     // ✅ 2. Check permission (no delay)
+  //     LocationPermission permission = await Geolocator.checkPermission();
+  //     if (permission == LocationPermission.denied) {
+  //       permission = await Geolocator.requestPermission();
+  //       if (permission == LocationPermission.denied) {
+  //         if (!mounted) return;
+  //         setState(() => pickupController.text = "Permission denied");
+  //         return;
+  //       }
+  //     }
+
+  //     if (permission == LocationPermission.deniedForever) {
+  //       if (!mounted) return;
+  //      // setState(() => pickupController.text = "Permission permanently denied");
+  //      setState(() {
+  //         if (_usesCurrentLocationAsPickup) {
+  //           pickupController.text = "Permission denied";
+  //         } else {
+  //           destinationController.text = "Permission denied";
+  //         }
+  //       });
+  //       return;
+  //     }
+
+  //     // ✅ 3. FAST LOCATION FIRST (last known)
+  //     Position? lastPosition = await Geolocator.getLastKnownPosition();
+
+  //     if (lastPosition != null) {
+  //       CurrentLocation = LatLng(lastPosition.latitude, lastPosition.longitude);
+
+  //       _isPickupLoaded = true;
+
+  //       if (mounted) {
+  //         setState(() {
+  //           pickupController.text = "Fetching location...";
+  //         });
+  //       }
+
+  //       // 🔥 Don't wait → run in background
+  //       _getPlaceNameFromLatLng(CurrentLocation!);
+  //     }
+
+  //     // ✅ 4. THEN GET FRESH LOCATION (non-blocking)
+  //     Geolocator.getCurrentPosition(
+  //       desiredAccuracy: LocationAccuracy.medium, // ⚡ faster
+  //     ).then((position) {
+  //       CurrentLocation = LatLng(position.latitude, position.longitude);
+
+  //       if (!mounted) return;
+
+  //       setState(() {
+  //         _isPickupLoaded = true;
+  //       });
+
+  //       // 🔥 Update address in background
+  //       _getPlaceNameFromLatLng(CurrentLocation!);
+  //     });
+  //   } catch (e) {
+  //     debugPrint("Error fetching location: $e");
+
+  //     if (!mounted) return;
+  //     setState(() => pickupController.text = "Unable to fetch location");
+  //   }
+  // }
+
+
+// Future<void> _fetchCurrentLocation() async {
+//   try {
+//     // ---------------------------------------------------------
+//     // 1. Check location service
+//     // ---------------------------------------------------------
+//     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+//     if (!serviceEnabled) {
+//       if (!mounted) return;
+
+//       setState(() {
+//         if (_usesCurrentLocationAsPickup) {
+//           pickupController.text = "Location services disabled";
+//         } else {
+//           destinationController.text = "Location services disabled";
+//         }
+//       });
+
+//       return;
+//     }
+
+//     // ---------------------------------------------------------
+//     // 2. Check permission
+//     // ---------------------------------------------------------
+//     LocationPermission permission = await Geolocator.checkPermission();
+
+//     if (permission == LocationPermission.denied) {
+//       permission = await Geolocator.requestPermission();
+
+//       if (permission == LocationPermission.denied) {
+//         if (!mounted) return;
+
+//         setState(() {
+//           if (_usesCurrentLocationAsPickup) {
+//             pickupController.text = "Permission denied";
+//           } else {
+//             destinationController.text = "Permission denied";
+//           }
+//         });
+
+//         return;
+//       }
+//     }
+
+//     if (permission == LocationPermission.deniedForever) {
+//       if (!mounted) return;
+
+//       setState(() {
+//         if (_usesCurrentLocationAsPickup) {
+//           pickupController.text = "Permission permanently denied";
+//         } else {
+//           destinationController.text = "Permission permanently denied";
+//         }
+//       });
+
+//       return;
+//     }
+
+//     // ---------------------------------------------------------
+//     // 3. Show loading while getting FRESH GPS location
+//     // ---------------------------------------------------------
+//     if (mounted) {
+//       setState(() {
+//         if (_usesCurrentLocationAsPickup) {
+//           pickupController.text = "Getting your current location...";
+//         } else {
+//           destinationController.text =
+//               "Getting your current location...";
+//         }
+
+//         _isPickupLoaded = false;
+//       });
+//     }
+
+//     // ---------------------------------------------------------
+//     // 4. ALWAYS get fresh location
+//     // ---------------------------------------------------------
+//     // final position = await Geolocator.getCurrentPosition(
+//     //   locationSettings: const LocationSettings(
+//     //     accuracy: LocationAccuracy.high,
+//     //   ),
+//     // );
+
+//     final position = await Geolocator.getCurrentPosition(
+//   desiredAccuracy: LocationAccuracy.high,
+// );
+
+//     debugPrint(
+//       "FRESH GPS LOCATION: ${position.latitude}, ${position.longitude}",
+//     );
+
+//     debugPrint(
+//       "GPS ACCURACY: ${position.accuracy} metres",
+//     );
+
+//     // ---------------------------------------------------------
+//     // 5. Reject extremely inaccurate location
+//     // ---------------------------------------------------------
+//     if (position.accuracy > 100) {
+//       debugPrint(
+//         "Location accuracy too poor: ${position.accuracy}m",
+//       );
+
+//       if (!mounted) return;
+
+//       setState(() {
+//         if (_usesCurrentLocationAsPickup) {
+//           pickupController.text =
+//               "Getting a more accurate location...";
+//         } else {
+//           destinationController.text =
+//               "Getting a more accurate location...";
+//         }
+//       });
+
+//       // Try once more with high accuracy
+//       final accuratePosition = await Geolocator.getCurrentPosition(
+//   desiredAccuracy: LocationAccuracy.best,
+// );
+
+// CurrentLocation = LatLng(
+//   accuratePosition.latitude,
+//   accuratePosition.longitude,
+// );
+//     } else {
+//       CurrentLocation = LatLng(
+//         position.latitude,
+//         position.longitude,
+//       );
+//     }
+
+//     // ---------------------------------------------------------
+//     // 6. Mark location as loaded
+//     // ---------------------------------------------------------
+//     _isPickupLoaded = true;
+
+//     if (!mounted) return;
+
+//     setState(() {
+//       if (_usesCurrentLocationAsPickup) {
+//         pickupController.text = "Finding address...";
+//       } else {
+//         destinationController.text = "Finding address...";
+//       }
+//     });
+
+//     // ---------------------------------------------------------
+//     // 7. Resolve address from FRESH coordinates
+//     // ---------------------------------------------------------
+//     await _setCurrentLocationAddress(CurrentLocation!);
+
+//   } catch (e) {
+//     debugPrint("Error fetching current location: $e");
+
+//     if (!mounted) return;
+
+//     setState(() {
+//       if (_usesCurrentLocationAsPickup) {
+//         pickupController.text = "Unable to fetch current location";
+//       } else {
+//         destinationController.text =
+//             "Unable to fetch current location";
+//       }
+
+//       _isPickupLoaded = false;
+//     });
+//   }
+// }
+
+
+
+Future<void> _fetchCurrentLocation() async {
+  try {
+    // 1. Check location services
+    final serviceEnabled =
+        await Geolocator.isLocationServiceEnabled();
+
+    if (!mounted) return;
+
+    if (!serviceEnabled) {
+      setState(() {
+        if (_usesCurrentLocationAsPickup) {
+          pickupController.text = "Location services disabled";
+        } else {
+          destinationController.text = "Location services disabled";
         }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        if (!mounted) return;
-        setState(() => pickupController.text = "Permission permanently denied");
-        return;
-      }
-
-      // ✅ 3. FAST LOCATION FIRST (last known)
-      Position? lastPosition = await Geolocator.getLastKnownPosition();
-
-      if (lastPosition != null) {
-        CurrentLocation = LatLng(lastPosition.latitude, lastPosition.longitude);
-
-        _isPickupLoaded = true;
-
-        if (mounted) {
-          setState(() {
-            pickupController.text = "Fetching location...";
-          });
-        }
-
-        // 🔥 Don't wait → run in background
-        _getPlaceNameFromLatLng(CurrentLocation!);
-      }
-
-      // ✅ 4. THEN GET FRESH LOCATION (non-blocking)
-      Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium, // ⚡ faster
-      ).then((position) {
-        CurrentLocation = LatLng(position.latitude, position.longitude);
-
-        if (!mounted) return;
-
-        setState(() {
-          _isPickupLoaded = true;
-        });
-
-        // 🔥 Update address in background
-        _getPlaceNameFromLatLng(CurrentLocation!);
+        _isPickupLoaded = false;
       });
-    } catch (e) {
-      debugPrint("Error fetching location: $e");
-
-      if (!mounted) return;
-      setState(() => pickupController.text = "Unable to fetch location");
+      return;
     }
+
+    // 2. Check permissions
+    LocationPermission permission =
+        await Geolocator.checkPermission();
+
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (!mounted) return;
+
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      setState(() {
+        final message =
+            permission == LocationPermission.deniedForever
+                ? "Permission permanently denied"
+                : "Permission denied";
+
+        if (_usesCurrentLocationAsPickup) {
+          pickupController.text = message;
+        } else {
+          destinationController.text = message;
+        }
+
+        _isPickupLoaded = false;
+      });
+      return;
+    }
+
+    // 3. Show loading
+    setState(() {
+      if (_usesCurrentLocationAsPickup) {
+        pickupController.text = "Getting your current location...";
+      } else {
+        destinationController.text = "Getting your current location...";
+      }
+
+      _isPickupLoaded = false;
+    });
+
+    // 4. Get fresh GPS coordinates
+    Position position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+      timeLimit: const Duration(seconds: 25),
+    );
+
+    debugPrint(
+      "FRESH GPS: ${position.latitude}, ${position.longitude}",
+    );
+
+    debugPrint("GPS ACCURACY: ${position.accuracy} metres");
+
+    if (!mounted) return;
+
+    // 5. Retry if accuracy is poor
+    if (position.accuracy > 100) {
+      setState(() {
+        if (_usesCurrentLocationAsPickup) {
+          pickupController.text = "Improving location accuracy...";
+        } else {
+          destinationController.text = "Improving location accuracy...";
+        }
+      });
+
+      debugPrint("Retrying GPS with best accuracy...");
+
+      // IMPORTANT: Reassign the existing variable.
+      position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.best,
+        timeLimit: const Duration(seconds: 25),
+      );
+
+      debugPrint(
+        "RETRY GPS: ${position.latitude}, ${position.longitude}",
+      );
+
+      debugPrint(
+        "RETRY ACCURACY: ${position.accuracy} metres",
+      );
+    }
+
+    if (!mounted) return;
+
+    // 6. Validate coordinates
+    if (position.latitude == 0 && position.longitude == 0) {
+      throw Exception("Invalid GPS coordinates");
+    }
+
+    if (position.accuracy > 100) {
+      debugPrint(
+        "WARNING: GPS accuracy remains poor: "
+        "${position.accuracy} metres",
+      );
+    }
+
+    final resolvedLocation = LatLng(
+      position.latitude,
+      position.longitude,
+    );
+
+    // 7. Update the correct location state
+    if (_usesCurrentLocationAsPickup) {
+      CurrentLocation = resolvedLocation;
+    } else {
+      ref.read(destinationLocationProvider.notifier).state =
+          resolvedLocation;
+    }
+
+    _isPickupLoaded = true;
+
+    setState(() {
+      if (_usesCurrentLocationAsPickup) {
+        pickupController.text = "Finding address...";
+      } else {
+        destinationController.text = "Finding address...";
+      }
+    });
+
+    // 8. Resolve address using fresh coordinates
+    await _setCurrentLocationAddress(resolvedLocation);
+
+    if (!mounted) return;
+
+    debugPrint(
+      "CURRENT LOCATION RESOLVED: "
+      "${resolvedLocation.latitude}, "
+      "${resolvedLocation.longitude}",
+    );
+
+  } catch (e, stackTrace) {
+    debugPrint("Error fetching current location: $e");
+    debugPrintStack(stackTrace: stackTrace);
+
+    if (!mounted) return;
+
+    setState(() {
+      if (_usesCurrentLocationAsPickup) {
+        pickupController.text = "Unable to fetch current location";
+      } else {
+        destinationController.text = "Unable to fetch current location";
+      }
+
+      _isPickupLoaded = false;
+    });
   }
+}
+
+
+// Future<void> _setCurrentLocationAddress(LatLng location) async {
+//   try {
+//     await _getPlaceNameFromLatLng(location);
+//   } catch (e) {
+//     debugPrint("Error resolving current location address: $e");
+//   }
+// }
+
+// Future<void> _setCurrentLocationAddress(LatLng location) async {
+//   try {
+//     final url =
+//         "https://maps.googleapis.com/maps/api/geocode/json"
+//         "?latlng=${location.latitude},${location.longitude}"
+//         "&key=$mapKey";
+
+//     debugPrint(
+//       "Reverse geocoding: "
+//       "${location.latitude}, ${location.longitude}",
+//     );
+
+//     final response = await http.get(Uri.parse(url));
+
+//     if (response.statusCode != 200) {
+//       debugPrint(
+//         "Geocoding HTTP error: ${response.statusCode}",
+//       );
+//       return;
+//     }
+
+//     final data = jsonDecode(response.body);
+
+//     debugPrint("Geocoding status: ${data['status']}");
+
+//     if (data["status"] != "OK") {
+//       debugPrint(
+//         "Geocoding error: ${data["error_message"] ?? data["status"]}",
+//       );
+//       return;
+//     }
+
+//     final results = data["results"] as List?;
+
+//     if (results == null || results.isEmpty) {
+//       debugPrint("No address found for current location");
+//       return;
+//     }
+
+//     final String address =
+//         results[0]["formatted_address"]?.toString() ??
+//         "Current Location";
+
+//     debugPrint("Current address: $address");
+
+//     if (!mounted) return;
+
+//     setState(() {
+//       // Passenger + Exhauster
+//       // Current location → Pickup / Collection
+//       if (_usesCurrentLocationAsPickup) {
+//         pickupController.text = address;
+//       }
+
+//       // Water Bowser + Machinery
+//       // Current location → Destination / Delivery / Site
+//       else if (_usesCurrentLocationAsDestination) {
+//         destinationController.text = address;
+//      }
+//     });
+//   } catch (e) {
+//     debugPrint(
+//       "Error resolving current location address: $e",
+//     );
+//   }
+// }
+
+
+
+// Future<void> _setCurrentLocationAddress(LatLng location) async {
+//   try {
+//     debugPrint(
+//       'Resolving location: '
+//       '${location.latitude}, ${location.longitude}',
+//     );
+
+//     String address = 'Current Location';
+
+//     // 1. Find the nearest named place.
+//     final nearbyPlace = await _findNearestPlace(location);
+
+//     if (!mounted) return;
+
+//     if (nearbyPlace != null) {
+//       final name =
+//           nearbyPlace['displayName']?['text']?.toString() ?? '';
+
+//       final formattedAddress =
+//           nearbyPlace['formattedAddress']?.toString() ?? '';
+
+//       if (name.isNotEmpty) {
+//         if (formattedAddress.isNotEmpty &&
+//             !formattedAddress.toLowerCase().contains(
+//               name.toLowerCase(),
+//             )) {
+//           address = '$name, $formattedAddress';
+//         } else {
+//           address = name;
+//         }
+
+//         debugPrint(
+//           'Nearest place: $name '
+//           '(${nearbyPlace['_distance']} metres)',
+//         );
+//       }
+//     } else {
+//       // 2. Fall back to reverse geocoding.
+//       final readableAddress =
+//           await _getReadableAddress(location);
+
+//       if (!mounted) return;
+
+//       if (readableAddress != null &&
+//           readableAddress.isNotEmpty) {
+//         address = readableAddress;
+//       }
+//     }
+
+//     debugPrint('FINAL LOCATION ADDRESS: $address');
+
+//     if (!mounted) return;
+
+//     // 3. Update the correct field.
+//     setState(() {
+//       if (_usesCurrentLocationAsPickup) {
+//         pickupController.text = address;
+//       } else if (_usesCurrentLocationAsDestination) {
+//         destinationController.text = address;
+//       }
+//     });
+
+//   } catch (e, stackTrace) {
+//     debugPrint('Error resolving current location: $e');
+//     debugPrintStack(stackTrace: stackTrace);
+//   }
+// }
+
+Future<void> _setCurrentLocationAddress(LatLng location) async {
+  try {
+    debugPrint(
+      'Resolving location: '
+      '${location.latitude}, ${location.longitude}',
+    );
+
+    // Use the shared AMINI LocationService.
+    final String address =
+        await _locationService.getPlaceName(location);
+
+    if (!mounted) return;
+
+    debugPrint('FINAL LOCATION ADDRESS: $address');
+
+    setState(() {
+      if (_usesCurrentLocationAsPickup) {
+        pickupController.text = address;
+      } else if (_usesCurrentLocationAsDestination) {
+        destinationController.text = address;
+      }
+    });
+
+  } catch (e, stackTrace) {
+    debugPrint('Error resolving current location: $e');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+}
+
+
 
   void _showError(String msg) {
     ScaffoldMessenger.of(
@@ -593,184 +1645,647 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
       debugPrint("Reverse geocoding failed: $e");
     }
   }
+//google
+//   Future<void> _getPlaceNameFromLatLng(LatLng latLng) async {
+//     try {
+//       final url =
+//           // "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+//           // "?location=${latLng.latitude},${latLng.longitude}"
+//           // "&radius=100"
+//           // "&type=point_of_interest"
+//           // "&key=$mapKey";
+//           "https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latLng.latitude},${latLng.longitude}&rankby=distance&type=establishment&key=$mapKey";
+//       final response = await http.get(Uri.parse(url));
 
-  Future<void> _getPlaceNameFromLatLng(LatLng latLng) async {
-    try {
-      final url =
-          // "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-          // "?location=${latLng.latitude},${latLng.longitude}"
-          // "&radius=100"
-          // "&type=point_of_interest"
-          // "&key=$mapKey";
-          "https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latLng.latitude},${latLng.longitude}&rankby=distance&type=establishment&key=$mapKey";
-      final response = await http.get(Uri.parse(url));
+//       if (response.statusCode == 200) {
+//         final data = json.decode(response.body);
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+//         if (data["results"] != null && data["results"].length > 0) {
+//           final place = data["results"][0];
+// final String placeName =
+//             place["name"]?.toString() ?? "Current Location";
+//           // setState(() {
+//           //   pickupController.text = place["name"];
+//           // });
+//           if(mounted){
+//              setState(() {
+//           // Passenger + Exhauster
+//           // Current location goes into Pickup/Collection
+//           if (_usesCurrentLocationAsPickup) {
+//             pickupController.text = placeName;
+//           }
 
-        if (data["results"] != null && data["results"].length > 0) {
-          final place = data["results"][0];
+//           // Water Bowser + Machinery
+//           // Current location goes into Destination/Delivery/Site
+//           else if (_usesCurrentLocationAsDestination) {
+//             destinationController.text = placeName;
+//           }
+//         });
+//           }
+//           return;
+//         }
+//       }
 
-          setState(() {
-            pickupController.text = place["name"];
-          });
-          return;
-        }
-      }
+//       // fallback
+//       await _getAddressFromLatLng(latLng);
+//     } catch (e) {
+//       debugPrint("Place fetch failed: $e");
+//     }
+//   }
+// Future<void> _getPlaceNameFromLatLng(LatLng latLng) async {
+//   try {
+//     final url =
+//         "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+//         "?location=${latLng.latitude},${latLng.longitude}"
+//         "&rankby=distance"
+//         "&type=establishment"
+//         "&key=$mapKey";
 
-      // fallback
-      await _getAddressFromLatLng(latLng);
-    } catch (e) {
-      debugPrint("Place fetch failed: $e");
-    }
-  }
+//     final response = await http.get(Uri.parse(url));
 
-  Future<void> _onSuggestionTap(Map<String, dynamic> place) async {
-    LatLng latLng;
-    String name;
+//     if (response.statusCode == 200) {
+//       final data = json.decode(response.body);
 
-    // ✅ STEP 1: Resolve location FIRST
-    if (place['place_id'] == null) {
+//       if (data["results"] != null &&
+//           data["results"].isNotEmpty) {
+//         final place = data["results"][0];
+
+//         final String placeName =
+//             place["name"]?.toString() ?? "Current Location";
+
+//         if (!mounted) return;
+
+//         setState(() {
+//           // Passenger + Exhauster
+//           // Current location goes into Pickup/Collection
+//           if (_usesCurrentLocationAsPickup) {
+//             pickupController.text = placeName;
+//           }
+
+//           // Water Bowser + Machinery
+//           // Current location goes into Destination/Delivery/Site
+//           else if (_usesCurrentLocationAsDestination) {
+//             destinationController.text = placeName;
+//           }
+//         });
+
+//         return;
+//       }
+//     }
+
+//     // Fallback
+//     await _getAddressFromLatLng(latLng);
+//   } catch (e) {
+//     debugPrint("Place fetch failed: $e");
+
+//     // Try address fallback even when Places fails
+//     try {
+//       await _getAddressFromLatLng(latLng);
+//     } catch (e) {
+//       debugPrint("Address fallback failed: $e");
+//     }
+//   }
+// }
+//mbox
+//   Future<void> _getPlaceNameFromLatLng(LatLng latLng) async {
+//   try {
+//     final url = Uri.parse(
+//       "https://api.mapbox.com/search/searchbox/v1/category/poi"
+//       "?proximity=${latLng.longitude},${latLng.latitude}"
+//       "&limit=1"
+//       "&access_token=$mapboxAccessToken",
+//     );
+
+//     final response = await http.get(url);
+
+//     if (response.statusCode == 200) {
+//       final data = json.decode(response.body);
+
+//       if (data["features"] != null &&
+//           (data["features"] as List).isNotEmpty) {
+//         final place = data["features"][0];
+
+//         setState(() {
+//           pickupController.text =
+//               place["properties"]?["name"] ??
+//               place["properties"]?["full_address"] ??
+//               "Unknown Place";
+//         });
+
+//         return;
+//       }
+//     }
+
+//     // Fallback to reverse geocoding
+//     await _getAddressFromLatLng(latLng);
+//   } catch (e) {
+//     debugPrint("Mapbox place fetch failed: $e");
+
+//     // Fallback
+//     await _getAddressFromLatLng(latLng);
+//   }
+// }
+
+
+Future<void> _onSuggestionTap(Map<String, dynamic> place) async {
+  LatLng? latLng;
+  String name = "Selected location";
+
+  try {
+    // STEP 1: Resolve coordinates
+    // Nearby Search results already contain lat/lng.
+    // Autocomplete results contain place_id.
+
+    if (place['lat'] != null && place['lng'] != null) {
       latLng = LatLng(
-        place['geometry']['location']['lat'],
-        place['geometry']['location']['lng'],
+        (place['lat'] as num).toDouble(),
+        (place['lng'] as num).toDouble(),
+      );
+
+      name = place['name'] ??
+          place['description'] ??
+          "Selected location";
+    } else if (place['geometry']?['location'] != null) {
+      // Backward compatibility with legacy results.
+      final location = place['geometry']['location'];
+
+      latLng = LatLng(
+        (location['lat'] as num).toDouble(),
+        (location['lng'] as num).toDouble(),
       );
 
       name = place['description'] ?? "Selected location";
-    } else {
+    } else if (place['place_id'] != null) {
+      // Places API (New) - Place Details
       final placeId = place['place_id'];
 
       final detailsUrl = Uri.parse(
-        "https://maps.googleapis.com/maps/api/place/details/json"
-        "?place_id=$placeId"
-        "&key=$mapKey",
+        'https://places.googleapis.com/v1/places/$placeId',
       );
 
-      final res = await http.get(detailsUrl);
+      final res = await http.get(
+        detailsUrl,
+        headers: {
+          'X-Goog-Api-Key': mapKey,
+          'X-Goog-FieldMask':
+              'id,displayName,formattedAddress,location',
+        },
+      ).timeout(const Duration(seconds: 20));
+
+      if (!mounted) return;
+
       if (res.statusCode != 200) {
+        debugPrint('Place Details Error: ${res.body}');
         _showError("Failed to get location details");
         return;
       }
 
       final details = json.decode(res.body);
-      if (details['status'] != 'OK') {
-        _showError(details['error_message'] ?? "Failed to get details");
+
+      final location = details['location'];
+
+      if (location == null ||
+          location['latitude'] == null ||
+          location['longitude'] == null) {
+        _showError("Location coordinates not available");
         return;
       }
 
-      final location = details['result']['geometry']['location'];
-      latLng = LatLng(location['lat'], location['lng']);
+      latLng = LatLng(
+        (location['latitude'] as num).toDouble(),
+        (location['longitude'] as num).toDouble(),
+      );
 
       name =
-          details['result']['name'] ?? details['result']['formatted_address'];
-    }
-
-    // ✅ STEP 2: HANDLE STOP (NOW SAFE)
-    // if (_activeStopIndex != null) {
-    //   setState(() {
-    //     stopControllers[_activeStopIndex!].text = name;
-    //   });
-
-    //   _addStop({
-    //     "lat": latLng.latitude,
-    //     "lng": latLng.longitude,
-    //     "description": name,
-    //   });
-
-    //   _activeStopIndex = null;
-    //   _suggestions.clear();
-    //   return;
-    // }
-    // ✅ STEP 2: HANDLE STOP (NOW SAFE)
-    if (_activeStopIndex != null) {
-      setState(() {
-        // Update the stop text
-        stopControllers[_activeStopIndex!].text = name;
-
-        // Add the stop to the state
-        _addStop({
-          "lat": latLng.latitude,
-          "lng": latLng.longitude,
-          "description": name,
-        });
-
-        // Reset active stop index
-        _activeStopIndex = null;
-
-        // Clear suggestions inside setState so UI updates
-        _suggestions.clear();
-      });
+          details['displayName']?['text'] ??
+          details['formattedAddress'] ??
+          place['description'] ??
+          "Selected location";
+    } else {
+      _showError("Unable to identify selected location");
       return;
     }
 
-    // ✅ STEP 3: COMMON STATE
+    if (!mounted || latLng == null) return;
+
+    // STEP 2: Handle intermediate stops
+    if (_activeStopIndex != null) {
+      final index = _activeStopIndex!;
+
+      stopControllers[index].text = name;
+
+      _addStop({
+        "lat": latLng.latitude,
+        "lng": latLng.longitude,
+        "description": name,
+      });
+
+      setState(() {
+        _activeStopIndex = null;
+        _suggestions.clear();
+      });
+
+      return;
+    }
+
+    // STEP 3: Update common selected location
     setState(() {
       _selectedPlace = {
-        'lat': latLng.latitude,
+        'lat': latLng!.latitude,
         'lng': latLng.longitude,
         'name': name,
       };
+
       _suggestions.clear();
     });
 
-    // ✅ STEP 4: PICKUP
+    // STEP 4: Handle pickup selection
     if (_selectingPickup) {
       CurrentLocation = latLng;
       pickupController.text = name;
+
       return;
     }
 
-    // ✅ STEP 5: DESTINATION
+    // STEP 5: Handle destination selection
     ref.read(destinationLocationProvider.notifier).state = latLng;
     destinationController.text = name;
 
     final pickup = CurrentLocation;
 
-    if (widget.category == VehicleCategory.waterBowser) {
-      Navigator.pop(context, latLng);
+    // STEP 6: Handle location picker
+    if (widget.isLocationPicker) {
+      Navigator.pop(
+        context,
+        {
+          "address": name,
+          "latitude": latLng.latitude,
+          "longitude": latLng.longitude,
+        },
+      );
+
       return;
     }
 
-    if (pickup != null ||
-        (widget.category == VehicleCategory.waterBowser ||
-            widget.category == VehicleCategory.exhauster)) {
-      Widget screen;
+    // STEP 7: Handle scheduled rides
+    if (widget.IsScheduled == true) {
+      // if (pickup == null) {
+      //   _showError("Please set pickup location first.");
+      //   return;
+      // }
 
-      if (widget.IsScheduled != true) {
-        if (widget.category == VehicleCategory.passenger) {
-          screen = HomeScreen(
-            pickup: pickup,
-            destination: latLng,
-            stops: ref.read(stopsProvider),
-            category: widget.category,
-            isScheduled: widget.IsScheduled,
-          );
-          Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-        } else if (widget.category == VehicleCategory.movers) {
-          Navigator.pop(context, {'destination': latLng, 'pickup': pickup});
-        } else if (widget.category == VehicleCategory.cargo) {
-          Navigator.pop(context, {'destination': latLng, 'pickup': pickup});
-        } else if (widget.category == VehicleCategory.exhauster) {
-          Navigator.pop(context, latLng);
-        } else if (widget.category == VehicleCategory.waterBowser) {
-          Navigator.pop(context, latLng);
-        } else if (widget.category == VehicleCategory.breakdown) {
-          Navigator.pop(context, latLng);
-        } else if (widget.category == VehicleCategory.ambulance) {
-          Navigator.pop(context, {'destination': latLng, 'pickup': pickup});
-        }
-      } else {
-        screen = ScheduleRideScreen(
-          pickupLocation: pickup,
-          dropLocation: latLng,
-        );
-        Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-      }
-    } else {
-      _showError("Please set pickup location first.");
+      final screen = ScheduleRideScreen(
+        category: widget.category,
+        pickupLocation: pickup,
+        dropLocation: latLng,
+      );
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => screen),
+      );
+
+      return;
     }
-  }
 
+    // STEP 8: Handle normal ride categories
+    switch (widget.category) {
+      case VehicleCategory.passenger:
+        if (pickup == null) {
+          _showError("Please set pickup location first.");
+          return;
+        }
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => HomeScreen(
+              pickup: pickup,
+              destination: latLng!,
+              stops: ref.read(stopsProvider),
+              category: widget.category,
+              isScheduled: widget.IsScheduled,
+            ),
+          ),
+        );
+        break;
+
+      case VehicleCategory.exhauster:
+      if (destinationController.text.isEmpty) {
+        _showError("Please set destination location first.");
+        return;
+      }
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => HoneySuckerScreen(
+              destination: latLng!,
+              destinationPlaceName:
+                  place['main_text'] ??
+                  place['name'] ??
+                  place['description'] ??
+                  name,
+              destinationSecondaryText:
+                  place['secondary_text'] ?? "",
+              category: widget.category,
+              isScheduled: widget.IsScheduled,
+            ),
+          ),
+        );
+        break;
+
+      case VehicleCategory.waterBowser:
+       if (destinationController.text.isEmpty) {
+        _showError("Please set destination location first.");
+        return;
+      }
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => WaterBowerScreen(
+              destination: latLng!,
+              destinationPlaceName:
+                  place['main_text'] ??
+                  place['name'] ??
+                  place['description'] ??
+                  name,
+              destinationSecondaryText:
+                  place['secondary_text'] ?? "",
+              category: widget.category,
+              isScheduled: widget.IsScheduled,
+            ),
+          ),
+        );
+        break;
+
+      case VehicleCategory.machinery:
+       if (destinationController.text.isEmpty) {
+        _showError("Please set destination location first.");
+        return;
+      }
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MachineryScreen(
+              destination: latLng!,
+              destinationPlaceName:
+                  place['main_text'] ??
+                  place['name'] ??
+                  place['description'] ??
+                  name,
+              destinationSecondaryText:
+                  place['secondary_text'] ?? "",
+              category: widget.category,
+              isScheduled: widget.IsScheduled,
+            ),
+          ),
+        );
+        break;
+
+      case VehicleCategory.breakdown:
+        Navigator.pop(context, latLng);
+        break;
+
+      case VehicleCategory.ambulance:
+        Navigator.pop(
+          context,
+          {
+            'destination': latLng,
+            'pickup': pickup,
+          },
+        );
+        break;
+
+      default:
+        debugPrint(
+          'Destination selected: $name '
+          '(${latLng.latitude}, ${latLng.longitude})',
+        );
+        break;
+    }
+  } catch (e, stackTrace) {
+    debugPrint('Suggestion selection error: $e');
+    debugPrintStack(stackTrace: stackTrace);
+
+    if (!mounted) return;
+
+    _showError("Unable to select this location. Please try again.");
+  }
+}
+
+//google old
+  // Future<void> _onSuggestionTap(Map<String, dynamic> place) async {
+  //   LatLng latLng;
+  //   String name;
+
+  //   // ✅ STEP 1: Resolve location FIRST
+  //   if (place['place_id'] == null) {
+  //     latLng = LatLng(
+  //       place['geometry']['location']['lat'],
+  //       place['geometry']['location']['lng'],
+  //     );
+
+  //     name = place['description'] ?? "Selected location";
+  //   } else {
+  //     final placeId = place['place_id'];
+
+  //     final detailsUrl = Uri.parse(
+  //       "https://maps.googleapis.com/maps/api/place/details/json"
+  //       "?place_id=$placeId"
+  //       "&key=$mapKey",
+  //     );
+
+  //     final res = await http.get(detailsUrl);
+  //     if (res.statusCode != 200) {
+  //       _showError("Failed to get location details");
+  //       return;
+  //     }
+
+  //     final details = json.decode(res.body);
+  //     if (details['status'] != 'OK') {
+  //       _showError(details['error_message'] ?? "Failed to get details");
+  //       return;
+  //     }
+
+  //     final location = details['result']['geometry']['location'];
+  //     latLng = LatLng(location['lat'], location['lng']);
+
+  //     name =
+  //         details['result']['name'] ?? details['result']['formatted_address'];
+  //   }
+
+
+  //   // ✅ STEP 2: HANDLE STOP (NOW SAFE)
+  //   if (_activeStopIndex != null) {
+  //     setState(() {
+  //       // Update the stop text
+  //       stopControllers[_activeStopIndex!].text = name;
+
+  //       // Add the stop to the state
+  //       _addStop({
+  //         "lat": latLng.latitude,
+  //         "lng": latLng.longitude,
+  //         "description": name,
+  //       });
+
+  //       // Reset active stop index
+  //       _activeStopIndex = null;
+
+  //       // Clear suggestions inside setState so UI updates
+  //       _suggestions.clear();
+  //     });
+  //     return;
+  //   }
+
+  //   // ✅ STEP 3: COMMON STATE
+  //   setState(() {
+  //     _selectedPlace = {
+  //       'lat': latLng.latitude,
+  //       'lng': latLng.longitude,
+  //       'name': name,
+  //     };
+  //     _suggestions.clear();
+  //   });
+
+  //   // ✅ STEP 4: PICKUP
+  //   if (_selectingPickup) {
+  //     CurrentLocation = latLng;
+  //     pickupController.text = name;
+  //     return;
+  //   }
+
+  //   // ✅ STEP 5: DESTINATION
+  //   ref.read(destinationLocationProvider.notifier).state = latLng;
+  //   destinationController.text = name;
+
+  //   final pickup = CurrentLocation;
+
+  //   // if (widget.category == VehicleCategory.waterBowser) {
+  //   //   Navigator.pop(context, latLng);
+  //   //   return;
+  //   // }
+  //   if (widget.isLocationPicker) {
+  //   if (!mounted) return;
+
+  //   Navigator.pop(
+  //     context,
+  //     {
+  //       "address": name,
+  //       "latitude": latLng.latitude,
+  //       "longitude": latLng.longitude,
+  //     },
+  //   );
+
+  //   return;
+  // }
+
+
+  //   if (pickup != null || pickup==null){
+  //     Widget screen;
+
+  //     if (widget.IsScheduled != true) {
+  //       if (widget.category == VehicleCategory.passenger && pickup != null) {
+  //         screen = HomeScreen(
+  //           pickup: pickup,
+  //           destination: latLng,
+  //           stops: ref.read(stopsProvider),
+  //           category: widget.category,
+  //           isScheduled: widget.IsScheduled,
+  //         );
+  //         Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+
+  //       } 
+  //       // else if (widget.category == VehicleCategory.movers) {
+  //       //   Navigator.pop(context, {'destination': latLng, 'pickup': pickup});
+  //       // } else if (widget.category == VehicleCategory.cargo) {
+  //       //   Navigator.pop(context, {'destination': latLng, 'pickup': pickup});
+  //       // }
+  //        else if (widget.category == VehicleCategory.exhauster)
+  //         {
+  //           screen = HoneySuckerScreen(
+  //           destination: latLng,
+  //           destinationPlaceName:
+  //       place['main_text'] ??
+  //       place['description'] ??
+  //       "Selected location",
+
+  //   destinationSecondaryText:
+  //       place['secondary_text'] ?? "",
+  //          // destination: latLng,
+  //           category: widget.category,
+  //           isScheduled: widget.IsScheduled,
+  //         );
+
+  //           Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  //        // Navigator.pop(context, latLng);
+
+  //       } 
+  //       else if (widget.category == VehicleCategory.waterBowser)
+  //         {
+  //            screen = WaterBowerScreen(
+  //           destination: latLng,
+  //           destinationPlaceName:
+  //       place['main_text'] ??
+  //       place['description'] ??
+  //       "Selected location",
+
+  //   destinationSecondaryText:
+  //       place['secondary_text'] ?? "",
+  //          // destination: latLng,
+  //           category: widget.category,
+  //           isScheduled: widget.IsScheduled,
+  //         );
+          
+
+  //           Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  //        // Navigator.pop(context, latLng);
+
+  //       }
+  //        else if (widget.category == VehicleCategory.machinery)
+  //         {
+  //            screen = MachineryScreen(
+  //           destination: latLng,
+  //           destinationPlaceName:
+  //       place['main_text'] ??
+  //       place['description'] ??
+  //       "Selected location",
+
+  //   destinationSecondaryText:
+  //       place['secondary_text'] ?? "",
+  //          // destination: latLng,
+  //           category: widget.category,
+  //           isScheduled: widget.IsScheduled,
+  //         );
+          
+
+  //           Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  //        // Navigator.pop(context, latLng);
+
+  //       }
+        
+  //       else if (widget.category == VehicleCategory.waterBowser) {
+  //         Navigator.pop(context, latLng);
+  //       } else if (widget.category == VehicleCategory.breakdown) {
+  //         Navigator.pop(context, latLng);
+  //       } else if (widget.category == VehicleCategory.ambulance) {
+  //         Navigator.pop(context, {'destination': latLng, 'pickup': pickup});
+  //       }
+  //     } else {
+  //       screen = ScheduleRideScreen(
+  //         pickupLocation: pickup,
+  //         dropLocation: latLng,
+  //       );
+  //       Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  //     }
+  //   } else {
+  //     _showError("Please set pickup location first.");
+  //   }
+  // }
+
+
+
+
+//google
   Future<void> _onSuggestionTapOld(Map<String, dynamic> place) async {
     final placeId = place['place_id'];
 
@@ -914,6 +2429,7 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
           }
         } else {
           screen = ScheduleRideScreen(
+            category: widget.category,
             pickupLocation: pickup,
             dropLocation: latLng,
           );
@@ -924,7 +2440,6 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
       }
     }
   }
-
   Future<LatLng?> _fetchPickupFromFirebase() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -987,291 +2502,585 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
 
     _showMessage("Stop added.");
   }
-  // void _addStop(Map<String, dynamic> place) {
-  //   final lat = double.parse(place['lat']);
-  //   final lon = double.parse(place['lon']);
-  //   final latLng = LatLng(lat, lon);
-  //   final address = place['display_name'];
+  
 
-  //   final currentStops = ref.read(stopsProvider);
-
-  //   final isDuplicate = currentStops.any(
-  //     (stop) =>
-  //         stop['latLng'].latitude == lat && stop['latLng'].longitude == lon,
-  //   );
-
-  //   if (isDuplicate) {
-  //     _showError("This stop is already added.");
-  //     return;
+  // @override
+  // Widget build(BuildContext context) {
+  //   if (!_isPickupLoaded &&
+  //       (widget.category == VehicleCategory.passenger
+  //           )) {
+  //     return Scaffold(
+  //       body:
+  //           isPlacesLoading
+  //               ? const Center(
+  //                 child: CircularProgressIndicator(color:  Color(0xFF015ACE),),
+  //               )
+  //               : const Center(child: Text("Loading pickup...")),
+  //     );
   //   }
 
-  //   ref.read(stopsProvider.notifier).state = [
-  //     ...currentStops,
-  //     {'latLng': latLng, 'address': address},
-  //   ];
-  //   _showMessage("Stop added.");
-  // }
+  //   final stops = ref.watch(stopsProvider);
 
-  // void _showError(String msg) {
-  //   ScaffoldMessenger.of(
-  //     context,
-  //   ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
-  // }
-
-  // void _showMessage(String msg) {
-  //   ScaffoldMessenger.of(
-  //     context,
-  //   ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.green));
-  // }
-
-  // Widget _buildSkeleton() {
-  //   return Shimmer.fromColors(
-  //     baseColor: Colors.grey.shade300,
-  //     highlightColor: Colors.grey.shade100,
-  //     child: Column(
-  //       children: [
-  //         Container(height: 50, color: Colors.white),
-  //         const SizedBox(height: 20),
-  //         Container(height: 60, color: Colors.white),
-  //       ],
-  //     ),
-  //   );
-  // }
-
-  // Widget _buildSuggestionSkeleton() {
-  //   return Column(
-  //     children: List.generate(3, (index) {
-  //       return Shimmer.fromColors(
-  //         baseColor: Colors.grey.shade300,
-  //         highlightColor: Colors.grey.shade100,
-  //         child: ListTile(
-  //           leading: Container(height: 30, width: 30, color: Colors.white),
-  //           title: Container(height: 12, color: Colors.white),
+  //   return Scaffold(
+  //     backgroundColor: const Color(0xFFF9FAFB),
+  //     appBar: AppBar(
+  //       backgroundColor: Colors.white,
+  //       elevation: 2,
+  //       title:  Text(
+  //         _getScreenTitle(),
+  //         style: GoogleFonts.spaceGrotesk(
+  //           color: Colors.black,
+  //           fontSize: 24,
+  //           fontWeight: FontWeight.bold,
   //         ),
-  //       );
-  //     }),
-  //   );
-  // }
+  //       ),
+  //       centerTitle: true,
+  //       iconTheme: const IconThemeData(color: Colors.black),
+  //     ),
 
-  // Widget _buildFullScreenSkeleton() {
-  //   return Shimmer.fromColors(
-  //     baseColor: Colors.grey.shade300,
-  //     highlightColor: Colors.grey.shade100,
-  //     child: Padding(
+  //     body: Padding(
   //       padding: const EdgeInsets.all(16),
   //       child: Column(
   //         children: [
-  //           Container(height: 60, color: Colors.white),
-  //           const SizedBox(height: 12),
-  //           Container(height: 60, color: Colors.white),
-  //           const SizedBox(height: 20),
-  //           ...List.generate(5, (index) {
-  //             return Container(
-  //               margin: const EdgeInsets.only(bottom: 12),
-  //               height: 70,
-  //               color: Colors.white,
-  //             );
-  //           }),
+  //           /// 🔷 SCROLLABLE INPUT CARD
+  //           ConstrainedBox(
+  //             constraints: BoxConstraints(
+  //               maxHeight: 400, // adjust max height as needed
+  //             ),
+  //             child: SingleChildScrollView(
+  //               child: AnimatedContainer(
+  //                 duration: const Duration(milliseconds: 300),
+  //                 curve: Curves.easeInOut,
+  //                 decoration: BoxDecoration(
+  //                   color: Colors.white,
+  //                   borderRadius: BorderRadius.circular(16),
+  //                   boxShadow: [
+  //                     BoxShadow(
+  //                       color: Colors.black.withOpacity(0.15),
+  //                       blurRadius: 8,
+  //                       offset: const Offset(0, 4),
+  //                     ),
+  //                   ],
+  //                 ),
+  //                 child: Column(
+  //                   children: [
+  //                     /// 🔷 SPECIAL CASE (NO PICKUP)
+  //                     if (widget.category == VehicleCategory.exhauster ||
+  //                         widget.category == VehicleCategory.waterBowser) ...[
+  //                       _buildLocationField(
+  //                         controller: destinationController,
+  //                         icon: Icons.location_on,
+  //                         iconColor: Colors.red,
+  //                         hint:
+  //                             widget.category == VehicleCategory.exhauster
+  //                                 ? "Collection Location"
+  //                                 : "Enter Destination",
+  //                         onTap: () {
+  //                           setState(() {
+  //                             _selectingPickup = false;
+  //                             _suggestions.clear();
+  //                           });
+  //                         },
+  //                       ),
+  //                     ] else ...[
+  //                       /// 🔷 PICKUP
+  //                       _buildLocationField(
+  //                         controller: pickupController,
+  //                         icon: Icons.my_location,
+  //                         iconColor: Colors.green,
+  //                         hint: "Set Pickup Location",
+  //                         onTap: () {
+  //                           setState(() {
+  //                             _selectingPickup = true;
+  //                             _activeStopIndex = null;
+  //                             _suggestions.clear();
+  //                           });
+  //                         },
+  //                       ),
+  //                       const Divider(height: 1, color: Colors.grey),
+
+  //                       /// 🔷 STOPS
+  //                       ...List.generate(stopControllers.length, (index) {
+  //                         return Column(
+  //                           children: [
+  //                             Row(
+  //                               crossAxisAlignment: CrossAxisAlignment.center,
+  //                               children: [
+  //                                 Expanded(
+  //                                   child: _buildLocationField(
+  //                                     controller: stopControllers[index],
+  //                                     icon: Icons.trip_origin,
+  //                                     iconColor: Colors.orange,
+  //                                     hint: "Stop ${index + 1}",
+  //                                     onTap: () {
+  //                                       setState(() {
+  //                                         _selectingPickup = false;
+  //                                         _activeStopIndex = index;
+  //                                         _suggestions.clear();
+  //                                       });
+  //                                     },
+  //                                   ),
+  //                                 ),
+  //                                 IconButton(
+  //                                   icon: const Icon(
+  //                                     Icons.close,
+  //                                     color: Colors.red,
+  //                                   ),
+  //                                   onPressed: () {
+  //                                     setState(() {
+  //                                       stopControllers[index].dispose();
+  //                                       stopControllers.removeAt(index);
+
+  //                                       if (stops.length > index) {
+  //                                         final updatedStops = [...stops]
+  //                                           ..removeAt(index);
+  //                                         ref
+  //                                             .read(stopsProvider.notifier)
+  //                                             .state = updatedStops;
+  //                                       }
+
+  //                                       if (_activeStopIndex == index)
+  //                                         _activeStopIndex = null;
+  //                                       _suggestions.clear();
+  //                                     });
+  //                                   },
+  //                                 ),
+  //                               ],
+  //                             ),
+  //                             const Divider(height: 1, color: Colors.grey),
+  //                           ],
+  //                         );
+  //                       }),
+
+  //                       /// 🔷 DESTINATION + ADD BUTTON
+  //                       Row(
+  //                         children: [
+  //                           Expanded(
+  //                             child: _buildLocationField(
+  //                               controller: destinationController,
+  //                               icon: Icons.location_on,
+  //                               iconColor: Colors.red,
+  //                               hint: "Enter Destination",
+  //                               onTap: () {
+  //                                 setState(() {
+  //                                   _selectingPickup = false;
+  //                                   _activeStopIndex = null;
+  //                                   _suggestions.clear();
+  //                                 });
+  //                               },
+  //                             ),
+  //                           ),
+  //                           IconButton(
+  //                             icon: const Icon(
+  //                               Icons.add_circle,
+  //                               color: Colors.black,
+  //                               size: 28,
+  //                             ),
+  //                             onPressed: _addStopField,
+  //                           ),
+  //                         ],
+  //                       ),
+  //                     ],
+  //                   ],
+  //                 ),
+  //               ),
+  //             ),
+  //           ),
+
+  //           const SizedBox(height: 10),
+
+  //           /// 🔷 EXPANDED CONTENT BELOW (Nearby Places / Search / Stops)
+  //           Expanded(child: _buildExpandedContent(stops)),
   //         ],
   //       ),
   //     ),
   //   );
   // }
+String _getScreenTitle() {
+  if (widget.isLocationPicker) {
+    return "Pick Your Place";
+  }
 
+  switch (widget.category) {
+    case VehicleCategory.passenger:
+      return "Where To";
+
+    case VehicleCategory.exhauster:
+      return "Collection Location";
+
+    case VehicleCategory.waterBowser:
+      return "Delivery Location";
+
+    case VehicleCategory.machinery:
+      return "Site Machinery";
+
+    default:
+      return "Where To";
+  }
+}
   @override
-  Widget build(BuildContext context) {
-    if (!_isPickupLoaded &&
-        (widget.category == VehicleCategory.passenger ||
-            widget.category == VehicleCategory.exhauster)) {
-      return Scaffold(
-        body:
-            isPlacesLoading
-                ? const Center(
-                  child: CircularProgressIndicator(color: Colors.blue),
-                )
-                : const Center(child: Text("Loading pickup...")),
-      );
-    }
+Widget build(BuildContext context) {
+  final requiresCurrentLocation =
+      widget.category == VehicleCategory.passenger ||
+      widget.category == VehicleCategory.exhauster ||
+      widget.category == VehicleCategory.waterBowser ||
+      widget.category == VehicleCategory.machinery;
 
-    final stops = ref.watch(stopsProvider);
-
+  if (!_isPickupLoaded && requiresCurrentLocation) {
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 2,
-        title: const Text(
-          "Enter",
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
+      body: const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF015ACE),
         ),
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.black),
       ),
+    );
+  }
 
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            /// 🔷 SCROLLABLE INPUT CARD
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: 400, // adjust max height as needed
-              ),
-              child: SingleChildScrollView(
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
+  final stops = ref.watch(stopsProvider);
+
+  final isPassenger =
+      widget.category == VehicleCategory.passenger;
+
+  final isExhauster =
+      widget.category == VehicleCategory.exhauster;
+
+  final isWaterBowser =
+      widget.category == VehicleCategory.waterBowser;
+
+  final isMachinery =
+      widget.category == VehicleCategory.machinery;
+
+  return Scaffold(
+    backgroundColor: const Color(0xFFF9FAFB),
+
+    appBar: AppBar(
+      backgroundColor: Colors.white,
+      elevation: 2,
+      title: Text(
+         _getScreenTitle(),
+        style: GoogleFonts.spaceGrotesk(
+          color: Colors.black,
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      centerTitle: true,
+      iconTheme: const IconThemeData(
+        color: Colors.black,
+      ),
+    ),
+
+    body: Padding(
+      padding: const EdgeInsets.all(16),
+
+      child: Column(
+        children: [
+
+          /// =====================================================
+          /// LOCATION INPUT CARD
+          /// =====================================================
+
+          ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxHeight: 400,
+            ),
+
+            child: SingleChildScrollView(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.15),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+
+                child: Column(
+                  children: [
+
+                    /// =================================================
+                    /// PASSENGER
+                    /// Pickup -> Stops -> Destination
+                    /// =================================================
+
+                    if (isPassenger && !widget.isLocationPicker) ...[
+                      _buildLocationField(
+                        controller: pickupController,
+                        icon: Icons.my_location,
+                        iconColor: Colors.green,
+                        hint: "Set Pickup Location",
+
+                        onTap: () {
+                          setState(() {
+                            _selectingPickup = true;
+                            _activeStopIndex = null;
+                            _suggestions.clear();
+                          });
+                        },
                       ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      /// 🔷 SPECIAL CASE (NO PICKUP)
-                      if (widget.category == VehicleCategory.exhauster ||
-                          widget.category == VehicleCategory.waterBowser) ...[
-                        _buildLocationField(
-                          controller: destinationController,
-                          icon: Icons.location_on,
-                          iconColor: Colors.red,
-                          hint:
-                              widget.category == VehicleCategory.exhauster
-                                  ? "Collection Location"
-                                  : "Enter Destination",
-                          onTap: () {
-                            setState(() {
-                              _selectingPickup = false;
-                              _suggestions.clear();
-                            });
-                          },
-                        ),
-                      ] else ...[
-                        /// 🔷 PICKUP
-                        _buildLocationField(
-                          controller: pickupController,
-                          icon: Icons.my_location,
-                          iconColor: Colors.green,
-                          hint: "Set Pickup Location",
-                          onTap: () {
-                            setState(() {
-                              _selectingPickup = true;
-                              _activeStopIndex = null;
-                              _suggestions.clear();
-                            });
-                          },
-                        ),
-                        const Divider(height: 1, color: Colors.grey),
 
-                        /// 🔷 STOPS
-                        ...List.generate(stopControllers.length, (index) {
+                      const Divider(
+                        height: 1,
+                        color: Colors.grey,
+                      ),
+
+                      /// STOPS
+                      ...List.generate(
+                        stopControllers.length,
+                        (index) {
                           return Column(
                             children: [
                               Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
                                   Expanded(
                                     child: _buildLocationField(
-                                      controller: stopControllers[index],
+                                      controller:
+                                          stopControllers[index],
                                       icon: Icons.trip_origin,
                                       iconColor: Colors.orange,
                                       hint: "Stop ${index + 1}",
+
                                       onTap: () {
                                         setState(() {
-                                          _selectingPickup = false;
+                                          _selectingPickup = true;
                                           _activeStopIndex = index;
                                           _suggestions.clear();
                                         });
                                       },
                                     ),
                                   ),
+
                                   IconButton(
                                     icon: const Icon(
                                       Icons.close,
                                       color: Colors.red,
                                     ),
+
                                     onPressed: () {
                                       setState(() {
-                                        stopControllers[index].dispose();
-                                        stopControllers.removeAt(index);
+                                        stopControllers[index]
+                                            .dispose();
+
+                                        stopControllers
+                                            .removeAt(index);
 
                                         if (stops.length > index) {
-                                          final updatedStops = [...stops]
-                                            ..removeAt(index);
+                                          final updatedStops = [
+                                            ...stops
+                                          ]..removeAt(index);
+
                                           ref
-                                              .read(stopsProvider.notifier)
+                                              .read(
+                                                stopsProvider
+                                                    .notifier,
+                                              )
                                               .state = updatedStops;
                                         }
 
-                                        if (_activeStopIndex == index)
+                                        if (_activeStopIndex ==
+                                            index) {
                                           _activeStopIndex = null;
+                                        }
+
                                         _suggestions.clear();
                                       });
                                     },
                                   ),
                                 ],
                               ),
-                              const Divider(height: 1, color: Colors.grey),
+
+                              const Divider(
+                                height: 1,
+                                color: Colors.grey,
+                              ),
                             ],
                           );
-                        }),
+                        },
+                      ),
 
-                        /// 🔷 DESTINATION + ADD BUTTON
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildLocationField(
-                                controller: destinationController,
-                                icon: Icons.location_on,
-                                iconColor: Colors.red,
-                                hint: "Enter Destination",
-                                onTap: () {
-                                  setState(() {
-                                    _selectingPickup = false;
-                                    _activeStopIndex = null;
-                                    _suggestions.clear();
-                                  });
-                                },
-                              ),
+                      /// DESTINATION
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildLocationField(
+                              controller:
+                                  destinationController,
+                              icon: Icons.location_on,
+                              iconColor: Colors.red,
+                              hint: "Enter Destination",
+
+                              onTap: () {
+                                setState(() {
+                                  _selectingPickup = false;
+                                  _activeStopIndex = null;
+                                  _suggestions.clear();
+                                });
+                              },
                             ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.add_circle,
-                                color: Colors.black,
-                                size: 28,
-                              ),
-                              onPressed: _addStopField,
+                          ),
+
+                          IconButton(
+                            icon: const Icon(
+                              Icons.add_circle,
+                              color: Colors.black,
+                              size: 28,
                             ),
-                          ],
-                        ),
-                      ],
+                            onPressed: _addStopField,
+                          ),
+                        ],
+                      ),
+                    ]
+
+else if (widget.isLocationPicker && isPassenger) ...[
+  _buildLocationField(
+    controller: destinationController,
+    icon: Icons.location_on_rounded,
+    iconColor: const Color(0xFF015ACE),
+    hint: "Search for a place",
+
+    onTap: () {
+      setState(() {
+        _selectingPickup = false;
+        _activeStopIndex = null;
+        _suggestions.clear();
+      });
+    },
+  ),
+]
+
+                    else if (isExhauster) ...[
+                      _buildLocationField(
+                        controller: destinationController,
+                        icon: Icons.cleaning_services_rounded,
+                        iconColor: const Color(0xFFF0D000),
+                        hint: "Collection Location",
+
+                        onTap: () {
+                          setState(() {
+                            _selectingPickup = false;
+                            _activeStopIndex = null;
+                            _suggestions.clear();
+                          });
+                        },
+                      ),
+                    ]
+
+                    /// =================================================
+                    /// WATER BOWSER
+                    /// Current Location -> Delivery Location
+                    /// =================================================
+
+                    else if (isWaterBowser) ...[
+                      _buildLocationField(
+                        controller: destinationController,
+                        icon: Icons.water_drop_rounded,
+                        iconColor: const Color(0xFF015ACE),
+                        hint: "Delivery Location",
+
+                        onTap: () {
+                          setState(() {
+                            _selectingPickup = false;
+                            _activeStopIndex = null;
+                            _suggestions.clear();
+                          });
+                        },
+                      ),
+                    ]
+
+                    /// =================================================
+                    /// MACHINERY
+                    /// Current Location -> Site
+                    /// =================================================
+
+                    else if (isMachinery) ...[
+                      _buildLocationField(
+                        controller: destinationController,
+                        icon: Icons.construction_rounded,
+                        iconColor: const Color(0xFFF0D000),
+                        hint: "Site Location",
+
+                        onTap: () {
+                          setState(() {
+                            _selectingPickup = false;
+                            _activeStopIndex = null;
+                            _suggestions.clear();
+                          });
+                        },
+                      ),
+                    ]
+
+                    /// =================================================
+                    /// OTHER SERVICES
+                    /// Normal Pickup -> Destination
+                    /// =================================================
+
+                    else ...[
+                      _buildLocationField(
+                        controller: pickupController,
+                        icon: Icons.my_location,
+                        iconColor: Colors.green,
+                        hint: "Set Pickup Location",
+
+                        onTap: () {
+                          setState(() {
+                            _selectingPickup = true;
+                            _activeStopIndex = null;
+                            _suggestions.clear();
+                          });
+                        },
+                      ),
+
+                      const Divider(
+                        height: 1,
+                        color: Colors.grey,
+                      ),
+
+                      _buildLocationField(
+                        controller: destinationController,
+                        icon: Icons.location_on,
+                        iconColor: Colors.red,
+                        hint: "Enter Destination",
+
+                        onTap: () {
+                          setState(() {
+                            _selectingPickup = false;
+                            _activeStopIndex = null;
+                            _suggestions.clear();
+                          });
+                        },
+                      ),
                     ],
-                  ),
+                  ],
                 ),
               ),
             ),
+          ),
 
-            const SizedBox(height: 10),
+          const SizedBox(height: 10),
 
-            /// 🔷 EXPANDED CONTENT BELOW (Nearby Places / Search / Stops)
-            Expanded(child: _buildExpandedContent(stops)),
-          ],
-        ),
+          /// =====================================================
+          /// SEARCH / NEARBY PLACES
+          /// =====================================================
+
+          Expanded(
+            child: _buildExpandedContent(stops),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   /// 🔷 HELPER METHOD FOR EXPANDED CONTENT
+  //google
   Widget _buildExpandedContent(List stops) {
     // if (_isLoading) {
     //   return _buildSuggestionSkeleton();
@@ -1289,7 +3098,7 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
             elevation: 2,
 
             child: ListTile(
-              leading: Icon(place['icon'], color: Colors.blue),
+              leading: Icon(place['icon'], color:  Color(0xFF015ACE),),
 
               // leading: const Icon(
 
@@ -1309,17 +3118,27 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
               //                   "description": place['name'],
               //                 });
               //               },
-              title: Text(
-                place['main_text'], // short: Garden City
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              subtitle: Text(
-                place['secondary_text'], // secondary: Thika Road, Nairobi
-                style: const TextStyle(fontSize: 14, color: Colors.grey),
-              ),
+             title: Text(
+  place['main_text'] ?? '',
+  maxLines: 1,
+  overflow: TextOverflow.ellipsis,
+  style: GoogleFonts.nunitoSans(
+    fontSize: 15.5,
+    fontWeight: FontWeight.w700,
+    color: const Color(0xFF111827),
+  ),
+),
+
+subtitle: Text(
+  place['secondary_text'] ?? '',
+  maxLines: 1,
+  overflow: TextOverflow.ellipsis,
+  style: GoogleFonts.nunitoSans(
+    fontSize: 12.5,
+    fontWeight: FontWeight.w400,
+    color: const Color(0xFF6B7280),
+  ),
+),
 
               // title: Text(
               //   place['name'],
@@ -1343,22 +3162,49 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
           final latLng = stop['latLng'] as LatLng;
           final address = stop['address'] as String;
           return Card(
-            child: ListTile(
-              leading: CircleAvatar(child: Text('${index + 1}')),
-              title: Text(address),
-              subtitle: Text(
-                '${latLng.latitude.toStringAsFixed(4)}, ${latLng.longitude.toStringAsFixed(4)}',
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.close, color: Colors.red),
-                onPressed: () {
-                  final updatedStops = List<Map<String, dynamic>>.from(stops)
-                    ..removeAt(index);
-                  ref.read(stopsProvider.notifier).state = updatedStops;
-                },
-              ),
-            ),
-          );
+  child: ListTile(
+    leading: CircleAvatar(
+      child: Text(
+        '${index + 1}',
+        style: GoogleFonts.spaceGrotesk(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    ),
+
+    title: Text(
+      address,
+      style: GoogleFonts.spaceGrotesk(
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+        color: Colors.black87,
+      ),
+    ),
+
+    subtitle: Text(
+      '${latLng.latitude.toStringAsFixed(4)}, '
+      '${latLng.longitude.toStringAsFixed(4)}',
+      style: GoogleFonts.nunitoSans(
+        fontSize: 12,
+        color: Colors.grey,
+      ),
+    ),
+
+    trailing: IconButton(
+      icon: const Icon(
+        Icons.close,
+        color: Colors.red,
+      ),
+      onPressed: () {
+        final updatedStops = List<Map<String, dynamic>>.from(stops)
+          ..removeAt(index);
+
+        ref.read(stopsProvider.notifier).state = updatedStops;
+      },
+    ),
+  ),
+);
         },
       );
     }
@@ -1376,19 +3222,24 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
           final place = _commonPlaces[index];
           return Card(
             child: ListTile(
-              leading: Icon(place['icon'], color: Colors.blue),
+              leading: Icon(place['icon'], color: const Color(0xFF015ACE),),
               title: Text(
                 place['name'],
-                style: const TextStyle(
+                style: GoogleFonts.spaceGrotesk(
+
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
                 ),
               ),
 
+
               subtitle: Text(
-                place['address'],
-                style: const TextStyle(fontSize: 14, color: Colors.grey),
-              ),
+  place['address'],
+  style: GoogleFonts.spaceGrotesk(
+    fontSize: 14,
+    color: Colors.grey,
+  ),
+),
               onTap: () {
                 _onSuggestionTap({
                   "place_id": null,
@@ -1406,29 +3257,45 @@ class _WhereToScreenState extends ConsumerState<WhereToScreen> {
 
     return const SizedBox.shrink();
   }
+Widget _buildLocationField({
+  required TextEditingController controller,
+  required IconData icon,
+  required Color iconColor,
+  required String hint,
+  required VoidCallback onTap,
+}) {
+  return ListTile(
+    leading: Icon(
+      icon,
+      color: iconColor,
+      size: 28,
+    ),
 
-  Widget _buildLocationField({
-    required TextEditingController controller,
-    required IconData icon,
-    required Color iconColor,
-    required String hint,
-    required VoidCallback onTap,
-  }) {
-    return ListTile(
-      leading: Icon(icon, color: iconColor, size: 28),
-      title: TextField(
-        controller: controller,
-        style: const TextStyle(fontSize: 18),
-        decoration: InputDecoration(
-          border: InputBorder.none,
-          hintText: hint,
-          hintStyle: const TextStyle(fontSize: 18, color: Colors.grey),
-        ),
-        onTap: onTap,
+    title: TextField(
+      controller: controller,
+
+      style: GoogleFonts.spaceGrotesk(
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+        color: Colors.black87,
       ),
-    );
-  }
-}
+
+      decoration: InputDecoration(
+        border: InputBorder.none,
+
+        hintText: hint,
+
+        hintStyle: GoogleFonts.spaceGrotesk(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: Colors.grey,
+        ),
+      ),
+
+      onTap: onTap,
+    ),
+  );
+}}
 
 class LocationResult {
   final LatLng pickup;
@@ -1438,1414 +3305,4 @@ class LocationResult {
 }
 
 
- //////working
-  // Future<void> _fetchSuggestions(String query) async {
-  //   setState(() {
-  //     _isLoading = true;
-  //     _suggestions.clear();
-  //   });
-
-  //   final url = Uri.parse(
-  //     "https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=5",
-  //   );
-  //   final res = await http.get(url, headers: {'User-Agent': 'FlutterApp'});
-
-  //   if (res.statusCode == 200) {
-  //     final List data = json.decode(res.body);
-  //     if (mounted) {
-  //       setState(() {
-  //         _suggestions = data.cast<Map<String, dynamic>>();
-  //         _isLoading = false;
-  //       });
-  //     }
-  //     // setState(() {
-  //     //   _suggestions = data.cast<Map<String, dynamic>>();
-  //     //   _isLoading = false;
-  //     // });
-  //   } else {
-  //     _showError("Suggestion fetch failed");
-  //   }
-  // }
-
-  /////working
-  // void _onSuggestionTap(Map<String, dynamic> place) async {
-  //   final lat = double.parse(place['lat']);
-  //   final lon = double.parse(place['lon']);
-  //   final displayName = place['display_name'];
-
-  //   final latLng = LatLng(lat, lon);
-
-  //   setState(() {
-  //     _selectedPlace = place;
-  //     _suggestions.clear();
-  //   });
-
-  //   final favorite = FavoriteLocation(name: displayName, lat: lat, lon: lon);
-  //   await FavoriteLocationService.addFavorite(favorite);
-  //   //_showMessage("Added to favorites");
-
-  //   if (_selectingPickup) {
-  //     ref.read(pickupLocationProvider.notifier).state = latLng;
-  //     pickupController.text = displayName;
-  //   } else {
-  //     ref.read(destinationLocationProvider.notifier).state = latLng;
-  //     destinationController.text = displayName;
-
-  //     final pickup = ref.read(pickupLocationProvider);
-  //     if (pickup != null ||
-  //         (widget.category == VehicleCategory.waterBowser ||
-  //             widget.category == VehicleCategory.exhauster)) {
-  //       // Navigator.push(
-  //       //   context,
-  //       //   MaterialPageRoute(
-  //       //     builder:
-  //       //         (_) => HomeScreen(
-  //       //           pickup: pickup,
-  //       //           destination: latLng,
-  //       //           stops: ref.read(stopsProvider),
-  //       //         ),
-  //       //   ),
-  //       // );
-
-  //       Widget screen;
-
-  //       // if (widget.category.toUpperCase() == 'MOVERS') {
-  //       //   screen = MoversScreen(
-  //       //    pickupLocation : pickup,
-  //       //     dropLocation: latLng,
-  //       //     stops: ref.read(stopsProvider),
-  //       //   );
-  //       // } else {
-  //       //   screen = HomeScreen(
-  //       //     pickup: pickup,
-  //       //     destination: latLng,
-  //       //     stops: ref.read(stopsProvider),
-  //       //   );
-  //       // }
-  //       if (widget.IsScheduled != true) {
-  //         if (widget.category == VehicleCategory.movers) {
-  //           screen = MoversScreen(
-  //             pickupLocation: pickup,
-  //             dropLocation: latLng,
-  //             category: VehicleCategory.movers,
-  //           );
-  //           Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-  //         } else if (widget.category == VehicleCategory.passenger) {
-  //           screen = HomeScreen(
-  //             pickup: pickup,
-  //             destination: latLng,
-  //             stops: ref.read(stopsProvider),
-  //             category: widget.category,
-  //           );
-  //           Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-  //         } else if (widget.category == VehicleCategory.cargo) {
-  //           screen = CargoTransportScreen(
-  //             category: widget.category,
-  //             pickup: pickup,
-  //             destination: latLng,
-  //           );
-
-  //           Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-  //         } else if (widget.category == VehicleCategory.waterBowser) {
-  //           screen = WaterBowerScreen(
-  //             category: widget.category,
-  //             //pickup: pickup,
-  //             destination: latLng,
-  //           );
-
-  //           Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-  //         } else if (widget.category == VehicleCategory.exhauster) {
-  //           // screen = HoneySuckerScreen(
-  //           //   category: widget.category,
-  //           //   //pickup: pickup,
-  //           //   destination: latLng,
-  //           // );
-
-  //           // Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-  //           Navigator.pop(context, latLng);
-  //         }
-  //       } else {
-  //         screen = ScheduleRideScreen(
-  //           pickupLocation: pickup,
-  //           dropLocation: latLng,
-  //           // stops: ref.read(stopsProvider),
-  //           // category: widget.category,
-  //         );
-  //         Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-  //       }
-  //     } else {
-  //       _showError("Please set pickup location first.");
-  //     }
-  //   }
-  // }
-
-   // Card(
-            //   shape: RoundedRectangleBorder(
-            //     borderRadius: BorderRadius.circular(12),
-            //   ),
-            //   child: Column(
-            //     children: [
-            //       if (widget.category == VehicleCategory.ambulance)
-            //         ListTile(
-            //           leading: const Icon(
-            //             Icons.my_location,
-            //             color: Colors.green,
-            //           ),
-            //           title: TextField(
-            //             controller: pickupController,
-            //             decoration: const InputDecoration(
-            //               border: InputBorder.none,
-            //               hintText: "Set Pickup Location",
-            //             ),
-            //             onTap: () {
-            //               setState(() {
-            //                 _selectingPickup = true;
-            //                 _suggestions.clear();
-            //               });
-            //             },
-            //           ),
-            //         ),
-
-            //       // if (widget.category != VehicleCategory.waterBowser &&
-            //       //     widget.category != VehicleCategory.exhauster) ...[
-            //       //   ListTile(
-            //       //     leading: const Icon(
-            //       //       Icons.my_location,
-            //       //       color: Colors.green,
-            //       //     ),
-            //       //     title: TextField(
-            //       //       controller: pickupController,
-            //       //       decoration: const InputDecoration(
-            //       //         border: InputBorder.none,
-            //       //         hintText: "Set Pickup Location",
-            //       //       ),
-            //       //       onTap: () {
-            //       //         setState(() {
-            //       //           _selectingPickup = true;
-            //       //           _suggestions.clear();
-            //       //         });
-            //       //       },
-            //       //     ),
-            //       //   ),
-            //       if (widget.category != VehicleCategory.ambulance &&
-            //           widget.category != VehicleCategory.waterBowser &&
-            //           widget.category != VehicleCategory.exhauster) ...[
-            //         ListTile(
-            //           leading: const Icon(
-            //             Icons.my_location,
-            //             color: Colors.green,
-            //           ),
-            //           title: TextField(
-            //             controller: pickupController,
-            //             decoration: const InputDecoration(
-            //               border: InputBorder.none,
-            //               hintText: "Set Pickup Location",
-            //             ),
-            //             onTap: () {
-            //               setState(() {
-            //                 _selectingPickup = true;
-            //                 _suggestions.clear();
-            //               });
-            //             },
-            //           ),
-            //         ),
-            //         const Divider(),
-            //       ],
-            //       ListTile(
-            //         leading: const Icon(Icons.location_on, color: Colors.red),
-            //         title: TextField(
-            //           controller: destinationController,
-            //           decoration: const InputDecoration(
-            //             border: InputBorder.none,
-            //             hintText: "Enter Destination",
-            //           ),
-            //           onTap: () {
-            //             setState(() {
-            //               _selectingPickup = false;
-            //               _suggestions.clear();
-            //             });
-            //           },
-            //         ),
-            //       ),
-            //     ],
-            //   ),
-            // ),
-            // Card(
-            //   shape: RoundedRectangleBorder(
-            //     borderRadius: BorderRadius.circular(12),
-            //   ),
-            //   child: Column(
-            //     children: [
-            //       // Ambulance — pickup only
-            //       if (widget.category == VehicleCategory.ambulance)
-            //         ListTile(
-            //           leading: const Icon(
-            //             Icons.my_location,
-            //             color: Colors.green,
-            //           ),
-            //           title: TextField(
-            //             controller: pickupController,
-            //             decoration: const InputDecoration(
-            //               border: InputBorder.none,
-            //               hintText: "Set Pickup Location",
-            //             ),
-            //             onTap: () {
-            //               setState(() {
-            //                 _selectingPickup = true;
-            //                 _suggestions.clear();
-            //               });
-            //             },
-            //           ),
-            //         ),
-
-            //       // Other categories (except waterBowser & exhauster) — pickup + destination
-            //       if (widget.category != VehicleCategory.ambulance &&
-            //           widget.category != VehicleCategory.waterBowser &&
-            //           widget.category != VehicleCategory.exhauster) ...[
-            //         ListTile(
-            //           leading: const Icon(
-            //             Icons.my_location,
-            //             color: Colors.green,
-            //           ),
-            //           title: TextField(
-            //             controller: pickupController,
-            //             decoration: const InputDecoration(
-            //               border: InputBorder.none,
-            //               hintText: "Set Pickup Location",
-            //             ),
-            //             onTap: () {
-            //               setState(() {
-            //                 _selectingPickup = true;
-            //                 _suggestions.clear();
-            //               });
-            //             },
-            //           ),
-            //         ),
-            //         const Divider(),
-            //         ListTile(
-            //           leading: const Icon(Icons.location_on, color: Colors.red),
-            //           title: TextField(
-            //             controller: destinationController,
-            //             decoration: const InputDecoration(
-            //               border: InputBorder.none,
-            //               hintText: "Enter Destination",
-            //             ),
-            //             onTap: () {
-            //               setState(() {
-            //                 _selectingPickup = false;
-            //                 _suggestions.clear();
-            //               });
-            //             },
-            //           ),
-            //         ),
-            //       ],
-            //     ],
-            //   ),
-            // ),
-
-             // Ambulance — pickup only
-                  // if (widget.category == VehicleCategory.ambulance) ...[
-                  //   ListTile(
-                  //     leading: const Icon(
-                  //       Icons.my_location,
-                  //       color: Colors.green,
-                  //     ),
-                  //     title: TextField(
-                  //       controller: pickupController,
-                  //       decoration: const InputDecoration(
-                  //         border: InputBorder.none,
-                  //         hintText: "Set Pickup Location",
-                  //       ),
-                  //       onTap: () {
-                  //         setState(() {
-                  //           _selectingPickup = true;
-                  //           _suggestions.clear();
-                  //         });
-                  //       },
-                  //     ),
-                  //   ),
-                  // ]
-                  // Exhauster & WaterBowser — destination only
-
-
-
-                   // @override
-  // Widget build(BuildContext context) {
-  //   // if (!_isPickupLoaded &&
-  //   //     (widget.category == VehicleCategory.passenger ||
-  //   //         widget.category == VehicleCategory.exhauster)) {
-  //   //   return const Scaffold(body: Center(child: CircularProgressIndicator()));
-  //   // }
-  //   if (!_isPickupLoaded &&
-  //       (widget.category == VehicleCategory.passenger ||
-  //           widget.category == VehicleCategory.exhauster)) {
-  //     return Scaffold(body: _buildFullScreenSkeleton());
-  //   }
-  //   final stops = ref.watch(stopsProvider);
-  //   return Scaffold(
-  //     backgroundColor: const Color(0xFFF9FAFB), // Light background
-  //     appBar: AppBar(
-  //       backgroundColor: Colors.white,
-  //       elevation: 2,
-  //       title: const Text(
-  //         "Enter",
-  //         style: TextStyle(
-  //           color: Colors.black,
-  //           fontSize: 24,
-  //           fontWeight: FontWeight.bold,
-  //         ),
-  //       ),
-  //       centerTitle: true,
-  //       iconTheme: const IconThemeData(color: Colors.black),
-  //     ),
-  //     body: Padding(
-  //       padding: const EdgeInsets.all(16),
-  //       child: Column(
-  //         children: [
-  //           AnimatedContainer(
-  //             duration: const Duration(milliseconds: 300),
-  //             curve: Curves.easeInOut,
-  //             decoration: BoxDecoration(
-  //               color: Colors.white,
-  //               borderRadius: BorderRadius.circular(16),
-  //               boxShadow: [
-  //                 BoxShadow(
-  //                   color: Colors.black.withOpacity(0.15),
-  //                   blurRadius: 8,
-  //                   offset: const Offset(0, 4),
-  //                 ),
-  //               ],
-  //             ),
-  //             child: Column(
-  //               children: [
-  //                 if (widget.category == VehicleCategory.exhauster ||
-  //                     widget.category == VehicleCategory.waterBowser) ...[
-  //                   _buildLocationField(
-  //                     controller: destinationController,
-  //                     icon: Icons.location_on,
-  //                     iconColor: Colors.red,
-
-  //                     // hint: "Enter Destination",
-  //                     hint:
-  //                         widget.category == VehicleCategory.exhauster
-  //                             ? "Collection Location"
-  //                             : "Enter Destination",
-
-  //                     onTap: () {
-  //                       setState(() {
-  //                         _selectingPickup = false;
-  //                         _suggestions.clear();
-  //                       });
-  //                     },
-  //                   ),
-  //                 ] else ...[
-  //                   _buildLocationField(
-  //                     controller: pickupController,
-  //                     icon: Icons.my_location,
-  //                     iconColor: Colors.green,
-  //                     hint: "Set Pickup Location",
-  //                     onTap: () {
-  //                       setState(() {
-  //                         _selectingPickup = true;
-  //                         _suggestions.clear();
-  //                       });
-  //                     },
-  //                   ),
-  //                   const Divider(height: 1, color: Colors.grey),
-
-  //                   //const Divider(),
-  //                   // Padding(
-  //                   //   padding: const EdgeInsets.symmetric(horizontal: 16),
-  //                   //   child: Column(
-  //                   //     children: const [
-  //                   //       Icon(
-  //                   //         Icons.arrow_downward,
-  //                   //         color: Colors.grey,
-  //                   //         size: 20,
-  //                   //       ),
-  //                   //     ],
-  //                   //   ),
-  //                   // ),
-  //                   // _buildLocationField(
-  //                   //   controller: destinationController,
-  //                   //   icon: Icons.location_on,
-  //                   //   iconColor: Colors.red,
-  //                   //   hint: "Enter Destination",
-  //                   //   onTap: () {
-  //                   //     setState(() {
-  //                   //       _selectingPickup = false;
-  //                   //       _suggestions.clear();
-  //                   //     });
-  //                   //   },
-  //                   // ),
-  //                   Row(
-  //                     children: [
-  //                       Expanded(
-  //                         child: _buildLocationField(
-  //                           controller: destinationController,
-  //                           icon: Icons.location_on,
-  //                           iconColor: Colors.red,
-  //                           hint: "Enter Destination",
-  //                           onTap: () {
-  //                             setState(() {
-  //                               _selectingPickup = false;
-  //                               _suggestions.clear();
-  //                             });
-  //                           },
-  //                         ),
-  //                       ),
-
-  //                       // ➕ ADD STOP BUTTON (RIGHT SIDE)
-  //                       IconButton(
-  //                         icon: const Icon(
-  //                           Icons.add_circle,
-  //                           color: Colors.blue,
-  //                           size: 28,
-  //                         ),
-  //                         onPressed: _addStopField,
-  //                       ),
-  //                     ],
-  //                   ),
-
-  //                   _buildLocationField(
-  //                     controller: destinationController,
-  //                     icon: Icons.location_on,
-  //                     iconColor: Colors.red,
-  //                     hint:
-  //                         widget.category == VehicleCategory.exhauster
-  //                             ? "Collection Location"
-  //                             : "Enter Destination",
-  //                     onTap: () {
-  //                       setState(() {
-  //                         _selectingPickup = false;
-  //                         _suggestions.clear();
-  //                       });
-  //                     },
-  //                   ),
-  //                 ],
-  //               ],
-  //             ),
-  //           ),
-  //           // if (_isLoading)
-  //           //   const Padding(
-  //           //     padding: EdgeInsets.all(8),
-  //           //     child: LinearProgressIndicator(),
-  //           //   ),
-  //           if (_isLoading)
-  //             Padding(
-  //               padding: const EdgeInsets.symmetric(vertical: 10),
-  //               child: _buildSuggestionSkeleton(),
-  //             ),
-  //           const SizedBox(height: 10),
-
-  //           // if (_suggestions.isEmpty && _commonPlaces.isNotEmpty)
-  //           //   Expanded(
-  //           //     child: ListView.builder(
-  //           //       itemCount: _commonPlaces.length,
-  //           //       itemBuilder: (_, index) {
-  //           //         final place = _commonPlaces[index];
-  //           //         return Card(
-  //           //           child: ListTile(
-  //           //             leading: Icon(place['icon'], color: Colors.blue),
-  //           //             title: Text(place['name']),
-  //           //             subtitle: Text(place['address']),
-  //           //             onTap:
-  //           //                 () => _onSuggestionTap({
-  //           //                   "place_id": null,
-  //           //                   "geometry": {
-  //           //                     "location": {
-  //           //                       "lat": place['lat'],
-  //           //                       "lng": place['lng'],
-  //           //                     },
-  //           //                   },
-  //           //                   "description": place['name'],
-  //           //                 }),
-  //           //           ),
-  //           //         );
-  //           //       },
-  //           //     ),
-  //           //   ),
-  //           if (_suggestions.isEmpty &&
-  //               widget.category == VehicleCategory.passenger &&
-  //               !_selectingPickup)
-  //             Expanded(
-  //               child:
-  //                   isPlacesLoading
-  //                       ? _buildSkeleton()
-  //                       //const Center(child: CircularProgressIndicator())
-  //                       : ListView.builder(
-  //                         itemCount: _commonPlaces.length,
-  //                         itemBuilder: (_, index) {
-  //                           final place = _commonPlaces[index];
-
-  //                           return Card(
-  //                             child: ListTile(
-  //                               leading: Icon(
-  //                                 place['icon'],
-  //                                 color: Colors.blue,
-  //                               ),
-  //                               title: Text(place['name']),
-  //                               subtitle: Text(place['address']),
-  //                               onTap: () {
-  //                                 final latLng = LatLng(
-  //                                   place['lat'],
-  //                                   place['lng'],
-  //                                 );
-
-  //                                 destinationController.text = place['name'];
-
-  //                                 _onSuggestionTap({
-  //                                   "place_id": null,
-  //                                   "geometry": {
-  //                                     "location": {
-  //                                       "lat": place['lat'],
-  //                                       "lng": place['lng'],
-  //                                     },
-  //                                   },
-  //                                   "description": place['name'],
-  //                                 });
-  //                               },
-  //                             ),
-  //                           );
-  //                         },
-  //                       ),
-  //             ),
-
-  //           // if (_suggestions.isNotEmpty)
-  //           //   Expanded(
-  //           //     child: ListView.builder(
-  //           //       itemCount: _suggestions.length,
-  //           //       itemBuilder: (_, index) {
-  //           //         final place = _suggestions[index];
-  //           //         return Card(
-  //           //           shape: RoundedRectangleBorder(
-  //           //             borderRadius: BorderRadius.circular(12),
-  //           //           ),
-  //           //           elevation: 2,
-  //           //           child: ListTile(
-  //           //             leading: const Icon(
-  //           //               Icons.place_outlined,
-  //           //               color: Colors.blueAccent,
-  //           //             ),
-  //           //             title: Text(
-  //           //               place['description'] ??
-  //           //                   place['structured_formatting']?['main_text'] ??
-  //           //                   "Unknown",
-  //           //               style: const TextStyle(
-  //           //                 fontSize: 16,
-  //           //                 fontWeight: FontWeight.w500,
-  //           //               ),
-  //           //             ),
-  //           //             onTap: () => _onSuggestionTap(place),
-  //           //           ),
-  //           //         );
-  //           //       },
-  //           //     ),
-  //           //   ),
-  //           if (_suggestions.isNotEmpty)
-  //             Expanded(
-  //               child: AnimatedList(
-  //                 initialItemCount: _suggestions.length,
-  //                 itemBuilder: (context, index, animation) {
-  //                   final place = _suggestions[index];
-  //                   return SlideTransition(
-  //                     position: animation.drive(
-  //                       Tween(
-  //                         begin: const Offset(1, 0),
-  //                         end: Offset.zero,
-  //                       ).chain(CurveTween(curve: Curves.easeOut)),
-  //                     ),
-  //                     child: Card(
-  //                       shape: RoundedRectangleBorder(
-  //                         borderRadius: BorderRadius.circular(12),
-  //                       ),
-  //                       elevation: 2,
-  //                       child: ListTile(
-  //                         leading: const Icon(
-  //                           Icons.place_outlined,
-  //                           color: Colors.blueAccent,
-  //                         ),
-  //                         title: Text(
-  //                           place['description'],
-  //                           style: const TextStyle(
-  //                             fontSize: 16,
-  //                             fontWeight: FontWeight.w500,
-  //                           ),
-  //                         ),
-  //                         onTap: () => _onSuggestionTap(place),
-  //                       ),
-  //                     ),
-  //                   );
-  //                 },
-  //               ),
-  //             ),
-
-  //           if (stops.isNotEmpty)
-  //             Expanded(
-  //               child: ListView.builder(
-  //                 itemCount: stops.length,
-  //                 itemBuilder: (_, index) {
-  //                   final stop = stops[index];
-  //                   final latLng = stop['latLng'] as LatLng;
-  //                   final address = stop['address'] as String;
-
-  //                   return Card(
-  //                     child: ListTile(
-  //                       leading: CircleAvatar(child: Text('${index + 1}')),
-  //                       title: Text(address),
-  //                       subtitle: Text(
-  //                         '${latLng.latitude.toStringAsFixed(4)}, ${latLng.longitude.toStringAsFixed(4)}',
-  //                       ),
-  //                       trailing: IconButton(
-  //                         icon: const Icon(Icons.close, color: Colors.red),
-  //                         onPressed: () {
-  //                           final updatedStops = [...stops]..removeAt(index);
-  //                           ref.read(stopsProvider.notifier).state =
-  //                               updatedStops;
-  //                         },
-  //                       ),
-  //                     ),
-  //                   );
-  //                 },
-  //               ),
-  //             ),
-
-  //           // if (_suggestions.isEmpty)
-  //           //   Expanded(
-  //           //     child: ListView.builder(
-  //           //       itemCount: stops.length,
-  //           //       itemBuilder: (_, index) {
-  //           //         final stop = stops[index];
-  //           //         final latLng = stop['latLng'] as LatLng;
-  //           //         final address = stop['address'] as String;
-
-  //           //         return Card(
-  //           //           margin: const EdgeInsets.symmetric(vertical: 6),
-  //           //           shape: RoundedRectangleBorder(
-  //           //             borderRadius: BorderRadius.circular(12),
-  //           //           ),
-  //           //           elevation: 2,
-  //           //           child: ListTile(
-  //           //             leading: CircleAvatar(
-  //           //               backgroundColor: Colors.blue,
-  //           //               child: Text(
-  //           //                 '${index + 1}',
-  //           //                 style: const TextStyle(
-  //           //                   color: Colors.white,
-  //           //                   fontWeight: FontWeight.bold,
-  //           //                 ),
-  //           //               ),
-  //           //             ),
-  //           //             title: Text(
-  //           //               address,
-  //           //               style: const TextStyle(
-  //           //                 fontSize: 16,
-  //           //                 fontWeight: FontWeight.w500,
-  //           //               ),
-  //           //             ),
-  //           //             subtitle: Text(
-  //           //               '${latLng.latitude.toStringAsFixed(4)}, ${latLng.longitude.toStringAsFixed(4)}',
-  //           //               style: const TextStyle(fontSize: 14),
-  //           //             ),
-  //           //             trailing: IconButton(
-  //           //               icon: const Icon(
-  //           //                 Icons.remove_circle,
-  //           //                 color: Colors.redAccent,
-  //           //               ),
-  //           //               onPressed: () {
-  //           //                 final updatedStops = [...stops]..removeAt(index);
-  //           //                 ref.read(stopsProvider.notifier).state =
-  //           //                     updatedStops;
-  //           //               },
-  //           //             ),
-  //           //           ),
-  //           //         );
-  //           //       },
-  //           //     ),
-  //           //   ),
-  //         ],
-  //       ),
-  //     ),
-  //   );
-  // }
-
-    // Future<void> _onSuggestionTap(Map<String, dynamic> place) async {
-  //   LatLng latLng;
-  //   String name;
-
-  //   // ✅ HANDLE nearby places (no place_id)
-  //   if (place['place_id'] == null) {
-  //     latLng = LatLng(
-  //       place['geometry']['location']['lat'],
-  //       place['geometry']['location']['lng'],
-  //     );
-
-  //     name = place['description'] ?? "Selected location";
-  //   } else {
-  //     // 🔵 Existing Google flow (UNCHANGED)
-  //     final placeId = place['place_id'];
-
-  //     final detailsUrl = Uri.parse(
-  //       "https://maps.googleapis.com/maps/api/place/details/json"
-  //       "?place_id=$placeId"
-  //       "&key=$mapKey",
-  //     );
-
-  //     final res = await http.get(detailsUrl);
-  //     if (res.statusCode != 200) {
-  //       _showError("Failed to get location details");
-  //       return;
-  //     }
-
-  //     final details = json.decode(res.body);
-  //     if (details['status'] != 'OK') {
-  //       _showError(details['error_message'] ?? "Failed to get details");
-  //       return;
-  //     }
-
-  //     final location = details['result']['geometry']['location'];
-  //     latLng = LatLng(location['lat'], location['lng']);
-
-  //     name =
-  //         details['result']['name'] ?? // ✅ shorter (better UX)
-  //         details['result']['formatted_address'];
-  //   }
-
-  //   // ✅ COMMON STATE (unchanged behavior)
-  //   setState(() {
-  //     _selectedPlace = {
-  //       'lat': latLng.latitude,
-  //       'lng': latLng.longitude,
-  //       'name': name,
-  //     };
-  //     _suggestions.clear();
-  //   });
-
-  //   if (_selectingPickup) {
-  //     CurrentLocation = latLng;
-  //     pickupController.text = name;
-  //     return;
-  //   } else {
-  //     ref.read(destinationLocationProvider.notifier).state = latLng;
-  //     destinationController.text = name;
-  //     final pickup = CurrentLocation;
-
-  //     if (widget.category == VehicleCategory.waterBowser) {
-  //       Navigator.pop(context, latLng);
-  //       return;
-  //     }
-
-  //     if (pickup != null ||
-  //         (widget.category == VehicleCategory.waterBowser ||
-  //             widget.category == VehicleCategory.exhauster)) {
-  //       Widget screen;
-
-  //       if (widget.IsScheduled != true) {
-  //         if (widget.category == VehicleCategory.passenger) {
-  //           screen = HomeScreen(
-  //             pickup: pickup,
-  //             destination: latLng,
-  //             stops: ref.read(stopsProvider),
-  //             category: widget.category,
-  //           );
-  //           Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-  //         } else if (widget.category == VehicleCategory.movers) {
-  //           Navigator.pop(context, {'destination': latLng, 'pickup': pickup});
-  //         } else if (widget.category == VehicleCategory.cargo) {
-  //           Navigator.pop(context, {'destination': latLng, 'pickup': pickup});
-  //         } else if (widget.category == VehicleCategory.exhauster) {
-  //           Navigator.pop(context, latLng);
-  //         } else if (widget.category == VehicleCategory.waterBowser) {
-  //           Navigator.pop(context, latLng);
-  //         } else if (widget.category == VehicleCategory.breakdown) {
-  //           Navigator.pop(context, latLng);
-  //         } else if (widget.category == VehicleCategory.ambulance) {
-  //           Navigator.pop(context, {'destination': latLng, 'pickup': pickup});
-  //         }
-  //       } else {
-  //         screen = ScheduleRideScreen(
-  //           pickupLocation: pickup,
-  //           dropLocation: latLng,
-  //         );
-  //         Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-  //       }
-  //     } else {
-  //       _showError("Please set pickup location first.");
-  //     }
-  //   }
-  // }
-
-        // body: Padding(
-      //   padding: const EdgeInsets.all(16),
-      //   child: Column(
-      //     children: [
-      //       /// 🔷 INPUT CARD
-      //       AnimatedContainer(
-      //         duration: const Duration(milliseconds: 300),
-      //         curve: Curves.easeInOut,
-      //         decoration: BoxDecoration(
-      //           color: Colors.white,
-      //           borderRadius: BorderRadius.circular(16),
-      //           boxShadow: [
-      //             BoxShadow(
-      //               color: Colors.black.withOpacity(0.15),
-      //               blurRadius: 8,
-      //               offset: const Offset(0, 4),
-      //             ),
-      //           ],
-      //         ),
-      //         child: Column(
-      //           children: [
-      //             /// 🔷 SPECIAL CASE (NO PICKUP)
-      //             if (widget.category == VehicleCategory.exhauster ||
-      //                 widget.category == VehicleCategory.waterBowser) ...[
-      //               _buildLocationField(
-      //                 controller: destinationController,
-      //                 icon: Icons.location_on,
-      //                 iconColor: Colors.red,
-      //                 hint:
-      //                     widget.category == VehicleCategory.exhauster
-      //                         ? "Collection Location"
-      //                         : "Enter Destination",
-      //                 onTap: () {
-      //                   setState(() {
-      //                     _selectingPickup = false;
-      //                     _suggestions.clear();
-      //                   });
-      //                 },
-      //               ),
-      //             ] else ...[
-      //               /// 🔷 PICKUP
-      //               /// 🔷 PICKUP
-      //               _buildLocationField(
-      //                 controller: pickupController,
-      //                 icon: Icons.my_location,
-      //                 iconColor: Colors.green,
-      //                 hint: "Set Pickup Location",
-      //                 onTap: () {
-      //                   setState(() {
-      //                     _selectingPickup = true;
-      //                     _activeStopIndex = null;
-      //                     _suggestions.clear();
-      //                   });
-      //                 },
-      //               ),
-
-      //               const Divider(height: 1, color: Colors.grey),
-
-      //               /// 🔷 STOPS (NOW IN CORRECT POSITION)
-      //               // ...List.generate(stopControllers.length, (index) {
-      //               //   return Column(
-      //               //     children: [
-      //               //       _buildLocationField(
-      //               //         controller: stopControllers[index],
-      //               //         icon: Icons.trip_origin,
-      //               //         iconColor: Colors.orange,
-      //               //         hint: "Stop ${index + 1}",
-      //               //         onTap: () {
-      //               //           setState(() {
-      //               //             _selectingPickup = false;
-      //               //             _activeStopIndex = index; // ✅ VERY IMPORTANT
-      //               //             _suggestions.clear();
-      //               //           });
-      //               //         },
-      //               //       ),
-      //               //       const Divider(height: 1, color: Colors.grey),
-      //               //     ],
-      //               //   );
-      //               // }),
-      //               ...List.generate(stopControllers.length, (index) {
-      //                 return Column(
-      //                   children: [
-      //                     Row(
-      //                       crossAxisAlignment: CrossAxisAlignment.center,
-      //                       children: [
-      //                         Expanded(
-      //                           child: _buildLocationField(
-      //                             controller: stopControllers[index],
-      //                             icon: Icons.trip_origin,
-      //                             iconColor: Colors.orange,
-      //                             hint: "Stop ${index + 1}",
-      //                             onTap: () {
-      //                               setState(() {
-      //                                 _selectingPickup = false;
-      //                                 _activeStopIndex = index;
-      //                                 _suggestions
-      //                                     .clear(); // ✅ clear old suggestions
-      //                               });
-      //                             },
-      //                           ),
-      //                         ),
-
-      //                         /// ❌ REMOVE BUTTON
-      //                         if (stopControllers[index].text.isNotEmpty ||
-      //                             stops.length > index)
-      //                           IconButton(
-      //                             icon: const Icon(
-      //                               Icons.close,
-      //                               color: Colors.red,
-      //                             ),
-      //                             onPressed: () {
-      //                               setState(() {
-      //                                 // ✅ Remove controller safely
-      //                                 stopControllers[index].dispose();
-      //                                 stopControllers.removeAt(index);
-
-      //                                 // ✅ Remove stop safely (avoid crash)
-      //                                 if (stops.length > index) {
-      //                                   final updatedStops = [...stops]
-      //                                     ..removeAt(index);
-      //                                   ref.read(stopsProvider.notifier).state =
-      //                                       updatedStops;
-      //                                 }
-
-      //                                 // ✅ Reset active index if needed
-      //                                 if (_activeStopIndex == index) {
-      //                                   _activeStopIndex = null;
-      //                                 }
-
-      //                                 _suggestions
-      //                                     .clear(); // ✅ FIX: clear suggestions
-      //                               });
-      //                             },
-      //                           ),
-      //                       ],
-      //                     ),
-
-      //                     const Divider(height: 1, color: Colors.grey),
-      //                   ],
-      //                 );
-      //               }),
-
-      //               /// 🔷 DESTINATION + ADD BUTTON
-      //               Row(
-      //                 children: [
-      //                   Expanded(
-      //                     child: _buildLocationField(
-      //                       controller: destinationController,
-      //                       icon: Icons.location_on,
-      //                       iconColor: Colors.red,
-      //                       hint: "Enter Destination",
-      //                       onTap: () {
-      //                         setState(() {
-      //                           _selectingPickup = false;
-      //                           _activeStopIndex = null;
-      //                           _suggestions.clear();
-      //                         });
-      //                       },
-      //                     ),
-      //                   ),
-      //                   IconButton(
-      //                     icon: const Icon(
-      //                       Icons.add_circle,
-      //                       color: Colors.blue,
-      //                       size: 28,
-      //                     ),
-      //                     onPressed: _addStopField,
-      //                   ),
-      //                 ],
-      //               ),
-      //             ],
-      //           ],
-      //         ),
-      //       ),
-
-      //       /// 🔷 LOADING SUGGESTIONS
-      //       if (_isLoading)
-      //         Padding(
-      //           padding: const EdgeInsets.symmetric(vertical: 10),
-      //           child: _buildSuggestionSkeleton(),
-      //         ),
-
-      //       const SizedBox(height: 10),
-
-      //       /// 🔷 NEARBY PLACES (ONLY WHEN NO SEARCH)
-      //       if (_suggestions.isEmpty &&
-      //           widget.category == VehicleCategory.passenger &&
-      //           !_selectingPickup)
-      //         Expanded(
-      //           child:
-      //               isPlacesLoading
-      //                   ? _buildSkeleton()
-      //                   : ListView.builder(
-      //                     itemCount: _commonPlaces.length,
-      //                     itemBuilder: (_, index) {
-      //                       final place = _commonPlaces[index];
-
-      //                       return Card(
-      //                         child: ListTile(
-      //                           leading: Icon(
-      //                             place['icon'],
-      //                             color: Colors.blue,
-      //                           ),
-      //                           title: Text(place['name']),
-      //                           subtitle: Text(place['address']),
-      //                           onTap: () {
-      //                             _onSuggestionTap({
-      //                               "place_id": null,
-      //                               "geometry": {
-      //                                 "location": {
-      //                                   "lat": place['lat'],
-      //                                   "lng": place['lng'],
-      //                                 },
-      //                               },
-      //                               "description": place['name'],
-      //                             });
-      //                           },
-      //                         ),
-      //                       );
-      //                     },
-      //                   ),
-      //         ),
-
-      //       /// 🔷 SEARCH RESULTS
-      //       if (_suggestions.isNotEmpty)
-      //         Expanded(
-      //           child: ListView.builder(
-      //             itemCount: _suggestions.length,
-      //             itemBuilder: (_, index) {
-      //               final place = _suggestions[index];
-
-      //               return Card(
-      //                 shape: RoundedRectangleBorder(
-      //                   borderRadius: BorderRadius.circular(12),
-      //                 ),
-      //                 elevation: 2,
-      //                 child: ListTile(
-      //                   leading: const Icon(
-      //                     Icons.place_outlined,
-      //                     color: Colors.blueAccent,
-      //                   ),
-      //                   title: Text(
-      //                     place['description'],
-      //                     style: const TextStyle(
-      //                       fontSize: 16,
-      //                       fontWeight: FontWeight.w500,
-      //                     ),
-      //                   ),
-      //                   onTap: () => _onSuggestionTap(place),
-      //                 ),
-      //               );
-      //             },
-      //           ),
-      //         ),
-
-      //       /// 🔷 STOPS LIST
-      //       if (_suggestions.isEmpty && stops.isNotEmpty)
-      //         Expanded(
-      //           child: ListView.builder(
-      //             itemCount: stops.length,
-      //             itemBuilder: (_, index) {
-      //               final stop = stops[index];
-      //               final latLng = stop['latLng'] as LatLng;
-      //               final address = stop['address'] as String;
-
-      //               return Card(
-      //                 child: ListTile(
-      //                   leading: CircleAvatar(child: Text('${index + 1}')),
-      //                   title: Text(address),
-      //                   subtitle: Text(
-      //                     '${latLng.latitude.toStringAsFixed(4)}, ${latLng.longitude.toStringAsFixed(4)}',
-      //                   ),
-      //                   trailing: IconButton(
-      //                     icon: const Icon(Icons.close, color: Colors.red),
-      //                     onPressed: () {
-      //                       final updatedStops = [...stops]..removeAt(index);
-      //                       ref.read(stopsProvider.notifier).state =
-      //                           updatedStops;
-      //                     },
-      //                   ),
-      //                 ),
-      //               );
-      //             },
-      //           ),
-      //         ),
-      //     ],
-      //   ),
-
-       // @override
-  // Widget build(BuildContext context) {
-  //   if (!_isPickupLoaded &&
-  //       (widget.category == VehicleCategory.passenger ||
-  //           widget.category == VehicleCategory.exhauster)) {
-  //     return Scaffold(body: _buildFullScreenSkeleton());
-  //   }
-
-  //   final stops = ref.watch(stopsProvider);
-
-  //   return Scaffold(
-  //     backgroundColor: const Color(0xFFF9FAFB),
-  //     appBar: AppBar(
-  //       backgroundColor: Colors.white,
-  //       elevation: 2,
-  //       title: const Text(
-  //         "Enter",
-  //         style: TextStyle(
-  //           color: Colors.black,
-  //           fontSize: 24,
-  //           fontWeight: FontWeight.bold,
-  //         ),
-  //       ),
-  //       centerTitle: true,
-  //       iconTheme: const IconThemeData(color: Colors.black),
-  //     ),
-
-  //     body: Padding(
-  //       padding: const EdgeInsets.all(16),
-  //       child: SingleChildScrollView(
-  //         child: Column(
-  //           children: [
-  //             /// 🔷 INPUT CARD
-  //             AnimatedContainer(
-  //               duration: const Duration(milliseconds: 300),
-  //               curve: Curves.easeInOut,
-  //               decoration: BoxDecoration(
-  //                 color: Colors.white,
-  //                 borderRadius: BorderRadius.circular(16),
-  //                 boxShadow: [
-  //                   BoxShadow(
-  //                     color: Colors.black.withOpacity(0.15),
-  //                     blurRadius: 8,
-  //                     offset: const Offset(0, 4),
-  //                   ),
-  //                 ],
-  //               ),
-  //               child: Column(
-  //                 children: [
-  //                   /// 🔷 SPECIAL CASE (NO PICKUP)
-  //                   if (widget.category == VehicleCategory.exhauster ||
-  //                       widget.category == VehicleCategory.waterBowser) ...[
-  //                     _buildLocationField(
-  //                       controller: destinationController,
-  //                       icon: Icons.location_on,
-  //                       iconColor: Colors.red,
-  //                       hint:
-  //                           widget.category == VehicleCategory.exhauster
-  //                               ? "Collection Location"
-  //                               : "Enter Destination",
-  //                       onTap: () {
-  //                         setState(() {
-  //                           _selectingPickup = false;
-  //                           _suggestions.clear();
-  //                         });
-  //                       },
-  //                     ),
-  //                   ] else ...[
-  //                     /// 🔷 PICKUP
-  //                     _buildLocationField(
-  //                       controller: pickupController,
-  //                       icon: Icons.my_location,
-  //                       iconColor: Colors.green,
-  //                       hint: "Set Pickup Location",
-  //                       onTap: () {
-  //                         setState(() {
-  //                           _selectingPickup = true;
-  //                           _activeStopIndex = null;
-  //                           _suggestions.clear();
-  //                         });
-  //                       },
-  //                     ),
-  //                     const Divider(height: 1, color: Colors.grey),
-
-  //                     /// 🔷 STOPS
-  //                     ...List.generate(stopControllers.length, (index) {
-  //                       return Column(
-  //                         children: [
-  //                           Row(
-  //                             crossAxisAlignment: CrossAxisAlignment.center,
-  //                             children: [
-  //                               Expanded(
-  //                                 child: _buildLocationField(
-  //                                   controller: stopControllers[index],
-  //                                   icon: Icons.trip_origin,
-  //                                   iconColor: Colors.orange,
-  //                                   hint: "Stop ${index + 1}",
-  //                                   onTap: () {
-  //                                     setState(() {
-  //                                       _selectingPickup = false;
-  //                                       _activeStopIndex = index;
-  //                                       _suggestions.clear();
-  //                                     });
-  //                                   },
-  //                                 ),
-  //                               ),
-  //                               IconButton(
-  //                                 icon: const Icon(
-  //                                   Icons.close,
-  //                                   color: Colors.red,
-  //                                 ),
-  //                                 onPressed: () {
-  //                                   setState(() {
-  //                                     stopControllers[index].dispose();
-  //                                     stopControllers.removeAt(index);
-
-  //                                     if (stops.length > index) {
-  //                                       final updatedStops = [...stops]
-  //                                         ..removeAt(index);
-  //                                       ref.read(stopsProvider.notifier).state =
-  //                                           updatedStops;
-  //                                     }
-
-  //                                     if (_activeStopIndex == index)
-  //                                       _activeStopIndex = null;
-  //                                     _suggestions.clear();
-  //                                   });
-  //                                 },
-  //                               ),
-  //                             ],
-  //                           ),
-  //                           const Divider(height: 1, color: Colors.grey),
-  //                         ],
-  //                       );
-  //                     }),
-
-  //                     /// 🔷 DESTINATION + ADD BUTTON
-  //                     Row(
-  //                       children: [
-  //                         Expanded(
-  //                           child: _buildLocationField(
-  //                             controller: destinationController,
-  //                             icon: Icons.location_on,
-  //                             iconColor: Colors.red,
-  //                             hint: "Enter Destination",
-  //                             onTap: () {
-  //                               setState(() {
-  //                                 _selectingPickup = false;
-  //                                 _activeStopIndex = null;
-  //                                 _suggestions.clear();
-  //                               });
-  //                             },
-  //                           ),
-  //                         ),
-  //                         IconButton(
-  //                           icon: const Icon(
-  //                             Icons.add_circle,
-  //                             color: Colors.blue,
-  //                             size: 28,
-  //                           ),
-  //                           onPressed: _addStopField,
-  //                         ),
-  //                       ],
-  //                     ),
-  //                   ],
-  //                 ],
-  //               ),
-  //             ),
-
-  //             /// 🔷 LOADING SUGGESTIONS
-  //             if (_isLoading)
-  //               Padding(
-  //                 padding: const EdgeInsets.symmetric(vertical: 10),
-  //                 child: _buildSuggestionSkeleton(),
-  //               ),
-
-  //             const SizedBox(height: 10),
-
-  //             /// 🔷 NEARBY PLACES
-  //             if (_suggestions.isEmpty &&
-  //                 widget.category == VehicleCategory.passenger &&
-  //                 !_selectingPickup)
-  //               SizedBox(
-  //                 height:
-  //                     300, // fixed height for scroll inside SingleChildScrollView
-  //                 child:
-  //                     isPlacesLoading
-  //                         ? _buildSkeleton()
-  //                         : ListView.builder(
-  //                           itemCount: _commonPlaces.length,
-  //                           itemBuilder: (_, index) {
-  //                             final place = _commonPlaces[index];
-  //                             return Card(
-  //                               child: ListTile(
-  //                                 leading: Icon(
-  //                                   place['icon'],
-  //                                   color: Colors.blue,
-  //                                 ),
-  //                                 title: Text(place['name']),
-  //                                 subtitle: Text(place['address']),
-  //                                 onTap: () {
-  //                                   _onSuggestionTap({
-  //                                     "place_id": null,
-  //                                     "geometry": {
-  //                                       "location": {
-  //                                         "lat": place['lat'],
-  //                                         "lng": place['lng'],
-  //                                       },
-  //                                     },
-  //                                     "description": place['name'],
-  //                                   });
-  //                                 },
-  //                               ),
-  //                             );
-  //                           },
-  //                         ),
-  //               ),
-
-  //             /// 🔷 SEARCH RESULTS
-  //             if (_suggestions.isNotEmpty)
-  //               SizedBox(
-  //                 height: 300,
-  //                 child: ListView.builder(
-  //                   itemCount: _suggestions.length,
-  //                   itemBuilder: (_, index) {
-  //                     final place = _suggestions[index];
-  //                     return Card(
-  //                       shape: RoundedRectangleBorder(
-  //                         borderRadius: BorderRadius.circular(12),
-  //                       ),
-  //                       elevation: 2,
-  //                       child: ListTile(
-  //                         leading: const Icon(
-  //                           Icons.place_outlined,
-  //                           color: Colors.blueAccent,
-  //                         ),
-  //                         title: Text(
-  //                           place['description'],
-  //                           style: const TextStyle(
-  //                             fontSize: 16,
-  //                             fontWeight: FontWeight.w500,
-  //                           ),
-  //                         ),
-  //                         onTap: () => _onSuggestionTap(place),
-  //                       ),
-  //                     );
-  //                   },
-  //                 ),
-  //               ),
-
-  //             /// 🔷 STOPS LIST
-  //             if (_suggestions.isEmpty && stops.isNotEmpty)
-  //               SizedBox(
-  //                 height: 300,
-  //                 child: ListView.builder(
-  //                   itemCount: stops.length,
-  //                   itemBuilder: (_, index) {
-  //                     final stop = stops[index];
-  //                     final latLng = stop['latLng'] as LatLng;
-  //                     final address = stop['address'] as String;
-  //                     return Card(
-  //                       child: ListTile(
-  //                         leading: CircleAvatar(child: Text('${index + 1}')),
-  //                         title: Text(address),
-  //                         subtitle: Text(
-  //                           '${latLng.latitude.toStringAsFixed(4)}, ${latLng.longitude.toStringAsFixed(4)}',
-  //                         ),
-  //                         trailing: IconButton(
-  //                           icon: const Icon(Icons.close, color: Colors.red),
-  //                           onPressed: () {
-  //                             final updatedStops = [...stops]..removeAt(index);
-  //                             ref.read(stopsProvider.notifier).state =
-  //                                 updatedStops;
-  //                           },
-  //                         ),
-  //                       ),
-  //                     );
-  //                   },
-  //                 ),
-  //               ),
-  //           ],
-  //         ),
-  //       ),
-  //     ),
-  //   );
-  // }
+ 

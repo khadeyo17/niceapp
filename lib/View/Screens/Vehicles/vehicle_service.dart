@@ -8,7 +8,7 @@ Future<List<VehicleSubCategory>> fetchVehicleSubCategoriesByType(
 ) async {
   final response = await http.get(
     Uri.parse(
-      '$baseUrl/rides/categories?type=$type',
+      '$baseUrl/passengerrides/categories?type=$type',
     ), // e.g., type=0 for RideBooking
   );
 
@@ -56,7 +56,7 @@ class Subcategory {
 // Future<List<VehicleSubCategory>> fetchVehicleSubCategories() async {
 //   final response = await http.get(
 //     //Uri.parse('$baseUrl/vehicles/getsubcategories'),
-//     Uri.parse('$baseUrl/rides/categories'),
+//     Uri.parse('$baseUrl/passengerrides/categories'),
 //   );
 //   if (response.statusCode == 200) {
 //     final Map<String, dynamic> jsonMap = json.decode(response.body);

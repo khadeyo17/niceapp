@@ -128,7 +128,7 @@ class _AmbulanceScreenState extends State<AmbulanceScreen> {
     if (user == null) return;
 
     final idToken = await user.getIdToken();
-    final url = '$baseUrl/rides/ambulance/book';
+    final url = '$baseUrl/passengerrides/ambulance/book';
 
     final body = {
       "firebaseIdToken": idToken,
@@ -514,7 +514,7 @@ class _AmbulanceScreenState extends State<AmbulanceScreen> {
 //     if (user == null) return;
 
 //     final idToken = await user.getIdToken();
-//     final url = '$baseUrl/rides/ambulance/book';
+//     final url = '$baseUrl/passengerrides/ambulance/book';
 
 //     final body = {
 //       "firebaseIdToken": idToken,
@@ -836,7 +836,7 @@ class _AmbulanceScreenState extends State<AmbulanceScreen> {
 // // //     if (user == null) return;
 
 // // //     final idToken = await user.getIdToken();
-// // //     final url = '$baseUrl/rides/ambulance/book';
+// // //     final url = '$baseUrl/passengerrides/ambulance/book';
 
 // // //     final body = {
 // // //       "firebaseIdToken": idToken,
@@ -1090,7 +1090,7 @@ class _AmbulanceScreenState extends State<AmbulanceScreen> {
 // // // //   }
 
 // // // //   Future<void> pollForDriverAssignment(String rideId) async {
-// // // //     final url = '$baseUrl/rides/myrides/$rideId';
+// // // //     final url = '$baseUrl/passengerrides/myrides/$rideId';
 // // // //     const maxAttempts = 20;
 // // // //     const interval = Duration(seconds: 3);
 
@@ -1152,7 +1152,7 @@ class _AmbulanceScreenState extends State<AmbulanceScreen> {
 // // // //     }
 
 // // // //     final idToken = await user.getIdToken();
-// // // //     final url = '$baseUrl/rides/ambulance/book';
+// // // //     final url = '$baseUrl/passengerrides/ambulance/book';
 // // // //     final pickup = currentLatLng;
 
 // // // //     final pickupLat = pickup!.latitude; // widget.pickup!.latitude;
@@ -1204,7 +1204,7 @@ class _AmbulanceScreenState extends State<AmbulanceScreen> {
 // // // //   Future<List<VehicleSubCategory>> fetchVehicleSubCategories(int type) async {
 // // // //     final response = await http.get(
 // // // //       Uri.parse(
-// // // //         '$baseUrl/rides/categories?type=$type',
+// // // //         '$baseUrl/passengerrides/categories?type=$type',
 // // // //       ), // e.g., type=0 for RideBooking
 // // // //     );
 

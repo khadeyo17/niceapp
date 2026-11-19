@@ -6,6 +6,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:niceapp/Container/utils/keys.dart';
 import 'package:niceapp/View/Routes/routes.dart';
@@ -79,7 +80,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
 
     try {
       final response = await http.get(
-        Uri.parse("$baseUrl/auth/check-user"),
+        Uri.parse("$baseUrl/passengerauth/check-user"),
         headers: {
           HttpHeaders.contentTypeHeader: 'application/json',
           HttpHeaders.authorizationHeader: 'Bearer $token', // ✅ Use token here
@@ -100,7 +101,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
         //   if (context.mounted) context.goNamed(Routes().register);
         //   return;
         // }
-
         //   final hasBackendData =
         //       phoneFromBackend != null && phoneFromBackend.trim().isNotEmpty;
 
@@ -116,7 +116,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
 
         if (hasBackendData) {
           await http.post(
-            Uri.parse('$baseUrl/auth/update-fcm-token'),
+            Uri.parse('$baseUrl/passengerauth/update-fcm-token'),
             headers: {
               'Content-Type': 'application/json',
               'Authorization': 'Bearer $token',
@@ -146,12 +146,12 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
 
   //   try {
   //     final response = await http.get(
-  //       // Uri.parse('$baseUrl/auth/check-user/$uid'),
+  //       // Uri.parse('$baseUrl/passengerauth/check-user/$uid'),
   //       // headers: {
   //       //   'Content-Type': 'application/json',
   //       //   'Authorization': 'Bearer $token',
   //       // },
-  //       Uri.parse("$baseUrl/auth/check-user"),
+  //       Uri.parse("$baseUrl/passengerauth/check-user"),
   //       headers: {
   //         HttpHeaders.contentTypeHeader: 'application/json',
   //         HttpHeaders.authorizationHeader: 'Bearer $token', // ✅ Use token here
@@ -189,7 +189,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
 
   //       // Update FCM token in backend
   //       await http.post(
-  //         Uri.parse('$baseUrl/auth/update-fcm-token'),
+  //         Uri.parse('$baseUrl/passengerauth/update-fcm-token'),
   //         headers: {
   //           'Content-Type': 'application/json',
   //           'Authorization': 'Bearer $token',
@@ -245,7 +245,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
         await handlePostLogin(userCredential.user);
       } else if (widget.method == 'whatsapp') {
         final response = await http.post(
-          Uri.parse("$baseUrl/auth/VerifyWhatsappOTP"),
+          Uri.parse("$baseUrl/passengerauth/VerifyWhatsappOTP"),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'phone': widget.phoneNumber, 'otp': otpCode}),
         );
@@ -259,181 +259,112 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
             .signInWithCustomToken(body['firebaseToken'] as String);
         await handlePostLogin(userCredential.user);
       }
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Verification failed: $e")));
-    } finally {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-          _isVerifying = false;
-        });
-      }
-    }
+    } 
+    catch (e) {
+  if (!mounted) return;
+
+  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+      elevation: 0,
+      backgroundColor: Colors.transparent,
+      duration: const Duration(seconds: 4),
+      content: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1F2937),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE5484D).withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.error_outline_rounded,
+                color: Color(0xFFFF6B6B),
+                size: 22,
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Verification Failed',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+
+                  const SizedBox(height: 4),
+
+                  Text(
+                    e.toString().replaceFirst('Exception: ', ''),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.nunitoSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white70,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 8),
+
+            GestureDetector(
+              onTap: () {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              },
+              child: const Icon(
+                Icons.close_rounded,
+                size: 20,
+                color: Colors.white54,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+} finally {
+  if (mounted) {
+    setState(() {
+      isLoading = false;
+      _isVerifying = false;
+    });
+  }
+}
   }
 
-  // @override
-  // Widget build(BuildContext context) {
-  //   final size = MediaQuery.of(context).size;
-
-  //   return Scaffold(
-  //     body: Container(
-  //       // width: size.width,
-  //       // height: size.height,
-  //       // decoration: const BoxDecoration(
-  //       //   gradient: LinearGradient(
-  //       //     colors: [Colors.., Color(0xFF2575FC)],
-  //       //     begin: Alignment.topLeft,
-  //       //     end: Alignment.bottomRight,
-  //       //   ),
-  //       // ),
-  //       width: size.width,
-  //       height: size.height,
-  //       decoration: BoxDecoration(
-  //         gradient: LinearGradient(
-  //           colors: [Colors.deepPurple, Colors.grey.shade900],
-  //           begin: Alignment.topLeft,
-  //           end: Alignment.bottomRight,
-  //         ),
-  //       ),
-  //       child: SafeArea(
-  //         child: Column(
-  //           children: [
-  //             Align(
-  //               alignment: Alignment.topLeft,
-  //               child: IconButton(
-  //                 icon: const Icon(Icons.arrow_back, color: Colors.white),
-  //                 onPressed: () => context.goNamed(Routes().register),
-  //               ),
-  //             ),
-  //             Expanded(
-  //               child: SingleChildScrollView(
-  //                 child: Center(
-  //                   child: Container(
-  //                     margin: const EdgeInsets.all(24),
-  //                     padding: const EdgeInsets.all(24),
-  //                     decoration: BoxDecoration(
-  //                       color: Colors.white.withOpacity(0.15),
-  //                       borderRadius: BorderRadius.circular(20),
-  //                       boxShadow: [
-  //                         BoxShadow(
-  //                           color: Colors.black.withOpacity(0.1),
-  //                           blurRadius: 10,
-  //                         ),
-  //                       ],
-  //                     ),
-  //                     child: Column(
-  //                       mainAxisSize: MainAxisSize.min,
-  //                       children: [
-  //                         const SizedBox(height: 20),
-  //                         const Icon(
-  //                           Icons.lock_outline,
-  //                           size: 60,
-  //                           color: Colors.white,
-  //                         ),
-  //                         const SizedBox(height: 20),
-  //                         Text(
-  //                           "Verify OTP",
-  //                           style: TextStyle(
-  //                             fontSize: 26,
-  //                             fontWeight: FontWeight.bold,
-  //                             color: Colors.white,
-  //                           ),
-  //                         ),
-  //                         const SizedBox(height: 10),
-  //                         Text(
-  //                           "Enter the 6-digit code sent to",
-  //                           style: TextStyle(
-  //                             fontSize: 16,
-  //                             color: Colors.white70,
-  //                           ),
-  //                         ),
-  //                         const SizedBox(height: 4),
-  //                         Text(
-  //                           widget.phoneNumber,
-  //                           style: const TextStyle(
-  //                             fontWeight: FontWeight.bold,
-  //                             fontSize: 18,
-  //                             color: Colors.white,
-  //                           ),
-  //                         ),
-  //                         const SizedBox(height: 32),
-  //                         PinFieldAutoFill(
-  //                           codeLength: 6,
-  //                           decoration: UnderlineDecoration(
-  //                             textStyle: const TextStyle(
-  //                               fontSize: 22,
-  //                               color: Colors.white,
-  //                             ),
-  //                             colorBuilder: FixedColorBuilder(
-  //                               Colors.white.withOpacity(0.8),
-  //                             ),
-  //                           ),
-  //                           currentCode: otpCode,
-  //                           onCodeChanged: (code) {
-  //                             if (code != null && code.length == 6) {
-  //                               setState(() => otpCode = code);
-  //                               verifyOTP();
-  //                             }
-  //                           },
-  //                         ),
-  //                         const SizedBox(height: 30),
-  //                         GestureDetector(
-  //                           onTap: isLoading ? null : verifyOTP,
-  //                           child: Container(
-  //                             width: double.infinity,
-  //                             padding: const EdgeInsets.symmetric(vertical: 14),
-  //                             decoration: BoxDecoration(
-  //                               // gradient: const LinearGradient(
-  //                               //   colors: [
-  //                               //     Color(0xFFFF512F),
-  //                               //     Color(0xFFF09819),
-  //                               //   ],
-  //                               // ),
-  //                               color: Colors.grey[700],
-  //                               borderRadius: BorderRadius.circular(12),
-  //                             ),
-  //                             child: Center(
-  //                               child:
-  //                                   isLoading
-  //                                       ? const CircularProgressIndicator(
-  //                                         color: Colors.white,
-  //                                       )
-  //                                       : const Text(
-  //                                         "Verify",
-  //                                         style: TextStyle(
-  //                                           color: Colors.white,
-  //                                           fontSize: 18,
-  //                                           fontWeight: FontWeight.bold,
-  //                                         ),
-  //                                       ),
-  //                             ),
-  //                           ),
-  //                         ),
-  //                         const SizedBox(height: 12),
-  //                         TextButton(
-  //                           onPressed: () {
-  //                             // resend OTP logic
-  //                           },
-  //                           child: const Text(
-  //                             "Send OTP Again",
-  //                             style: TextStyle(color: Colors.white70),
-  //                           ),
-  //                         ),
-  //                         const SizedBox(height: 20),
-  //                       ],
-  //                     ),
-  //                   ),
-  //                 ),
-  //               ),
-  //             ),
-  //           ],
-  //         ),
-  //       ),
-  //     ),
-  //   );
-  // }
+  
 
   @override
   Widget build(BuildContext context) {
@@ -457,7 +388,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
             Container(
               padding: const EdgeInsets.all(16),
               decoration: const BoxDecoration(
-                color: Colors.blue,
+                color: Color(0xFF015ACE),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.lock, color: Colors.white, size: 28),
@@ -521,7 +452,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
               child: ElevatedButton(
                 onPressed: isLoading ? null : verifyOTP,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
+                  backgroundColor: Color(0xFF015ACE),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 18),
                   shape: RoundedRectangleBorder(
@@ -641,7 +572,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
 //     try {
 //       // 1️⃣ Check Backend
 //       final response = await http.get(
-//         Uri.parse('$baseUrl/auth/check-user/$uid'),
+//         Uri.parse('$baseUrl/passengerauth/check-user/$uid'),
 //         headers: {
 //           'Content-Type': 'application/json',
 //           'Authorization': 'Bearer $token',
@@ -684,7 +615,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
 //         //   3️⃣ Route Based on Results
 //         if (hasBackendData) {
 //           final response = await http.post(
-//             Uri.parse('$baseUrl/auth/update-fcm-token'),
+//             Uri.parse('$baseUrl/passengerauth/update-fcm-token'),
 //             headers: {
 //               'Content-Type': 'application/json',
 //               'Authorization': 'Bearer $token',
@@ -743,7 +674,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
 //       } else if (widget.method == 'whatsapp') {
 //         // Backend WhatsApp verification → returns firebaseCustomToken
 //         final response = await http.post(
-//           Uri.parse("$baseUrl/auth/VerifyWhatsappOTP"),
+//           Uri.parse("$baseUrl/passengerauth/VerifyWhatsappOTP"),
 //           headers: {'Content-Type': 'application/json'},
 //           body: jsonEncode({'phone': widget.phoneNumber, 'otp': otpCode}),
 //         );

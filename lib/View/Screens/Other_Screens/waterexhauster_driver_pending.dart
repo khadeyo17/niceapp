@@ -53,7 +53,7 @@ class _DriverAssignmentScreenState extends State<DriverAssignmentsScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final url = Uri.parse('$baseUrl/rides/myrides/${widget.rideId}');
+    final url = Uri.parse('$baseUrl/passengerrides/myrides/${widget.rideId}');
 
     try {
       final response = await http.get(url);
@@ -104,6 +104,7 @@ class _DriverAssignmentScreenState extends State<DriverAssignmentsScreen> {
     }
   }
 
+//google
   Future<void> calculateETAAndDistance(LatLng driverLoc) async {
     final dest = widget.destination;
 
@@ -126,10 +127,69 @@ class _DriverAssignmentScreenState extends State<DriverAssignmentsScreen> {
     }
   }
 
+  //mbox
+//   Future<void> calculateETAAndDistance(LatLng driverLoc) async {
+//   final dest = widget.destination;
+
+//   final url = Uri.parse(
+//     'https://api.mapbox.com/directions/v5/mapbox/driving/'
+//     '${driverLoc.longitude},${driverLoc.latitude};'
+//     '${dest.longitude},${dest.latitude}'
+//     '?geometries=polyline'
+//     '&overview=false'
+//     '&steps=false'
+//     '&access_token=$mapboxAccessToken',
+//   );
+
+//   try {
+//     final response = await http.get(url);
+
+//     if (response.statusCode != 200) {
+//       debugPrint("Mapbox HTTP Error: ${response.statusCode}");
+//       return;
+//     }
+
+//     final data = jsonDecode(response.body);
+
+//     if (data["routes"] == null || data["routes"].isEmpty) {
+//       debugPrint("No routes returned from Mapbox");
+//       return;
+//     }
+
+//     final route = data["routes"][0];
+//     final leg = route["legs"][0];
+
+//     final double distance = leg["distance"] / 1000.0;
+//     final int durationMinutes = (leg["duration"] / 60).round();
+
+//     String etaText;
+
+//     if (durationMinutes < 60) {
+//       etaText = "$durationMinutes min";
+//     } else {
+//       final hours = durationMinutes ~/ 60;
+//       final mins = durationMinutes % 60;
+
+//       etaText = mins == 0
+//           ? "$hours hr"
+//           : "$hours hr $mins min";
+//     }
+
+//     if (!mounted) return;
+
+//     setState(() {
+//       eta = etaText;
+//       distanceKm = distance;
+//     });
+//   } catch (e) {
+//     debugPrint("Mapbox ETA Error: $e");
+//   }
+// }
+
   Future<void> cancelRequest() async {
     setState(() => isCancelling = true);
     final response = await http.post(
-      Uri.parse('$baseUrl/rides/cancel/${widget.rideId}'),
+      Uri.parse('$baseUrl/passengerrides/cancel/${widget.rideId}'),
     );
     setState(() => isCancelling = false);
 
@@ -372,7 +432,7 @@ double max(double a, double b) => (a > b) ? a : b;
 //     final user = FirebaseAuth.instance.currentUser;
 //     if (user == null) return;
 
-//     final url = Uri.parse('$baseUrl/rides/myrides/${widget.rideId}');
+//     final url = Uri.parse('$baseUrl/passengerrides/myrides/${widget.rideId}');
 
 //     try {
 //       final response = await http.get(url);
@@ -427,7 +487,7 @@ double max(double a, double b) => (a > b) ? a : b;
 //   Future<void> cancelRequest() async {
 //     setState(() => isCancelling = true);
 //     final response = await http.post(
-//       Uri.parse('$baseUrl/rides/cancel/${widget.rideId}'),
+//       Uri.parse('$baseUrl/passengerrides/cancel/${widget.rideId}'),
 //     );
 //     setState(() => isCancelling = false);
 
