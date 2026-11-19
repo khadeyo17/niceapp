@@ -66,10 +66,7 @@ android {
         versionName = "1.0"//flutter.versionName
         multiDexEnabled=true
 
-
-    //buildConfigField("String", "MAPBOX_ACCESS_TOKEN", "\"${project.findProperty("MAPBOX_DOWNLOADS_TOKEN") ?: ""}\"")
-    //manifestPlaceholders["MAPBOX_ACCESS_TOKEN"] = project.findProperty("MAPBOX_DOWNLOADS_TOKEN") ?: ""
-    }
+  }
 
     buildTypes {
     getByName("release") {
